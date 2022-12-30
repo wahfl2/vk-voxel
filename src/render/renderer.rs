@@ -1,16 +1,28 @@
 use std::sync::Arc;
 
 use vulkano::VulkanLibrary;
+use vulkano::buffer::{CpuAccessibleBuffer, TypedBufferAccess};
+use vulkano::command_buffer::allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo};
+use vulkano::command_buffer::{PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents};
 use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType};
 use vulkano::image::view::ImageView;
 use vulkano::image::{ImageUsage, SwapchainImage};
 use vulkano::instance::{Instance, InstanceCreateInfo};
 use vulkano::device::{Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions};
-use vulkano::render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo};
+use vulkano::pipeline::GraphicsPipeline;
+use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
+use vulkano::pipeline::graphics::vertex_input::BuffersDefinition;
+use vulkano::pipeline::graphics::viewport::{Viewport, ViewportState};
+use vulkano::render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass};
+use vulkano::shader::ShaderModule;
 use vulkano::swapchain::{Surface, Swapchain, SwapchainCreateInfo};
 use vulkano_win::VkSurfaceBuild;
 use winit::event_loop::EventLoop;
-use winit::window::{WindowBuilder, Window};
+use winit::window::WindowBuilder;
+
+use super::shader_module::LoadFromPath;
+use super::util::GetWindow;
+use super::vertex::Vertex;
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
@@ -19,8 +31,15 @@ pub struct Renderer {
     pub vk_physical: Arc<PhysicalDevice>,
     pub vk_device: Arc<Device>,
     pub vk_queue: Arc<Queue>,
+    pub vk_command_buffer_allocator: StandardCommandBufferAllocator,
     pub vk_swapchain: Arc<Swapchain>,
     pub vk_swapchain_images: Vec<Arc<SwapchainImage>>,
+    pub vk_render_pass: Arc<RenderPass>,
+    pub vk_frame_buffers: Vec<Arc<Framebuffer>>,
+    pub vk_pipeline: Arc<GraphicsPipeline>,
+
+    pub viewport: Viewport,
+    pub vertex_buffer: Option<Arc<CpuAccessibleBuffer<[Vertex]>>>,
 }
 
 impl Renderer {
@@ -64,11 +83,16 @@ impl Renderer {
 
         let vk_queue = queues.next().unwrap();
 
+        let vk_command_buffer_allocator = StandardCommandBufferAllocator::new(
+            vk_device.clone(), 
+            StandardCommandBufferAllocatorCreateInfo::default()
+        );
+
         let capabilities = vk_physical
             .surface_capabilities(&vk_surface, Default::default())
             .expect("failed to get surface capabilities");
 
-        let window = vk_surface.object().unwrap().clone().downcast::<Window>().unwrap();
+        let window = vk_surface.get_window().unwrap();
         
         let dimensions = window.inner_size();
         let composite_alpha = capabilities.supported_composite_alpha.iter().next().unwrap();
@@ -94,6 +118,26 @@ impl Renderer {
                 ..Default::default()
             },
         ).unwrap();
+        
+        let viewport = Viewport {
+            origin: [0.0, 0.0],
+            dimensions: window.inner_size().into(),
+            depth_range: 0.0..1.0,
+        };
+
+        let vk_render_pass = Self::get_render_pass(vk_device.clone(), &vk_swapchain);
+        let vk_frame_buffers = Self::get_framebuffers(&vk_swapchain_images, &vk_render_pass);
+
+        let vs = ShaderModule::load(vk_device.clone(), "shader.vert");
+        let fs = ShaderModule::load(vk_device.clone(), "shader.frag");
+
+        let vk_pipeline = Self::get_pipeline(
+            vk_device.clone(), 
+            vs,
+            fs,
+            vk_render_pass.clone(),
+            viewport.clone(),
+        );
 
         Self {
             vk_lib,
@@ -102,8 +146,15 @@ impl Renderer {
             vk_physical,
             vk_device,
             vk_queue,
+            vk_command_buffer_allocator,
             vk_swapchain,
             vk_swapchain_images,
+            vk_render_pass,
+            vk_frame_buffers,
+            vk_pipeline,
+
+            viewport,
+            vertex_buffer: None,
         }
     }
 
@@ -138,14 +189,32 @@ impl Renderer {
             .expect("no device available")
     }
 
-    pub fn get_render_pass(&self) -> Arc<RenderPass> {
+    fn get_pipeline(
+        device: Arc<Device>,
+        vs: Arc<ShaderModule>,
+        fs: Arc<ShaderModule>,
+        render_pass: Arc<RenderPass>,
+        viewport: Viewport,
+    ) -> Arc<GraphicsPipeline> {
+        GraphicsPipeline::start()
+            .vertex_input_state(BuffersDefinition::new().vertex::<Vertex>())
+            .vertex_shader(vs.entry_point("main").unwrap(), ())
+            .input_assembly_state(InputAssemblyState::new())
+            .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
+            .fragment_shader(fs.entry_point("main").unwrap(), ())
+            .render_pass(Subpass::from(render_pass, 0).unwrap())
+            .build(device)
+            .unwrap()
+    }
+
+    fn get_render_pass(device: Arc<Device>, swapchain: &Arc<Swapchain>) -> Arc<RenderPass> {
         vulkano::single_pass_renderpass!(
-            self.vk_device.clone(),
+            device.clone(),
             attachments: {
                 color: {
                     load: Clear,
                     store: Store,
-                    format: self.vk_swapchain.image_format(),
+                    format: swapchain.image_format(),
                     samples: 1,
                 }
             },
@@ -156,8 +225,8 @@ impl Renderer {
         ).unwrap()
     }
 
-    pub fn get_framebuffers(&self, render_pass: &Arc<RenderPass>) -> Vec<Arc<Framebuffer>> {
-        self.vk_swapchain_images
+    fn get_framebuffers(images: &[Arc<SwapchainImage>], render_pass: &Arc<RenderPass>) -> Vec<Arc<Framebuffer>> {
+        images
             .iter()
             .map(|image| {
                 let view = ImageView::new_default(image.clone()).unwrap();
@@ -171,5 +240,37 @@ impl Renderer {
                 .unwrap()
             })
             .collect::<Vec<_>>()
+    }
+
+    pub fn get_command_buffer(&self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
+        let mut builder = AutoCommandBufferBuilder::primary(
+            &self.vk_command_buffer_allocator,
+            self.vk_queue.queue_family_index(),
+            CommandBufferUsage::OneTimeSubmit,  // don't forget to write the correct buffer usage
+        )
+        .unwrap();
+
+        let v_buffer = match &self.vertex_buffer {
+            Some(v) => v,
+            None => panic!("No vertex buffer bound to this renderer.")
+        };
+
+        builder
+            .begin_render_pass(
+                RenderPassBeginInfo {
+                    clear_values: vec![Some([0.1, 0.1, 0.1, 1.0].into())],
+                    ..RenderPassBeginInfo::framebuffer(self.vk_frame_buffers[image_index].clone())
+                },
+                SubpassContents::Inline,
+            )
+            .unwrap()
+            .bind_pipeline_graphics(self.vk_pipeline.clone())
+            .bind_vertex_buffers(0, v_buffer.to_owned())
+            .draw(v_buffer.len() as u32, 1, 0, 0)
+            .unwrap()
+            .end_render_pass()
+            .unwrap();
+
+        Arc::new(builder.build().unwrap())
     }
 }

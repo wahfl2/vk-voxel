@@ -1,8 +1,8 @@
-use vk::renderer::Renderer;
+use render::renderer::Renderer;
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::{EventLoop, ControlFlow}, window::WindowBuilder, event::{Event, WindowEvent}};
 
-pub mod vk;
+pub mod render;
 
 fn main() {
     
