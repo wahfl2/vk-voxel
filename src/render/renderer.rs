@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use vulkano::VulkanLibrary;
+use vulkano::{VulkanLibrary, swapchain};
 use vulkano::buffer::{CpuAccessibleBuffer, TypedBufferAccess};
 use vulkano::command_buffer::allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo};
 use vulkano::command_buffer::{PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents};
@@ -15,13 +15,15 @@ use vulkano::pipeline::graphics::vertex_input::BuffersDefinition;
 use vulkano::pipeline::graphics::viewport::{Viewport, ViewportState};
 use vulkano::render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass};
 use vulkano::shader::ShaderModule;
-use vulkano::swapchain::{Surface, Swapchain, SwapchainCreateInfo};
+use vulkano::swapchain::{Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo};
+use vulkano::sync::{GpuFuture, FlushError};
+use vulkano::sync;
 use vulkano_win::VkSurfaceBuild;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
 
 use super::shader_module::LoadFromPath;
-use super::util::GetWindow;
+use super::util::{GetWindow, RenderState, ExecuteFence};
 use super::vertex::Vertex;
 
 pub struct Renderer {
@@ -40,6 +42,12 @@ pub struct Renderer {
 
     pub viewport: Viewport,
     pub vertex_buffer: Option<Arc<CpuAccessibleBuffer<[Vertex]>>>,
+
+    pub vertex_shader: Arc<ShaderModule>,
+    pub fragment_shader: Arc<ShaderModule>,
+
+    fences: Vec<Option<Arc<ExecuteFence>>>,
+    previous_fence_i: usize,
 }
 
 impl Renderer {
@@ -128,13 +136,13 @@ impl Renderer {
         let vk_render_pass = Self::get_render_pass(vk_device.clone(), &vk_swapchain);
         let vk_frame_buffers = Self::get_framebuffers(&vk_swapchain_images, &vk_render_pass);
 
-        let vs = ShaderModule::load(vk_device.clone(), "shader.vert");
-        let fs = ShaderModule::load(vk_device.clone(), "shader.frag");
+        let vertex_shader = ShaderModule::load(vk_device.clone(), "shader.vert");
+        let fragment_shader = ShaderModule::load(vk_device.clone(), "shader.frag");
 
         let vk_pipeline = Self::get_pipeline(
             vk_device.clone(), 
-            vs,
-            fs,
+            vertex_shader.clone(),
+            fragment_shader.clone(),
             vk_render_pass.clone(),
             viewport.clone(),
         );
@@ -155,6 +163,12 @@ impl Renderer {
 
             viewport,
             vertex_buffer: None,
+
+            vertex_shader,
+            fragment_shader,
+
+            fences: Vec::new(),
+            previous_fence_i: 0,
         }
     }
 
@@ -242,6 +256,36 @@ impl Renderer {
             .collect::<Vec<_>>()
     }
 
+    /// Recreates the swapchain and frame buffers of this renderer.<br>
+    /// Also sets the internal viewport dimensions to the dimensions of the surface.
+    pub fn recreate_swapchain(&mut self) {
+        let dimensions = self.vk_surface.get_window().unwrap().inner_size();
+        self.viewport.dimensions = dimensions.into();
+
+        let (new_swapchain, new_images) = match self.vk_swapchain.recreate(SwapchainCreateInfo {
+            image_extent: dimensions.into(),
+            ..self.vk_swapchain.create_info()
+        }) {
+            Ok(r) => r,
+            Err(SwapchainCreationError::ImageExtentNotSupported { .. }) => return,
+            Err(e) => panic!("Failed to recreate swapchain: {:?}", e),
+        };
+        
+        self.vk_swapchain = new_swapchain;
+        self.vk_frame_buffers = Self::get_framebuffers(&new_images, &self.vk_render_pass);
+    }
+
+    /// Recreates the graphics pipeline of this renderer
+    pub fn recreate_pipeline(&mut self) {
+        self.vk_pipeline = Self::get_pipeline(
+            self.vk_device.clone(), 
+            self.vertex_shader.clone(),
+            self.fragment_shader.clone(),
+            self.vk_render_pass.clone(),
+            self.viewport.clone(),
+        );
+    }
+
     pub fn get_command_buffer(&self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
         let mut builder = AutoCommandBufferBuilder::primary(
             &self.vk_command_buffer_allocator,
@@ -272,5 +316,57 @@ impl Renderer {
             .unwrap();
 
         Arc::new(builder.build().unwrap())
+    }
+
+    pub fn render(&mut self) -> RenderState {
+        let mut state = RenderState::Ok;
+
+        let (image_i, suboptimal, acquire_future) =
+            match swapchain::acquire_next_image(self.vk_swapchain.clone(), None) {
+                Ok(r) => r,
+                Err(AcquireError::OutOfDate) => {
+                    return RenderState::OutOfDate;
+                }
+                Err(e) => panic!("Failed to acquire next image: {:?}", e),
+            };
+        if suboptimal { state = RenderState::Suboptimal; }
+
+        let command_buffer = self.get_command_buffer(image_i as usize);
+
+        // Overwrite the oldest fence and take control for drawing
+        if let Some(image_fence) = &mut self.fences[image_i as usize] {
+            image_fence.cleanup_finished();
+        }
+
+        // Get the previous future
+        let previous_future = match self.fences[self.previous_fence_i].clone() {
+            None => sync::now(self.vk_device.clone()).boxed(),
+            Some(fence) => fence.boxed(),
+        };
+
+        let future = previous_future
+            .join(acquire_future)
+            .then_execute(self.vk_queue.clone(), command_buffer)
+            .unwrap()
+            .then_swapchain_present(
+                self.vk_queue.clone(),
+                SwapchainPresentInfo::swapchain_image_index(self.vk_swapchain.clone(), image_i)
+            )
+            .then_signal_fence_and_flush();
+
+        self.fences[image_i as usize] = match future {
+            Ok(value) => Some(Arc::new(value)),
+            Err(FlushError::OutOfDate) => {
+                return RenderState::OutOfDate
+            }
+            Err(e) => {
+                println!("Failed to flush future: {:?}", e);
+                None
+            }
+        };
+
+        self.previous_fence_i = image_i as usize;
+        
+        state
     }
 }
