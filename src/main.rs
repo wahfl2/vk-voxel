@@ -1,4 +1,4 @@
-use render::{renderer::Renderer, util::RenderState, vertex::Vertex};
+use render::{renderer::Renderer, util::RenderState, vertex::Vertex, fps_log::FpsLog};
 
 use vulkano::{buffer::CpuAccessibleBuffer, memory::allocator::{GenericMemoryAllocator, GenericMemoryAllocatorCreateInfo}};
 use winit::{event_loop::{EventLoop, ControlFlow}, event::{Event, WindowEvent}};
@@ -8,6 +8,7 @@ pub mod render;
 fn main() {
     let event_loop = EventLoop::new();
     let mut renderer = Renderer::new(&event_loop);
+    let mut fps_log = FpsLog::new();
 
     let vertices = [
         Vertex {
@@ -29,6 +30,7 @@ fn main() {
     event_loop.run(move |event, _, control_flow| {
         match event {
             Event::MainEventsCleared => {
+                fps_log.update();
                 if window_resized || recreate_swapchain {
                     recreate_swapchain = false;
                     renderer.recreate_swapchain();
