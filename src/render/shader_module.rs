@@ -11,7 +11,7 @@ impl LoadFromPath for ShaderModule {
     fn load(device: Arc<Device>, path: &str) -> Arc<Self> {
         let compiler = shaderc::Compiler::new().unwrap();
 
-        let shader_path = format!("../shaders/{}", path);
+        let shader_path = format!("./src/shaders/{}", path);
         let src = match fs::read_to_string(shader_path) {
             Ok(s) => s,
             Err(e) => panic!("Error reading shader file '{}': {}", path, e),
