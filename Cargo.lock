@@ -1420,6 +1420,7 @@ dependencies = [
  "rustc_data_structures",
  "shaderc",
  "vulkano",
+ "vulkano-util",
  "vulkano-win",
  "winit",
 ]
@@ -1450,6 +1451,18 @@ dependencies = [
  "smallvec",
  "thread_local",
  "vk-parse",
+]
+
+[[package]]
+name = "vulkano-util"
+version = "0.32.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df7d34bf37d622aa10d63a05396d91566d8298ca04ebc632f536946659a62f58"
+dependencies = [
+ "ahash",
+ "vulkano",
+ "vulkano-win",
+ "winit",
 ]
 
 [[package]]
