@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
+use vulkano::memory::allocator::{StandardMemoryAllocator, PoolAllocator};
 use vulkano::{VulkanLibrary, swapchain};
-use vulkano::buffer::{CpuAccessibleBuffer, TypedBufferAccess};
+use vulkano::buffer::{CpuAccessibleBuffer, TypedBufferAccess, BufferAccess, BufferUsage};
 use vulkano::command_buffer::allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo};
 use vulkano::command_buffer::{PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents};
 use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType};
@@ -9,7 +10,7 @@ use vulkano::image::view::ImageView;
 use vulkano::image::{ImageUsage, SwapchainImage};
 use vulkano::instance::{Instance, InstanceCreateInfo};
 use vulkano::device::{Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions};
-use vulkano::pipeline::GraphicsPipeline;
+use vulkano::pipeline::{GraphicsPipeline, ComputePipeline};
 use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
 use vulkano::pipeline::graphics::vertex_input::BuffersDefinition;
 use vulkano::pipeline::graphics::viewport::{Viewport, ViewportState};
@@ -34,6 +35,7 @@ pub struct Renderer {
     pub vk_device: Arc<Device>,
     pub vk_queue: Arc<Queue>,
     pub vk_command_buffer_allocator: StandardCommandBufferAllocator,
+    pub vk_memory_allocator: StandardMemoryAllocator,
     pub vk_swapchain: Arc<Swapchain>,
     pub vk_swapchain_images: Vec<Arc<SwapchainImage>>,
     pub vk_render_pass: Arc<RenderPass>,
@@ -95,6 +97,8 @@ impl Renderer {
             vk_device.clone(), 
             StandardCommandBufferAllocatorCreateInfo::default()
         );
+        
+        let vk_memory_allocator = StandardMemoryAllocator::new_default(vk_device.clone());
 
         let capabilities = vk_physical
             .surface_capabilities(&vk_surface, Default::default())
@@ -147,6 +151,8 @@ impl Renderer {
             viewport.clone(),
         );
 
+        let fences = vec![None; vk_swapchain_images.len()];
+
         Self {
             vk_lib,
             vk_instance,
@@ -155,6 +161,7 @@ impl Renderer {
             vk_device,
             vk_queue,
             vk_command_buffer_allocator,
+            vk_memory_allocator,
             vk_swapchain,
             vk_swapchain_images,
             vk_render_pass,
@@ -167,7 +174,7 @@ impl Renderer {
             vertex_shader,
             fragment_shader,
 
-            fences: Vec::new(),
+            fences,
             previous_fence_i: 0,
         }
     }
@@ -286,6 +293,18 @@ impl Renderer {
         );
     }
 
+    pub fn overwrite_vbuffer(&mut self, vertices: &[Vertex]) {
+        let mut usage = BufferUsage::empty();
+        usage.vertex_buffer = true;
+
+        self.vertex_buffer = Some(CpuAccessibleBuffer::from_iter(
+            &self.vk_memory_allocator,
+            usage, 
+            false, 
+            vertices.to_owned()
+        ).unwrap());
+    }
+
     pub fn get_command_buffer(&self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
         let mut builder = AutoCommandBufferBuilder::primary(
             &self.vk_command_buffer_allocator,
@@ -344,6 +363,7 @@ impl Renderer {
             Some(fence) => fence.boxed(),
         };
 
+        // Wait for the previous future to finish, and then start rendering the next frame.
         let future = previous_future
             .join(acquire_future)
             .then_execute(self.vk_queue.clone(), command_buffer)

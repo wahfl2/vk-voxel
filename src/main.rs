@@ -1,5 +1,6 @@
-use render::{renderer::Renderer, util::RenderState};
+use render::{renderer::Renderer, util::RenderState, vertex::Vertex};
 
+use vulkano::{buffer::CpuAccessibleBuffer, memory::allocator::{GenericMemoryAllocator, GenericMemoryAllocatorCreateInfo}};
 use winit::{event_loop::{EventLoop, ControlFlow}, event::{Event, WindowEvent}};
 
 pub mod render;
@@ -7,6 +8,20 @@ pub mod render;
 fn main() {
     let event_loop = EventLoop::new();
     let mut renderer = Renderer::new(&event_loop);
+
+    let vertices = [
+        Vertex {
+            position: [-0.5, -0.25],
+        },
+        Vertex {
+            position: [0.0, 0.5],
+        },
+        Vertex {
+            position: [0.25, -0.1],
+        },
+    ];
+
+    renderer.overwrite_vbuffer(&vertices);
 
     let mut window_resized = false;
     let mut recreate_swapchain = false;
