@@ -1,4 +1,4 @@
-use render::{renderer::Renderer, util::RenderState, vertex::Vertex, fps_log::FpsLog};
+use render::{renderer::Renderer, util::RenderState, vertex::VertexRaw, fps_log::FpsLog};
 
 use vulkano::{buffer::CpuAccessibleBuffer, memory::allocator::{GenericMemoryAllocator, GenericMemoryAllocatorCreateInfo}};
 use winit::{event_loop::{EventLoop, ControlFlow}, event::{Event, WindowEvent}};
@@ -11,18 +11,21 @@ fn main() {
     let mut fps_log = FpsLog::new();
 
     let vertices = [
-        Vertex {
-            position: [-0.5, -0.25],
+        VertexRaw {
+            position: [-0.5, -0.25, 0.0],
+            color: [1.0, 0.0, 0.0, 1.0],
         },
-        Vertex {
-            position: [0.0, 0.5],
+        VertexRaw {
+            position: [0.0, 0.5, 0.0],
+            color: [0.0, 1.0, 0.0, 1.0],
         },
-        Vertex {
-            position: [0.25, -0.1],
+        VertexRaw {
+            position: [0.25, -0.1, 0.0],
+            color: [0.0, 0.0, 1.0, 1.0],
         },
     ];
 
-    renderer.overwrite_vbuffer(&vertices);
+    renderer.add_vertices(&vertices);
 
     let mut window_resized = false;
     let mut recreate_swapchain = false;

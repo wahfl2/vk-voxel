@@ -25,7 +25,7 @@ use winit::window::WindowBuilder;
 
 use super::shader_module::LoadFromPath;
 use super::util::{GetWindow, RenderState, ExecuteFence};
-use super::vertex::Vertex;
+use super::vertex::VertexRaw;
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
@@ -43,7 +43,8 @@ pub struct Renderer {
     pub vk_pipeline: Arc<GraphicsPipeline>,
 
     pub viewport: Viewport,
-    pub vertex_buffer: Option<Arc<CpuAccessibleBuffer<[Vertex]>>>,
+    vertex_buffer: Option<Arc<CpuAccessibleBuffer<[VertexRaw]>>>,
+    pub num_vertices: u32,
 
     pub vertex_shader: Arc<ShaderModule>,
     pub fragment_shader: Arc<ShaderModule>,
@@ -170,6 +171,7 @@ impl Renderer {
 
             viewport,
             vertex_buffer: None,
+            num_vertices: 0,
 
             vertex_shader,
             fragment_shader,
@@ -218,7 +220,7 @@ impl Renderer {
         viewport: Viewport,
     ) -> Arc<GraphicsPipeline> {
         GraphicsPipeline::start()
-            .vertex_input_state(BuffersDefinition::new().vertex::<Vertex>())
+            .vertex_input_state(BuffersDefinition::new().vertex::<VertexRaw>())
             .vertex_shader(vs.entry_point("main").unwrap(), ())
             .input_assembly_state(InputAssemblyState::new())
             .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
@@ -293,7 +295,7 @@ impl Renderer {
         );
     }
 
-    pub fn overwrite_vbuffer(&mut self, vertices: &[Vertex]) {
+    pub fn overwrite_vbuffer(&mut self, vertices: &[VertexRaw]) {
         let mut usage = BufferUsage::empty();
         usage.vertex_buffer = true;
 
@@ -303,6 +305,65 @@ impl Renderer {
             false, 
             vertices.to_owned()
         ).unwrap());
+    }
+
+    // TODO: Move the growable buffer to its own struct
+    pub fn add_vertices(&mut self, vertices: &[VertexRaw]) {
+        let mut buffer_usage = BufferUsage::empty();
+        buffer_usage.vertex_buffer = true;
+
+        match &mut self.vertex_buffer {
+            None => {
+                // Create a large buffer to avoid constant recreation
+                let mut buffer_len = 1000;
+                while buffer_len < vertices.len() {
+                    buffer_len *= 2;
+                }
+                let v_slice_len = vertices.len();
+
+                let mut vec = vec![VertexRaw::default(); buffer_len];
+                vec[..v_slice_len].copy_from_slice(vertices);
+                self.num_vertices = v_slice_len as u32;
+
+                self.vertex_buffer = Some(CpuAccessibleBuffer::from_iter(
+                    &self.vk_memory_allocator,
+                    buffer_usage,
+                    false,
+                    vec
+                ).unwrap());
+            },
+            Some(buffer) => {
+                let len = buffer.len();
+                let total = self.num_vertices as u64 + vertices.len() as u64;
+                if total > len {
+                    let mut buffer_len = len * 2;
+                    while buffer_len < total {
+                        buffer_len *= 2;
+                    }
+
+                    let mut vec = Vec::with_capacity(buffer_len as usize);
+                    vec.extend_from_slice(&buffer.read().unwrap());
+                    vec.extend_from_slice(vertices);
+                    vec.resize_with(buffer_len as usize, Default::default);
+
+                    self.vertex_buffer = Some(CpuAccessibleBuffer::from_iter(
+                        &self.vk_memory_allocator,
+                        buffer_usage,
+                        false,
+                        vec
+                    ).unwrap());
+                } else {
+                    match &mut buffer.write() {
+                        Ok(write) => {
+                            let num = self.num_vertices as usize;
+                            write[num..(num + vertices.len())].copy_from_slice(vertices);
+                            self.num_vertices += vertices.len() as u32;
+                        },
+                        Err(e) => { panic!("Could not gain write access to buffer. {}", e) }
+                    }
+                }
+            }
+        }
     }
 
     pub fn get_command_buffer(&self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
@@ -329,7 +390,7 @@ impl Renderer {
             .unwrap()
             .bind_pipeline_graphics(self.vk_pipeline.clone())
             .bind_vertex_buffers(0, v_buffer.to_owned())
-            .draw(v_buffer.len() as u32, 1, 0, 0)
+            .draw(self.num_vertices, 1, 0, 0)
             .unwrap()
             .end_render_pass()
             .unwrap();
@@ -377,7 +438,8 @@ impl Renderer {
         self.fences[image_i as usize] = match future {
             Ok(value) => Some(Arc::new(value)),
             Err(FlushError::OutOfDate) => {
-                return RenderState::OutOfDate
+                state = RenderState::OutOfDate;
+                None
             }
             Err(e) => {
                 println!("Failed to flush future: {:?}", e);
