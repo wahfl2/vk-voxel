@@ -336,6 +336,7 @@ impl Renderer {
                 let len = buffer.len();
                 let total = self.num_vertices as u64 + vertices.len() as u64;
                 if total > len {
+                    // Buffer too large, recreate
                     let mut buffer_len = len * 2;
                     while buffer_len < total {
                         buffer_len *= 2;
@@ -353,6 +354,7 @@ impl Renderer {
                         vec
                     ).unwrap());
                 } else {
+                    // Lock and write to existing buffer
                     match &mut buffer.write() {
                         Ok(write) => {
                             let num = self.num_vertices as usize;
