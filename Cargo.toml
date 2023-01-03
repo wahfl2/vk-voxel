@@ -7,8 +7,10 @@ edition = "2021"
 
 [dependencies]
 bytemuck = { version = "1.12.3", features = ["derive"] }
+rgb = "0.8.34"
 rustc_data_structures = "0.0.1"
 shaderc = "0.8.1"
+ultraviolet = { version = "0.9.0", features = [ "int" ] }
 vulkano = "0.32.3"
 vulkano-util = "0.32.0"
 vulkano-win = "0.32.0"
