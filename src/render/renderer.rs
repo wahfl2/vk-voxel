@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
-use vulkano::memory::allocator::{StandardMemoryAllocator, PoolAllocator};
+use vulkano::memory::allocator::StandardMemoryAllocator;
 use vulkano::{VulkanLibrary, swapchain};
-use vulkano::buffer::{CpuAccessibleBuffer, TypedBufferAccess, BufferAccess, BufferUsage};
+use vulkano::buffer::{CpuAccessibleBuffer, TypedBufferAccess, BufferUsage, BufferAccessObject};
 use vulkano::command_buffer::allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo};
-use vulkano::command_buffer::{PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents};
+use vulkano::command_buffer::{PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfo, DrawIndirectCommand, CopyBufferInfoTyped};
 use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType};
 use vulkano::image::view::ImageView;
 use vulkano::image::{ImageUsage, SwapchainImage};
 use vulkano::instance::{Instance, InstanceCreateInfo};
 use vulkano::device::{Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions};
-use vulkano::pipeline::{GraphicsPipeline, ComputePipeline};
+use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
 use vulkano::pipeline::graphics::vertex_input::BuffersDefinition;
 use vulkano::pipeline::graphics::viewport::{Viewport, ViewportState};
@@ -23,6 +23,8 @@ use vulkano_win::VkSurfaceBuild;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
 
+use super::buffer::allocator::VertexChunkBuffer;
+use super::buffer::buffer_queue::BufferQueueTask;
 use super::shader_module::LoadFromPath;
 use super::util::{GetWindow, RenderState, ExecuteFence};
 use super::vertex::VertexRaw;
@@ -43,7 +45,7 @@ pub struct Renderer {
     pub vk_pipeline: Arc<GraphicsPipeline>,
 
     pub viewport: Viewport,
-    vertex_buffer: Option<Arc<CpuAccessibleBuffer<[VertexRaw]>>>,
+    pub vertex_chunk_buffer: VertexChunkBuffer,
     pub num_vertices: u32,
 
     pub vertex_shader: Arc<ShaderModule>,
@@ -159,7 +161,7 @@ impl Renderer {
             vk_instance,
             vk_surface,
             vk_physical,
-            vk_device,
+            vk_device: vk_device.clone(),
             vk_queue,
             vk_command_buffer_allocator,
             vk_memory_allocator,
@@ -170,7 +172,7 @@ impl Renderer {
             vk_pipeline,
 
             viewport,
-            vertex_buffer: None,
+            vertex_chunk_buffer: VertexChunkBuffer::new(vk_device),
             num_vertices: 0,
 
             vertex_shader,
@@ -295,80 +297,11 @@ impl Renderer {
         );
     }
 
-    pub fn overwrite_vbuffer(&mut self, vertices: &[VertexRaw]) {
-        let mut usage = BufferUsage::empty();
-        usage.vertex_buffer = true;
-
-        self.vertex_buffer = Some(CpuAccessibleBuffer::from_iter(
-            &self.vk_memory_allocator,
-            usage, 
-            false, 
-            vertices.to_owned()
-        ).unwrap());
-    }
-
-    // TODO: Move the growable buffer to its own struct
     pub fn add_vertices(&mut self, vertices: &[VertexRaw]) {
-        let mut buffer_usage = BufferUsage::empty();
-        buffer_usage.vertex_buffer = true;
 
-        match &mut self.vertex_buffer {
-            None => {
-                // Create a large buffer to avoid constant recreation
-                let mut buffer_len = 1000;
-                while buffer_len < vertices.len() {
-                    buffer_len *= 2;
-                }
-                let v_slice_len = vertices.len();
-
-                let mut vec = vec![VertexRaw::default(); buffer_len];
-                vec[..v_slice_len].copy_from_slice(vertices);
-                self.num_vertices = v_slice_len as u32;
-
-                self.vertex_buffer = Some(CpuAccessibleBuffer::from_iter(
-                    &self.vk_memory_allocator,
-                    buffer_usage,
-                    false,
-                    vec
-                ).unwrap());
-            },
-            Some(buffer) => {
-                let len = buffer.len();
-                let total = self.num_vertices as u64 + vertices.len() as u64;
-                if total > len {
-                    // Buffer too large, recreate
-                    let mut buffer_len = len * 2;
-                    while buffer_len < total {
-                        buffer_len *= 2;
-                    }
-
-                    let mut vec = Vec::with_capacity(buffer_len as usize);
-                    vec.extend_from_slice(&buffer.read().unwrap());
-                    vec.extend_from_slice(vertices);
-                    vec.resize_with(buffer_len as usize, Default::default);
-
-                    self.vertex_buffer = Some(CpuAccessibleBuffer::from_iter(
-                        &self.vk_memory_allocator,
-                        buffer_usage,
-                        false,
-                        vec
-                    ).unwrap());
-                } else {
-                    // Lock and write to existing buffer
-                    match &mut buffer.write() {
-                        Ok(write) => {
-                            let num = self.num_vertices as usize;
-                            write[num..(num + vertices.len())].copy_from_slice(vertices);
-                            self.num_vertices += vertices.len() as u32;
-                        },
-                        Err(e) => { panic!("Could not gain write access to buffer. {}", e) }
-                    }
-                }
-            }
-        }
     }
 
-    pub fn get_command_buffer(&self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
+    pub fn get_command_buffer(&mut self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
         let mut builder = AutoCommandBufferBuilder::primary(
             &self.vk_command_buffer_allocator,
             self.vk_queue.queue_family_index(),
@@ -376,10 +309,7 @@ impl Renderer {
         )
         .unwrap();
 
-        let v_buffer = match &self.vertex_buffer {
-            Some(v) => v,
-            None => panic!("No vertex buffer bound to this renderer.")
-        };
+        let v_buffer = self.vertex_chunk_buffer.get_buffer();
 
         builder
             .begin_render_pass(
@@ -389,9 +319,26 @@ impl Renderer {
                 },
                 SubpassContents::Inline,
             )
-            .unwrap()
-            .bind_pipeline_graphics(self.vk_pipeline.clone())
-            .bind_vertex_buffers(0, v_buffer.to_owned())
+            .unwrap();
+            
+        for task in self.vertex_chunk_buffer.queue.flush().into_iter() {
+            match task {
+                BufferQueueTask::Write(write) => {
+                    // TODO: wait for vulkano release lol
+                    // This should be more functional in next release
+                    // builder.update_buffer(task.data.as_slice(), v_buffer.clone(), task.start_idx.into());
+                },
+                BufferQueueTask::Transfer(transfer) => {
+                    let copy = 
+                        CopyBufferInfoTyped::buffers(transfer.src_buf, transfer.dst_buf);
+
+                    builder.copy_buffer(copy).unwrap();
+                },
+            }
+        }
+
+        builder.bind_pipeline_graphics(self.vk_pipeline.clone())
+            .bind_vertex_buffers(0, v_buffer)
             .draw(self.num_vertices, 1, 0, 0)
             .unwrap()
             .end_render_pass()

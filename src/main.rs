@@ -1,6 +1,5 @@
 use render::{renderer::Renderer, util::RenderState, vertex::VertexRaw, fps_log::FpsLog};
 
-use vulkano::{buffer::CpuAccessibleBuffer, memory::allocator::{GenericMemoryAllocator, GenericMemoryAllocatorCreateInfo}};
 use winit::{event_loop::{EventLoop, ControlFlow}, event::{Event, WindowEvent}};
 
 pub mod render;

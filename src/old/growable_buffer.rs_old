@@ -1,0 +1,90 @@
+use std::{sync::Arc, marker::PhantomData};
+
+use smallvec::{SmallVec, smallvec};
+use vulkano::{buffer::{CpuAccessibleBuffer, BufferContents, sys::{Buffer, RawBuffer, BufferCreateInfo}, BufferCreateFlags, BufferUsage}, sync::Sharing, device::Device, memory::{allocator::MemoryAlloc, DeviceMemory, MemoryAllocateInfo, DedicatedAllocation}};
+
+pub struct CpuGrowableBuffer<T> 
+where 
+    T: Sized, [T]: BufferContents,
+{
+    inner: Arc<Buffer>,
+    /// Number of valid bytes in the buffer
+    length_bytes: usize,
+    /// Actual size of the inner buffer
+    size: u64,
+    marker: PhantomData<Box<T>>,
+}
+
+impl<T> CpuGrowableBuffer<T>
+where 
+    T: Sized + BufferContents, [T]: BufferContents,
+{
+    const INITIAL_SIZE: u64 = 1000;
+
+    pub fn new(device: Arc<Device>) -> Self {
+        Self {
+            inner: Self::create_inner(device, Self::INITIAL_SIZE),
+            length_bytes: 0,
+            size: Self::INITIAL_SIZE,
+            marker: PhantomData,
+        }
+    }
+
+    /// Get the number of valid elements in this buffer.
+    pub fn len(&self) -> usize {
+        self.length_bytes / T::size_of_element() as usize
+    }
+
+    pub fn push(&mut self, value: T) {
+        let size_bytes = T::size_of_element();
+
+        let idx = self.length_bytes as u64;
+        let write = &mut self.inner.write(
+            idx..idx + size_bytes
+        ).unwrap();
+
+        write.copy_from_slice(value.as_bytes());
+        self.length_bytes += size_bytes as usize;
+    }
+
+    pub fn append(&mut self, slice: &[T]) {
+        let size_bytes = T::size_of_element() * slice.len() as u64;
+
+        let idx = self.length_bytes as u64;
+        let write = &mut self.inner.write(
+            idx..idx + (size_bytes)
+        ).unwrap();
+
+        write.copy_from_slice(slice.as_bytes());
+        self.length_bytes += size_bytes as usize;
+    }
+
+    fn create_inner(device: Arc<Device>, size: u64) -> Arc<Buffer> {
+        let create_info = BufferCreateInfo {
+            sharing: Sharing::Concurrent(device.active_queue_family_indices().into()), 
+            size, 
+            usage: BufferUsage {
+                vertex_buffer: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let raw = RawBuffer::new(device.clone(), create_info).unwrap();
+        let device_memory = DeviceMemory::allocate(
+            device, 
+            MemoryAllocateInfo::dedicated_allocation(DedicatedAllocation::Buffer(&raw)),
+        ).unwrap();
+        let alloc = MemoryAlloc::new(device_memory).unwrap();
+        raw.bind_memory(alloc).unwrap().into()
+    }
+
+    fn grow_inner(&mut self, device: Arc<Device>) {
+        let old_buffer = self.inner.clone();
+        self.inner = Self::create_inner(device, self.size * 2);
+
+        let write = &mut self.inner.write(0..self.size * 2).unwrap();
+        write.copy_from_slice(&old_buffer.read(0..self.size).unwrap());
+        self.size *= 2;
+    }
+}
