@@ -1447,6 +1447,7 @@ dependencies = [
  "rgb",
  "rustc_data_structures",
  "shaderc",
+ "smallvec",
  "ultraviolet",
  "vulkano",
  "vulkano-util",
