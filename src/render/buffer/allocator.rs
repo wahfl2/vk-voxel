@@ -1,8 +1,8 @@
-use std::{sync::Arc, collections::hash_map::Iter, mem::align_of};
+use std::{sync::Arc, collections::hash_map::Iter};
 
 use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::IVec2;
-use vulkano::{buffer::{BufferUsage, CpuAccessibleBuffer, BufferContents}, device::Device, memory::{allocator::{FastMemoryAllocator}}};
+use vulkano::{buffer::{BufferUsage, CpuAccessibleBuffer}, device::Device, memory::allocator::FastMemoryAllocator};
 
 use crate::render::vertex::VertexRaw;
 
