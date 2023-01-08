@@ -297,15 +297,11 @@ impl Renderer {
         );
     }
 
-    pub fn add_vertices(&mut self, vertices: &[VertexRaw]) {
-
-    }
-
     pub fn get_command_buffer(&mut self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
         let mut builder = AutoCommandBufferBuilder::primary(
             &self.vk_command_buffer_allocator,
             self.vk_queue.queue_family_index(),
-            CommandBufferUsage::OneTimeSubmit,  // don't forget to write the correct buffer usage
+            CommandBufferUsage::OneTimeSubmit,
         )
         .unwrap();
 
@@ -324,9 +320,11 @@ impl Renderer {
         for task in self.vertex_chunk_buffer.queue.flush().into_iter() {
             match task {
                 BufferQueueTask::Write(write) => {
-                    // TODO: wait for vulkano release lol
-                    // This should be more functional in next release
-                    // builder.update_buffer(task.data.as_slice(), v_buffer.clone(), task.start_idx.into());
+                    builder.update_buffer(
+                        write.data.into_boxed_slice(), 
+                        v_buffer.clone(), 
+                        write.start_idx.into()
+                    ).unwrap();
                 },
                 BufferQueueTask::Transfer(transfer) => {
                     let copy = 

@@ -24,7 +24,7 @@ fn main() {
         },
     ];
 
-    renderer.add_vertices(&vertices);
+    // renderer.add_vertices(&vertices);
 
     let mut window_resized = false;
     let mut recreate_swapchain = false;
