@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}}}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self}};
+use vulkano::{memory::allocator::{StandardMemoryAllocator, FastMemoryAllocator}, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}}}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self}, buffer::{DeviceLocalBuffer, BufferUsage}};
 use vulkano_win::VkSurfaceBuild;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
@@ -19,7 +19,7 @@ pub struct Renderer {
     pub vk_device: Arc<Device>,
     pub vk_queue: Arc<Queue>,
     pub vk_command_buffer_allocator: StandardCommandBufferAllocator,
-    pub vk_memory_allocator: StandardMemoryAllocator,
+    pub vk_memory_allocator: FastMemoryAllocator,
     pub vk_swapchain: Arc<Swapchain>,
     pub vk_swapchain_images: Vec<Arc<SwapchainImage>>,
     pub vk_render_pass: Arc<RenderPass>,
@@ -28,6 +28,7 @@ pub struct Renderer {
 
     pub viewport: Viewport,
     pub vertex_chunk_buffer: VertexChunkBuffer,
+    pub indirect_buffer: Option<Arc<DeviceLocalBuffer<[DrawIndirectCommand]>>>,
     pub num_vertices: u32,
 
     pub vertex_shader: Arc<ShaderModule>,
@@ -83,7 +84,7 @@ impl Renderer {
             StandardCommandBufferAllocatorCreateInfo::default()
         );
         
-        let vk_memory_allocator = StandardMemoryAllocator::new_default(vk_device.clone());
+        let vk_memory_allocator = FastMemoryAllocator::new_default(vk_device.clone());
 
         let capabilities = vk_physical
             .surface_capabilities(&vk_surface, Default::default())
@@ -155,6 +156,7 @@ impl Renderer {
 
             viewport,
             vertex_chunk_buffer: VertexChunkBuffer::new(vk_device),
+            indirect_buffer: None,
             num_vertices: 0,
 
             vertex_shader,
@@ -279,27 +281,19 @@ impl Renderer {
         );
     }
 
-    pub fn get_command_buffer(&mut self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
+    pub fn get_command_buffer(&mut self, image_index: usize) -> Option<Arc<PrimaryAutoCommandBuffer>> {
+        let v_buffer = self.vertex_chunk_buffer.get_buffer();
+        
         let mut builder = AutoCommandBufferBuilder::primary(
             &self.vk_command_buffer_allocator,
             self.vk_queue.queue_family_index(),
             CommandBufferUsage::OneTimeSubmit,
         )
         .unwrap();
-
-        let v_buffer = self.vertex_chunk_buffer.get_buffer();
-
-        builder
-            .begin_render_pass(
-                RenderPassBeginInfo {
-                    clear_values: vec![Some([0.1, 0.1, 0.1, 1.0].into())],
-                    ..RenderPassBeginInfo::framebuffer(self.vk_frame_buffers[image_index].clone())
-                },
-                SubpassContents::Inline,
-            )
-            .unwrap();
-            
+        
+        let mut update_indirect_buffer = false;
         for task in self.vertex_chunk_buffer.queue.flush().into_iter() {
+            update_indirect_buffer = true;
             match task {
                 BufferQueueTask::Write(write) => {
                     builder.update_buffer(
@@ -316,15 +310,44 @@ impl Renderer {
                 },
             }
         }
+        
+        if update_indirect_buffer {
+            let data = self.vertex_chunk_buffer.get_indirect_commands();
+            if data.len() > 0 {
+                self.indirect_buffer = Some(DeviceLocalBuffer::from_iter(
+                    &self.vk_memory_allocator, 
+                    data, 
+                    BufferUsage {
+                        indirect_buffer: true,
+                        ..Default::default()
+                    }, 
+                    &mut builder
+                ).unwrap());
+            } else {
+                self.indirect_buffer = None;
+            }
+        }
+
+        if self.indirect_buffer.is_none() { return None }
+
+        builder
+            .begin_render_pass(
+                RenderPassBeginInfo {
+                    clear_values: vec![Some([0.1, 0.1, 0.1, 1.0].into())],
+                    ..RenderPassBeginInfo::framebuffer(self.vk_frame_buffers[image_index].clone())
+                },
+                SubpassContents::Inline,
+            )
+            .unwrap();
 
         builder.bind_pipeline_graphics(self.vk_pipeline.clone())
             .bind_vertex_buffers(0, v_buffer)
-            .draw(self.num_vertices, 1, 0, 0)
+            .draw_indirect(self.indirect_buffer.clone().unwrap().clone())
             .unwrap()
             .end_render_pass()
             .unwrap();
 
-        Arc::new(builder.build().unwrap())
+        Some(Arc::new(builder.build().unwrap()))
     }
 
     pub fn render(&mut self) -> RenderState {
@@ -353,11 +376,14 @@ impl Renderer {
             Some(fence) => fence.boxed(),
         };
 
-        // Wait for the previous future to finish, and then start rendering the next frame.
+        // Wait for the previous future
         let future = previous_future
+            // Wait to acquire swapchain image
             .join(acquire_future)
-            .then_execute(self.vk_queue.clone(), command_buffer)
+            // Execute command buffer
+            .then_execute(self.vk_queue.clone(), command_buffer.unwrap())
             .unwrap()
+            // Present overwritten swapchain image
             .then_swapchain_present(
                 self.vk_queue.clone(),
                 SwapchainPresentInfo::swapchain_image_index(self.vk_swapchain.clone(), image_i)

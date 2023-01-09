@@ -2,15 +2,16 @@ use std::{sync::Arc, collections::hash_map::Iter};
 
 use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::IVec2;
-use vulkano::{buffer::{BufferUsage, CpuAccessibleBuffer}, device::Device, memory::allocator::FastMemoryAllocator};
+use vulkano::{buffer::{BufferUsage, CpuAccessibleBuffer, DeviceLocalBuffer}, device::Device, memory::allocator::FastMemoryAllocator, command_buffer::DrawIndirectCommand};
 
 use crate::render::vertex::VertexRaw;
 
 use super::buffer_queue::BufferQueue;
 
 pub struct VertexChunkBuffer {
-    inner: Arc<CpuAccessibleBuffer<[VertexRaw]>>,
-    inner_size: u64,
+    inner_vertex: Arc<CpuAccessibleBuffer<[VertexRaw]>>,
+    inner_vertex_size: u64,
+    inner_indirect: Option<Arc<CpuAccessibleBuffer<[DrawIndirectCommand]>>>,
     allocator: Arc<FastMemoryAllocator>,
     chunk_allocator: ChunkBufferAllocator,
     allocations: FxHashMap<(i32, i32), ChunkBufferAllocation>,
@@ -24,8 +25,9 @@ impl VertexChunkBuffer {
         let allocator = Arc::new(FastMemoryAllocator::new_default(device.clone()));
 
         VertexChunkBuffer {
-            inner: Self::create_inner(allocator.clone(), Self::INITIAL_SIZE),
-            inner_size: Self::INITIAL_SIZE,
+            inner_vertex: Self::create_inner_vertex(allocator.clone(), Self::INITIAL_SIZE),
+            inner_vertex_size: Self::INITIAL_SIZE,
+            inner_indirect: None,
             allocator,
             chunk_allocator: ChunkBufferAllocator::new(),
             allocations: FxHashMap::default(),
@@ -37,8 +39,8 @@ impl VertexChunkBuffer {
         let size = vertices.len() as u32 * std::mem::size_of::<VertexRaw>() as u32;
         let allocation = self.chunk_allocator.allocate(size);
         self.allocations.insert(chunk_pos.into(), allocation);
-        if allocation.back as u64 >= self.inner_size {
-            self.grow_inner();
+        if allocation.back as u64 >= self.inner_vertex_size {
+            self.grow_inner_vertex();
         }
         self.queue.push_data(allocation.front, vertices);
     }
@@ -53,10 +55,24 @@ impl VertexChunkBuffer {
     }
 
     pub fn get_buffer(&self) -> Arc<CpuAccessibleBuffer<[VertexRaw]>> {
-        self.inner.clone()
+        self.inner_vertex.clone()
     }
 
-    fn create_inner(
+    pub fn get_indirect_commands(&self) -> Vec<DrawIndirectCommand> {
+        let mut ret = Vec::with_capacity(self.allocations.len());
+        for alloc in self.allocations.values() {
+            ret.push(DrawIndirectCommand {
+                vertex_count: alloc.back - alloc.front,
+                instance_count: 1,
+                first_vertex: alloc.front,
+                first_instance: 0,
+            });
+        }
+        ret
+    }
+
+    // TODO: move growable buffer to its own struct maybe
+    fn create_inner_vertex(
         allocator: Arc<FastMemoryAllocator>, 
         size: u64
     ) -> Arc<CpuAccessibleBuffer<[VertexRaw]>> {
@@ -73,13 +89,13 @@ impl VertexChunkBuffer {
         }
     }
 
-    fn grow_inner(&mut self) {
-        let old_buffer = self.inner.clone();
-        self.inner = Self::create_inner(self.allocator.clone(), self.inner_size * 2);
+    fn grow_inner_vertex(&mut self) {
+        let old_buffer = self.inner_vertex.clone();
+        self.inner_vertex = Self::create_inner_vertex(self.allocator.clone(), self.inner_vertex_size * 2);
 
-        let write = &mut self.inner.write().unwrap();
-        write[0..self.inner_size as usize].copy_from_slice(&old_buffer.read().unwrap());
-        self.inner_size *= 2;
+        let write = &mut self.inner_vertex.write().unwrap();
+        write[0..self.inner_vertex_size as usize].copy_from_slice(&old_buffer.read().unwrap());
+        self.inner_vertex_size *= 2;
     }
 }
 
