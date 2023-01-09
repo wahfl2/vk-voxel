@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use vulkano::{swapchain::{Surface, PresentFuture, SwapchainAcquireFuture}, sync::{FenceSignalFuture, JoinFuture, GpuFuture}, command_buffer::CommandBufferExecFuture};
+use vulkano::swapchain::Surface;
 use winit::window::Window;
 
 pub trait GetWindow {
@@ -21,5 +21,3 @@ pub enum RenderState {
     Suboptimal,
     OutOfDate,
 }
-
-pub type ExecuteFence = FenceSignalFuture<PresentFuture<CommandBufferExecFuture<JoinFuture<Box<dyn GpuFuture>, SwapchainAcquireFuture>>>>;

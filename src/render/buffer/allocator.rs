@@ -2,7 +2,7 @@ use std::{sync::Arc, collections::hash_map::Iter};
 
 use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::IVec2;
-use vulkano::{buffer::{BufferUsage, CpuAccessibleBuffer, DeviceLocalBuffer}, device::Device, memory::allocator::FastMemoryAllocator, command_buffer::DrawIndirectCommand};
+use vulkano::{buffer::{BufferUsage, CpuAccessibleBuffer}, device::Device, memory::allocator::FastMemoryAllocator, command_buffer::DrawIndirectCommand};
 
 use crate::render::vertex::VertexRaw;
 
@@ -11,7 +11,6 @@ use super::buffer_queue::BufferQueue;
 pub struct VertexChunkBuffer {
     inner_vertex: Arc<CpuAccessibleBuffer<[VertexRaw]>>,
     inner_vertex_size: u64,
-    inner_indirect: Option<Arc<CpuAccessibleBuffer<[DrawIndirectCommand]>>>,
     allocator: Arc<FastMemoryAllocator>,
     chunk_allocator: ChunkBufferAllocator,
     allocations: FxHashMap<(i32, i32), ChunkBufferAllocation>,
@@ -27,7 +26,6 @@ impl VertexChunkBuffer {
         VertexChunkBuffer {
             inner_vertex: Self::create_inner_vertex(allocator.clone(), Self::INITIAL_SIZE),
             inner_vertex_size: Self::INITIAL_SIZE,
-            inner_indirect: None,
             allocator,
             chunk_allocator: ChunkBufferAllocator::new(),
             allocations: FxHashMap::default(),
