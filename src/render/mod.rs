@@ -4,3 +4,4 @@ pub mod util;
 pub mod vertex;
 pub mod fps_log;
 pub mod buffer;
+pub mod camera;

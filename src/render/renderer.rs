@@ -1,9 +1,13 @@
-use std::sync::Arc;
+use std::{sync::Arc, mem};
 
-use vulkano::{memory::allocator::FastMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}}}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}};
+use bytemuck::{Pod, Zeroable};
+use ultraviolet::{projection, Mat4};
+use vulkano::{memory::allocator::FastMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}}, PipelineLayout, layout::{PipelineLayoutCreateInfo, PushConstantRange}, Pipeline}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::{ShaderModule, ShaderStages, ShaderStage}, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage, CpuAccessibleBuffer}, descriptor_set::{PersistentDescriptorSet, allocator::StandardDescriptorSetAllocator, WriteDescriptorSet}};
 use vulkano_win::VkSurfaceBuild;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
+
+use crate::event_handler::InputHandlerEvent;
 
 use super::buffer::allocator::VertexChunkBuffer;
 use super::buffer::buffer_queue::BufferQueueTask;
@@ -19,17 +23,20 @@ pub struct Renderer {
     pub vk_device: Arc<Device>,
     pub vk_queue: Arc<Queue>,
     pub vk_command_buffer_allocator: StandardCommandBufferAllocator,
+    pub vk_descriptor_set_allocator: StandardDescriptorSetAllocator,
     pub vk_memory_allocator: FastMemoryAllocator,
     pub vk_swapchain: Arc<Swapchain>,
     pub vk_swapchain_images: Vec<Arc<SwapchainImage>>,
     pub vk_render_pass: Arc<RenderPass>,
     pub vk_frame_buffers: Vec<Arc<Framebuffer>>,
     pub vk_pipeline: Arc<GraphicsPipeline>,
+    pub vk_descriptor_set: Arc<PersistentDescriptorSet>,
 
     pub viewport: Viewport,
     pub vertex_chunk_buffer: VertexChunkBuffer,
     pub indirect_buffer: Option<Arc<DeviceLocalBuffer<[DrawIndirectCommand]>>>,
     pub num_vertices: u32,
+    pub cam_uniform: Option<Mat4>,
 
     pub vertex_shader: Arc<ShaderModule>,
     pub fragment_shader: Arc<ShaderModule>,
@@ -39,7 +46,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(event_loop: &EventLoop<()>) -> Self {
+    pub fn new(event_loop: &EventLoop<InputHandlerEvent>) -> Self {
         let vk_lib = VulkanLibrary::new().expect("no local Vulkan library/DLL");
 
         let device_extensions = DeviceExtensions {
@@ -83,6 +90,8 @@ impl Renderer {
             vk_device.clone(), 
             StandardCommandBufferAllocatorCreateInfo::default()
         );
+
+        let vk_descriptor_set_allocator = StandardDescriptorSetAllocator::new(vk_device.clone());
         
         let vk_memory_allocator = FastMemoryAllocator::new_default(vk_device.clone());
 
@@ -137,6 +146,19 @@ impl Renderer {
             viewport.clone(),
         );
 
+        let data_buffer = CpuAccessibleBuffer::from_iter(
+            &vk_memory_allocator,
+            BufferUsage { storage_buffer: true, ..Default::default() },
+            false,
+            0..65536u32,
+        ).unwrap();
+
+        let vk_descriptor_set = PersistentDescriptorSet::new(
+            &vk_descriptor_set_allocator,
+            vk_pipeline.layout().set_layouts()[0].clone(),
+            [WriteDescriptorSet::buffer(0, data_buffer.clone())]
+        ).unwrap();
+
         let fences = vec![None; vk_swapchain_images.len()];
 
         Self {
@@ -147,17 +169,20 @@ impl Renderer {
             vk_device: vk_device.clone(),
             vk_queue,
             vk_command_buffer_allocator,
+            vk_descriptor_set_allocator,
             vk_memory_allocator,
             vk_swapchain,
             vk_swapchain_images,
             vk_render_pass,
             vk_frame_buffers,
             vk_pipeline,
+            vk_descriptor_set,
 
             viewport,
             vertex_chunk_buffer: VertexChunkBuffer::new(vk_device),
             indirect_buffer: None,
             num_vertices: 0,
+            cam_uniform: None,
 
             vertex_shader,
             fragment_shader,
@@ -288,8 +313,14 @@ impl Renderer {
             &self.vk_command_buffer_allocator,
             self.vk_queue.queue_family_index(),
             CommandBufferUsage::OneTimeSubmit,
-        )
-        .unwrap();
+        ).unwrap();
+
+        if let Some(mat) = self.cam_uniform {
+            let pc = PushConstants {
+                camera: mat.into(),
+            };
+            builder.push_constants(self.vk_pipeline.layout().clone(), 0, pc);
+        }
         
         let mut update_indirect_buffer = false;
         for task in self.vertex_chunk_buffer.queue.flush().into_iter() {
@@ -405,4 +436,10 @@ impl Renderer {
         
         state
     }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Zeroable, Pod)]
+pub struct PushConstants {
+    camera: [[f32; 4]; 4],
 }
