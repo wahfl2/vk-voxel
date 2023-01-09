@@ -1,12 +1,15 @@
+use event_handler::{InputHandlerEvent, InputHandler};
 use render::{renderer::Renderer, util::RenderState, vertex::VertexRaw, fps_log::FpsLog};
 
-use winit::{event_loop::{EventLoop, ControlFlow}, event::{Event, WindowEvent}};
+use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent}};
 
 pub mod render;
+pub mod event_handler;
 
 fn main() {
-    let event_loop = EventLoop::new();
+    let event_loop: EventLoop<InputHandlerEvent> = EventLoopBuilder::with_user_event().build();
     let mut renderer = Renderer::new(&event_loop);
+    let mut input_handler = InputHandler::new();
     let mut fps_log = FpsLog::new();
 
     let vertices = [
@@ -48,6 +51,10 @@ fn main() {
                     _ => ()
                 }
             },
+
+            Event::DeviceEvent { event, .. } => {
+                input_handler.handle_event(event);
+            }
 
             Event::WindowEvent { event: WindowEvent::Resized(_), .. } => window_resized = true,
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => *control_flow = ControlFlow::Exit,

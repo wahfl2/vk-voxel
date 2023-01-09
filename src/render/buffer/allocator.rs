@@ -189,11 +189,11 @@ where
         self.back_front.insert(back, front);
     }
 
-    fn get_back(&self, front: &T) -> Option<&T> {
+    fn _get_back(&self, front: &T) -> Option<&T> {
         self.front_back.get(front)
     }
 
-    fn get_front(&self, back: &T) -> Option<&T> {
+    fn _get_front(&self, back: &T) -> Option<&T> {
         self.back_front.get(back)
     }
 
