@@ -1,10 +1,11 @@
 use rustc_data_structures::stable_map::FxHashMap;
-use ultraviolet::{IVec2, Vec3};
-use winit::event::{VirtualKeyCode, DeviceEvent, KeyboardInput, ElementState};
+use ultraviolet::{IVec2, Vec3, Vec2};
+use winit::{event::{VirtualKeyCode, DeviceEvent, KeyboardInput, ElementState}, event_loop::EventLoopProxy};
 
+#[derive(Clone, Debug)]
 pub enum InputHandlerEvent {
     Movement(Vec3),
-    Cursor(IVec2),
+    MouseMovement(Vec2),
 }
 
 pub struct InputHandler {
@@ -16,7 +17,7 @@ impl InputHandler {
         Self { key_press_map: FxHashMap::default() }
     }
 
-    pub fn handle_event(&mut self, event: DeviceEvent) {
+    pub fn handle_event(&mut self, event: DeviceEvent, proxy: &mut EventLoopProxy<InputHandlerEvent>) {
         if let DeviceEvent::Key(
             KeyboardInput { virtual_keycode: Some(key), state, .. }
         ) = event {
@@ -27,6 +28,12 @@ impl InputHandler {
                     ElementState::Released => false,
                 }
             );
+        }
+
+        if let DeviceEvent::MouseMotion { delta } = event {
+            proxy.send_event(
+                InputHandlerEvent::MouseMovement(Vec2::new(delta.0 as f32, delta.1 as f32))
+            ).unwrap();
         }
     }
 

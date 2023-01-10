@@ -33,14 +33,17 @@ impl VertexChunkBuffer {
         }
     }
 
-    pub fn push_chunk_vertices(&mut self, chunk_pos: IVec2, vertices: &[VertexRaw]) {
-        let size = vertices.len() as u32 * std::mem::size_of::<VertexRaw>() as u32;
+    pub fn push_chunk_vertices<'a, V>(&mut self, chunk_pos: IVec2, chunk: V) 
+    where V: Into<Vec<VertexRaw>>,
+    {
+        let verts: Vec<VertexRaw> = chunk.into();
+        let size = verts.len() as u32;
         let allocation = self.chunk_allocator.allocate(size);
         self.allocations.insert(chunk_pos.into(), allocation);
         if allocation.back as u64 >= self.inner_vertex_size {
             self.grow_inner_vertex();
         }
-        self.queue.push_data(allocation.front, vertices);
+        self.queue.push_data(allocation.front, verts);
     }
 
     pub fn remove_chunk(&mut self, chunk_pos: IVec2) {
@@ -80,6 +83,7 @@ impl VertexChunkBuffer {
                 size, 
                 BufferUsage {
                     vertex_buffer: true,
+                    transfer_dst: true,
                     ..Default::default()
                 }, 
                 false

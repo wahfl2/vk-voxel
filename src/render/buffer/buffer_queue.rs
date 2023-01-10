@@ -13,7 +13,7 @@ impl BufferQueue {
         Self { tasks: Vec::new() }
     }
 
-    pub fn push_data(&mut self, start_index: u32, data: &[VertexRaw]) {
+    pub fn push_data(&mut self, start_index: u32, data: Vec<VertexRaw>) {
         let task = WriteTask::new(start_index, data);
         self.tasks.push(BufferQueueTask::Write(task));
     }
@@ -38,10 +38,10 @@ pub struct WriteTask {
 }
 
 impl WriteTask {
-    pub fn new(start_idx: u32, data: &[VertexRaw]) -> Self {
+    pub fn new(start_idx: u32, data: Vec<VertexRaw>) -> Self {
         Self {
             start_idx,
-            data: data.to_owned(),
+            data,
         }
     }
 }
