@@ -1,5 +1,4 @@
 use bytemuck::{Zeroable, Pod};
-use rgb::RGBA;
 use ultraviolet::{Vec3, Vec2};
 
 #[repr(C)]

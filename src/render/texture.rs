@@ -1,9 +1,9 @@
-use std::{fs::File, sync::Arc, path::Path, ffi::OsString};
+use std::{fs::File, sync::Arc, ffi::OsString};
 
 use glob::glob;
 use guillotiere::{SimpleAtlasAllocator, euclid::{Box2D, UnknownUnit}};
 use ultraviolet::UVec2;
-use vulkano::{memory::allocator::{StandardMemoryAllocator, FastMemoryAllocator}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::{ImageView, ImageViewCreateInfo}}, format::Format};
+use vulkano::{memory::allocator::FastMemoryAllocator, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::{ImageView}}, format::Format};
 
 use super::util::VecConvenience;
 

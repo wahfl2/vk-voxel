@@ -1,5 +1,4 @@
 use event_handler::{InputHandlerEvent, InputHandler};
-use glob::glob;
 use render::{renderer::Renderer, util::RenderState, vertex::VertexRaw, fps_log::FpsLog, camera::camera::CameraController};
 
 use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent}};
