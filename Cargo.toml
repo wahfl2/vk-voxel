@@ -7,6 +7,9 @@ edition = "2021"
 
 [dependencies]
 bytemuck = { version = "1.12.3", features = ["derive"] }
+glob = "0.3.1"
+guillotiere = "0.6.2"
+png = "0.17.7"
 rgb = "0.8.34"
 rustc_data_structures = "0.0.1"
 shaderc = "0.8.1"
