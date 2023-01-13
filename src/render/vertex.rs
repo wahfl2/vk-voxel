@@ -1,26 +1,26 @@
 use bytemuck::{Zeroable, Pod};
 use rgb::RGBA;
-use ultraviolet::Vec3;
+use ultraviolet::{Vec3, Vec2};
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Zeroable, Pod)]
 pub struct VertexRaw {
     pub position: [f32; 3],
-    pub color: [f32; 4],
+    pub tex_coords: [f32; 2],
 }
 
-vulkano::impl_vertex!(VertexRaw, position, color);
+vulkano::impl_vertex!(VertexRaw, position, tex_coords);
 
 pub struct Vertex {
     pub position: Vec3,
-    pub color: RGBA<f32>,
+    pub tex_coords: Vec2,
 }
 
 impl From<Vertex> for VertexRaw {
     fn from(value: Vertex) -> Self {
         Self {
-            position: *value.position.as_array(),
-            color: value.color.into(),
+            position: value.position.into(),
+            tex_coords: value.tex_coords.into(),
         }
     }
 }

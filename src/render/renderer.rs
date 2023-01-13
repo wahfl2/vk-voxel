@@ -1,15 +1,15 @@
-use std::sync::Arc;
+use std::{sync::Arc, fs::File};
 
 use bytemuck::{Pod, Zeroable};
 use ultraviolet::Mat4;
-use vulkano::{memory::allocator::FastMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}}, Pipeline}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::{ShaderModule}, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator}};
+use vulkano::{memory::allocator::FastMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand, PipelineExecutionError}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}}, Pipeline, layout::PipelineLayoutCreateInfo, PipelineBindPoint}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::{ShaderModule}, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet, DescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}};
 use vulkano_win::VkSurfaceBuild;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
 
 use crate::event_handler::InputHandlerEvent;
 
-use super::buffer::allocator::VertexChunkBuffer;
+use super::{buffer::allocator::VertexChunkBuffer, texture::TextureAtlas};
 use super::buffer::buffer_queue::BufferQueueTask;
 use super::shader_module::LoadFromPath;
 use super::util::{GetWindow, RenderState};
@@ -25,6 +25,7 @@ pub struct Renderer {
     pub vk_command_buffer_allocator: StandardCommandBufferAllocator,
     pub vk_descriptor_set_allocator: StandardDescriptorSetAllocator,
     pub vk_memory_allocator: FastMemoryAllocator,
+    pub vk_persistent_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
     pub vk_swapchain: Arc<Swapchain>,
     pub vk_swapchain_images: Vec<Arc<SwapchainImage>>,
     pub vk_render_pass: Arc<RenderPass>,
@@ -36,6 +37,10 @@ pub struct Renderer {
     pub indirect_buffer: Option<Arc<DeviceLocalBuffer<[DrawIndirectCommand]>>>,
     pub num_vertices: u32,
     pub cam_uniform: Option<Mat4>,
+    pub texture_atlas: TextureAtlas,
+    pub texture_sampler: Arc<Sampler>,
+
+    pub upload_texture_atlas: bool,
 
     pub vertex_shader: Arc<ShaderModule>,
     pub fragment_shader: Arc<ShaderModule>,
@@ -145,6 +150,17 @@ impl Renderer {
             viewport.clone(),
         );
 
+        let texture_atlas = Self::load_texture_folder_into_atlas("./resources");
+        let texture_sampler = Sampler::new(
+            vk_device.clone(),
+            SamplerCreateInfo {
+                mag_filter: Filter::Nearest,
+                min_filter: Filter::Nearest,
+                address_mode: [SamplerAddressMode::ClampToEdge; 3],
+                ..Default::default()
+            },
+        ).unwrap();
+
         let fences = vec![None; vk_swapchain_images.len()];
 
         Self {
@@ -157,6 +173,7 @@ impl Renderer {
             vk_command_buffer_allocator,
             vk_descriptor_set_allocator,
             vk_memory_allocator,
+            vk_persistent_descriptor_set: None,
             vk_swapchain,
             vk_swapchain_images,
             vk_render_pass,
@@ -168,6 +185,10 @@ impl Renderer {
             indirect_buffer: None,
             num_vertices: 0,
             cam_uniform: None,
+            texture_atlas,
+            texture_sampler,
+
+            upload_texture_atlas: true,
 
             vertex_shader,
             fragment_shader,
@@ -261,6 +282,10 @@ impl Renderer {
             .collect::<Vec<_>>()
     }
 
+    fn load_texture_folder_into_atlas(folder_path: &str) -> TextureAtlas {
+        TextureAtlas::from_folder(folder_path)
+    }
+
     /// Recreates the swapchain and frame buffers of this renderer.<br>
     /// Also sets the internal viewport dimensions to the dimensions of the surface.
     pub fn recreate_swapchain(&mut self) {
@@ -291,7 +316,38 @@ impl Renderer {
         );
     }
 
-    pub fn get_command_buffer(&mut self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
+    /// Get a command buffer that will upload `self`'s texture atlas to the GPU when executed.
+    /// 
+    /// The atlas is stored in `self`'s `PersistentDescriptorSet`
+    pub fn get_upload_command_buffer(&mut self) -> Arc<PrimaryAutoCommandBuffer> {
+        let mut builder = AutoCommandBufferBuilder::primary(
+            &self.vk_command_buffer_allocator, 
+            self.vk_queue.queue_family_index(), 
+            CommandBufferUsage::OneTimeSubmit,
+        ).unwrap();
+
+        let texture = self.texture_atlas.into_texture(
+            &self.vk_memory_allocator, 
+            &mut builder
+        );
+
+        let layout = self.vk_pipeline.layout().set_layouts()[0].to_owned();
+        let set = PersistentDescriptorSet::new(
+            &self.vk_descriptor_set_allocator,
+            layout, 
+            [WriteDescriptorSet::image_view_sampler(
+                0, 
+                texture, 
+                self.texture_sampler.clone(),
+            )]
+        ).unwrap();
+        self.vk_persistent_descriptor_set = Some(set);
+
+        builder.build().unwrap().into()
+    }
+
+    /// Get a command buffer that will render the scene.
+    pub fn get_render_command_buffer(&mut self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
         let v_buffer = self.vertex_chunk_buffer.get_buffer();
         
         let mut builder = AutoCommandBufferBuilder::primary(
@@ -299,6 +355,13 @@ impl Renderer {
             self.vk_queue.queue_family_index(),
             CommandBufferUsage::OneTimeSubmit,
         ).unwrap();
+
+        builder.bind_descriptor_sets(
+            PipelineBindPoint::Graphics, 
+            self.vk_pipeline.layout().to_owned(), 
+            0, 
+            self.vk_persistent_descriptor_set.as_ref().unwrap().to_owned(),
+        );
 
         if let Some(mat) = self.cam_uniform.take() {
             let pc = PushConstants {
@@ -365,6 +428,16 @@ impl Renderer {
         Arc::new(builder.build().unwrap())
     }
 
+    fn get_command_buffers(&mut self, image_index: usize) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
+        let mut ret = Vec::new();
+        if self.upload_texture_atlas || self.vk_persistent_descriptor_set.is_none() {
+            self.upload_texture_atlas = false;
+            ret.push(self.get_upload_command_buffer());
+        }
+        ret.push(self.get_render_command_buffer(image_index));
+        ret
+    }
+
     pub fn render(&mut self) -> RenderState {
         let mut state = RenderState::Ok;
 
@@ -378,7 +451,7 @@ impl Renderer {
             };
         if suboptimal { state = RenderState::Suboptimal; }
 
-        let command_buffer = self.get_command_buffer(image_i as usize);
+        let command_buffers = self.get_command_buffers(image_i as usize);
 
         // Overwrite the oldest fence and take control for drawing
         if let Some(image_fence) = &mut self.fences[image_i as usize] {
@@ -392,14 +465,16 @@ impl Renderer {
         };
 
         // Wait for the previous future
-        let future = previous_future
-            // Wait to acquire swapchain image
-            .join(acquire_future)
-            // Execute command buffer 
-            .then_execute(self.vk_queue.clone(), command_buffer)
-            .unwrap()
-            // Present overwritten swapchain image
-            .then_swapchain_present(
+        let join = previous_future.join(acquire_future);
+
+        let mut exec = join.boxed();
+        for command_buffer in command_buffers.into_iter() {
+            // Execute command buffers in order
+            exec = exec.then_execute(self.vk_queue.clone(), command_buffer).unwrap().boxed();
+        }
+            
+        // Present overwritten swapchain image
+        let future = exec.then_swapchain_present(
                 self.vk_queue.clone(),
                 SwapchainPresentInfo::swapchain_image_index(self.vk_swapchain.clone(), image_i)
             ).boxed() // Box it into a dyn GpuFuture for easier handling

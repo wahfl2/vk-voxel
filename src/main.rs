@@ -1,12 +1,15 @@
 use event_handler::{InputHandlerEvent, InputHandler};
-use render::{renderer::Renderer, util::RenderState, vertex::VertexRaw, fps_log::FpsLog, camera::camera::{Camera, CameraController}};
+use glob::glob;
+use render::{renderer::Renderer, util::RenderState, vertex::VertexRaw, fps_log::FpsLog, camera::camera::CameraController};
 
 use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent}};
 
 pub mod render;
+pub mod world;
 pub mod event_handler;
 
 fn main() {
+    std::env::set_var("RUST_BACKTRACE", "1");
     let event_loop: EventLoop<InputHandlerEvent> = EventLoopBuilder::with_user_event().build();
     let mut proxy = event_loop.create_proxy();
 
@@ -17,16 +20,29 @@ fn main() {
 
     let vertices = [
         VertexRaw {
-            position: [-0.5, -0.25, 0.0],
-            color: [1.0, 0.0, 0.0, 1.0],
+            position: [1.0, 0.0, 0.0],
+            tex_coords: [1.0, 0.0],
         },
         VertexRaw {
-            position: [0.0, 0.5, 0.0],
-            color: [0.0, 1.0, 0.0, 1.0],
+            position: [0.0, 1.0, 0.0],
+            tex_coords: [0.0, 1.0],
         },
         VertexRaw {
-            position: [0.25, -0.1, 0.0],
-            color: [0.0, 0.0, 1.0, 1.0],
+            position: [0.0, 0.0, 0.0],
+            tex_coords: [0.0, 0.0],
+        },
+
+        VertexRaw {
+            position: [1.0, 1.0, 0.0],
+            tex_coords: [1.0, 1.0],
+        },
+        VertexRaw {
+            position: [0.0, 1.0, 0.0],
+            tex_coords: [0.0, 1.0],
+        },
+        VertexRaw {
+            position: [1.0, 0.0, 0.0],
+            tex_coords: [1.0, 0.0],
         },
     ];
 

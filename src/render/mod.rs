@@ -5,3 +5,5 @@ pub mod vertex;
 pub mod fps_log;
 pub mod buffer;
 pub mod camera;
+pub mod mesh;
+pub mod texture;

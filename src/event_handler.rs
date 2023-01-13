@@ -1,5 +1,5 @@
 use rustc_data_structures::stable_map::FxHashMap;
-use ultraviolet::{IVec2, Vec3, Vec2};
+use ultraviolet::{Vec3, Vec2};
 use winit::{event::{VirtualKeyCode, DeviceEvent, KeyboardInput, ElementState}, event_loop::EventLoopProxy};
 
 #[derive(Clone, Debug)]

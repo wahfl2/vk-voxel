@@ -1,8 +1,10 @@
-use ultraviolet::{Mat4, projection, Isometry3, Vec3, Rotor3, Vec2, IVec2, Rotor2};
+use std::f32::consts::{FRAC_PI_2, PI};
+
+use ultraviolet::{Mat4, projection, Isometry3, Vec3, Rotor3, Vec2, Rotor2};
 use vulkano::pipeline::graphics::viewport::Viewport;
 use winit::event::VirtualKeyCode;
 
-use crate::event_handler::{InputHandlerEvent, InputHandler};
+use crate::event_handler::InputHandler;
 
 pub struct Camera {
     pub pos: Vec3,
@@ -61,7 +63,12 @@ impl CameraController {
 
     pub fn turn(&mut self, delta: Vec2) {
         self.camera.yaw += delta.x * self.sensitivity;
+        if self.camera.yaw.abs() > 2.0 * PI {
+            self.camera.yaw = self.camera.yaw % (2.0 * PI)
+        }
+
         self.camera.pitch -= delta.y * self.sensitivity;
+        self.camera.pitch = self.camera.pitch.clamp(-FRAC_PI_2, FRAC_PI_2);
     }
 
     pub fn tick(&mut self, input: &InputHandler) {
