@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
 use ultraviolet::Mat4;
-use vulkano::{memory::allocator::FastMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}}, Pipeline, PipelineBindPoint}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet, DescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}};
+use vulkano::{memory::allocator::FastMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet, DescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}};
 use vulkano_win::VkSurfaceBuild;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
@@ -198,6 +198,9 @@ impl Renderer {
         }
     }
 
+    /// Select the best available phyisical device.
+    /// 
+    /// Returns the device and queue family index.
     fn select_physical_device(
         instance: &Arc<Instance>,
         surface: &Arc<Surface>,
@@ -229,6 +232,7 @@ impl Renderer {
             .expect("no device available")
     }
 
+    /// Get the graphics pipeline
     fn get_pipeline(
         device: Arc<Device>,
         vs: Arc<ShaderModule>,
@@ -237,6 +241,11 @@ impl Renderer {
         viewport: Viewport,
     ) -> Arc<GraphicsPipeline> {
         GraphicsPipeline::start()
+            .rasterization_state(RasterizationState {
+                cull_mode: StateMode::Fixed(CullMode::Back),
+                front_face: StateMode::Fixed(FrontFace::CounterClockwise),
+                ..Default::default()
+            })
             .vertex_input_state(BuffersDefinition::new().vertex::<VertexRaw>())
             .vertex_shader(vs.entry_point("main").unwrap(), ())
             .input_assembly_state(InputAssemblyState::new())
@@ -428,6 +437,7 @@ impl Renderer {
         Arc::new(builder.build().unwrap())
     }
 
+    /// Get the command buffers to be executed on the GPU this frame.
     fn get_command_buffers(&mut self, image_index: usize) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
         let mut ret = Vec::new();
         if self.upload_texture_atlas || self.vk_persistent_descriptor_set.is_none() {
@@ -438,6 +448,7 @@ impl Renderer {
         ret
     }
 
+    /// Renders the scene
     pub fn render(&mut self) -> RenderState {
         let mut state = RenderState::Ok;
 
@@ -474,13 +485,14 @@ impl Renderer {
         }
             
         // Present overwritten swapchain image
-        let future = exec.then_swapchain_present(
-                self.vk_queue.clone(),
-                SwapchainPresentInfo::swapchain_image_index(self.vk_swapchain.clone(), image_i)
-            ).boxed() // Box it into a dyn GpuFuture for easier handling
+        let present_future = exec.then_swapchain_present(
+            self.vk_queue.clone(),
+            SwapchainPresentInfo::swapchain_image_index(self.vk_swapchain.clone(), image_i)
+        )
+            .boxed() // Box it into a dyn GpuFuture for easier handling
             .then_signal_fence_and_flush();
 
-        self.fences[image_i as usize] = match future {
+        self.fences[image_i as usize] = match present_future {
             Ok(value) => Some(Arc::new(value)),
             Err(FlushError::OutOfDate) => {
                 state = RenderState::OutOfDate;
