@@ -39,6 +39,7 @@ impl TextureAtlas {
         let mut allocator = SimpleAtlasAllocator::new(atlas_size.to_size_2d());
 
         let mut atlas_data = vec![0u8; (atlas_size.x * atlas_size.y * 4) as usize];
+        let atlas_row_len = atlas_size.x as usize;
         let mut allocations = Vec::new();
         for image in images.iter() {
             let alloc = match allocator.allocate(image.dimensions.to_size_2d()) {
@@ -46,14 +47,14 @@ impl TextureAtlas {
                 None => panic!("Ran out of space in the altas!")
             };
 
-            let row_len = image.dimensions.x as usize;
+            let image_row_len = image.dimensions.x as usize;
             for row in 0..image.dimensions.y as usize {
-                let image_row_start = row * row_len;
-                let image_row_end = (row + 1) * row_len;
+                let image_row_start = row * image_row_len;
+                let image_row_end = (row + 1) * image_row_len;
 
-                let atlas_min_idx = alloc.min.y as usize * row_len + alloc.min.x as usize;
-                let atlas_row_start = image_row_start + atlas_min_idx;
-                let atlas_row_end = image_row_end + atlas_min_idx;
+                let alloc_min_idx = alloc.min.y as usize * atlas_row_len + alloc.min.x as usize;
+                let atlas_row_start = row * atlas_row_len + alloc_min_idx;
+                let atlas_row_end = atlas_row_start + image_row_len;
                 
                 atlas_data[(atlas_row_start * 4)..(atlas_row_end * 4)].copy_from_slice(
                     &image.data[(image_row_start * 4)..(image_row_end * 4)]
