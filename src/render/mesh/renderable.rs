@@ -1,4 +1,4 @@
-use crate::{render::{vertex::VertexRaw, texture::TextureAtlas}};
+use crate::render::{vertex::VertexRaw, texture::TextureAtlas};
 
 pub trait Renderable {
     fn get_vertices(&self, atlas: &TextureAtlas) -> Vec<VertexRaw>;
