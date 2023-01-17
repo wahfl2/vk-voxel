@@ -4,7 +4,7 @@ use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::IVec2;
 use vulkano::{buffer::{BufferUsage, CpuAccessibleBuffer}, device::Device, memory::allocator::FastMemoryAllocator, command_buffer::DrawIndirectCommand};
 
-use crate::render::vertex::VertexRaw;
+use crate::render::{vertex::VertexRaw, mesh::renderable::Renderable, texture::TextureAtlas};
 
 use super::buffer_queue::BufferQueue;
 
@@ -33,10 +33,9 @@ impl VertexChunkBuffer {
         }
     }
 
-    pub fn push_chunk_vertices<'a, V>(&mut self, chunk_pos: IVec2, chunk: V) 
-    where V: Into<Vec<VertexRaw>>,
+    pub fn push_chunk_vertices(&mut self, chunk_pos: IVec2, chunk: impl Renderable, atlas: &TextureAtlas)
     {
-        let verts: Vec<VertexRaw> = chunk.into();
+        let verts: Vec<VertexRaw> = chunk.get_vertices(atlas);
         let size = verts.len() as u32;
         let allocation = self.chunk_allocator.allocate(size);
         self.allocations.insert(chunk_pos.into(), allocation);

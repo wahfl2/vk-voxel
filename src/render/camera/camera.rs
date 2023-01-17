@@ -6,6 +6,8 @@ use winit::event::VirtualKeyCode;
 
 use crate::event_handler::InputHandler;
 
+const RADIANS: f32 = PI / 180.0;
+
 pub struct Camera {
     pub pos: Vec3,
     pub yaw: f32,
@@ -32,7 +34,7 @@ impl Camera {
     /// Returns the matrix representing view projection and this camera's transform.
     pub fn calculate_matrix(&self, viewport: &Viewport) -> Mat4 {
         let aspect_ratio = viewport.dimensions[0] / viewport.dimensions[1];
-        let proj = projection::perspective_vk(self.fov, aspect_ratio, self.near, self.far);
+        let proj = projection::perspective_vk(self.fov * RADIANS, aspect_ratio, self.near, self.far);
 
         let yaw_rot = Rotor3::from_rotation_xz(self.yaw);
         let pitch_rot = Rotor3::from_rotation_yz(self.pitch);
@@ -62,12 +64,12 @@ impl CameraController {
     }
 
     pub fn turn(&mut self, delta: Vec2) {
-        self.camera.yaw += delta.x * self.sensitivity;
+        self.camera.yaw -= delta.x * self.sensitivity;
         if self.camera.yaw.abs() > 2.0 * PI {
             self.camera.yaw = self.camera.yaw % (2.0 * PI)
         }
 
-        self.camera.pitch -= delta.y * self.sensitivity;
+        self.camera.pitch += delta.y * self.sensitivity;
         self.camera.pitch = self.camera.pitch.clamp(-FRAC_PI_2, FRAC_PI_2);
     }
 
@@ -80,13 +82,13 @@ impl CameraController {
             movement.y += 1.0;
         }
         if input.is_pressed(VirtualKeyCode::A) {
-            movement.x -= 1.0;
+            movement.x += 1.0;
         }
         if input.is_pressed(VirtualKeyCode::S) {
             movement.y -= 1.0;
         }
         if input.is_pressed(VirtualKeyCode::D) {
-            movement.x += 1.0;
+            movement.x -= 1.0;
         }
 
         if movement != Vec2::zero() {
@@ -96,10 +98,10 @@ impl CameraController {
 
         let mut vertical = 0.0;
         if input.is_pressed(VirtualKeyCode::Space) {
-            vertical += MOVEMENT_SPEED;
+            vertical -= MOVEMENT_SPEED;
         }
         if input.is_pressed(VirtualKeyCode::LShift) {
-            vertical -= MOVEMENT_SPEED;
+            vertical += MOVEMENT_SPEED;
         }
 
         self.camera.pos += Vec3::new(movement.x, vertical, movement.y);

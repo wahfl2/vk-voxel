@@ -3,13 +3,14 @@ use std::{fs::File, sync::Arc, ffi::OsString};
 use glob::glob;
 use guillotiere::{SimpleAtlasAllocator, euclid::{Box2D, UnknownUnit}};
 use ultraviolet::UVec2;
-use vulkano::{memory::allocator::FastMemoryAllocator, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::{ImageView}}, format::Format};
+use vulkano::{memory::allocator::FastMemoryAllocator, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::ImageView}, format::Format};
 
-use super::util::VecConvenience;
+use super::{util::{VecConvenience, BoxToUV}, mesh::quad::QuadUV};
 
 pub struct TextureAtlas {
     pub data: ImageData,
     pub allocations: Vec<Box2D<i32, UnknownUnit>>,
+    pub uvs: Vec<QuadUV>,
 }
 
 impl TextureAtlas {
@@ -41,6 +42,7 @@ impl TextureAtlas {
         let mut atlas_data = vec![0u8; (atlas_size.x * atlas_size.y * 4) as usize];
         let atlas_row_len = atlas_size.x as usize;
         let mut allocations = Vec::new();
+        let mut uvs = Vec::new();
         for image in images.iter() {
             let alloc = match allocator.allocate(image.dimensions.to_size_2d()) {
                 Some(a) => a,
@@ -62,15 +64,17 @@ impl TextureAtlas {
             }
 
             allocations.push(alloc);
+            uvs.push(alloc.to_quad_uv(atlas_size));
         }
 
         Self {
             data: ImageData::new(atlas_data, atlas_size),
             allocations,
+            uvs,
         }
     }
 
-    pub fn into_texture(
+    pub fn get_texture(
         &self,
         allocator: &FastMemoryAllocator,
         cbb: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
@@ -85,6 +89,11 @@ impl TextureAtlas {
         ).unwrap();
 
         ImageView::new_default(image).unwrap()
+    }
+
+    pub fn get_uv(&self, texture_idx: usize) -> QuadUV {
+        let alloc = self.allocations[texture_idx];
+        alloc.to_quad_uv(self.data.dimensions)
     }
 }
 

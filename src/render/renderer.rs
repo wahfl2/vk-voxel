@@ -1,19 +1,14 @@
 use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
-use ultraviolet::Mat4;
-use vulkano::{memory::allocator::FastMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet, DescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}};
+use ultraviolet::{Mat4, IVec2};
+use vulkano::{memory::allocator::{FastMemoryAllocator, StandardMemoryAllocator}, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage, AttachmentImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
 use vulkano_win::VkSurfaceBuild;
-use winit::event_loop::EventLoop;
-use winit::window::WindowBuilder;
+use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
 
 use crate::event_handler::InputHandlerEvent;
 
-use super::{buffer::allocator::VertexChunkBuffer, texture::TextureAtlas};
-use super::buffer::buffer_queue::BufferQueueTask;
-use super::shader_module::LoadFromPath;
-use super::util::{GetWindow, RenderState};
-use super::vertex::VertexRaw;
+use super::{buffer::{allocator::VertexChunkBuffer, buffer_queue::BufferQueueTask}, texture::TextureAtlas, shader_module::LoadFromPath, util::{GetWindow, RenderState}, vertex::VertexRaw, mesh::renderable::Renderable};
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
@@ -137,7 +132,7 @@ impl Renderer {
         };
 
         let vk_render_pass = Self::get_render_pass(vk_device.clone(), &vk_swapchain);
-        let vk_frame_buffers = Self::get_framebuffers(&vk_swapchain_images, &vk_render_pass);
+        let vk_frame_buffers = Self::get_framebuffers(&vk_swapchain_images, dimensions, &vk_render_pass, &vk_memory_allocator);
 
         let vertex_shader = ShaderModule::load(vk_device.clone(), "shader.vert");
         let fragment_shader = ShaderModule::load(vk_device.clone(), "shader.frag");
@@ -251,6 +246,7 @@ impl Renderer {
             .input_assembly_state(InputAssemblyState::new())
             .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
             .fragment_shader(fs.entry_point("main").unwrap(), ())
+            .depth_stencil_state(DepthStencilState::simple_depth_test())
             .render_pass(Subpass::from(render_pass, 0).unwrap())
             .build(device)
             .unwrap()
@@ -265,16 +261,31 @@ impl Renderer {
                     store: Store,
                     format: swapchain.image_format(),
                     samples: 1,
+                },
+                depth: {
+                    load: Clear,
+                    store: DontCare,
+                    format: Format::D16_UNORM,
+                    samples: 1,
                 }
             },
             pass: {
                 color: [color],
-                depth_stencil: {}
+                depth_stencil: {depth}
             }
         ).unwrap()
     }
 
-    fn get_framebuffers(images: &[Arc<SwapchainImage>], render_pass: &Arc<RenderPass>) -> Vec<Arc<Framebuffer>> {
+    fn get_framebuffers(
+        images: &[Arc<SwapchainImage>], 
+        dimensions: PhysicalSize<u32>,
+        render_pass: &Arc<RenderPass>, 
+        allocator: &FastMemoryAllocator
+    ) -> Vec<Arc<Framebuffer>> {
+        let depth_buffer = ImageView::new_default(
+            AttachmentImage::transient(allocator, dimensions.into(), Format::D16_UNORM).unwrap()
+        ).unwrap();
+
         images
             .iter()
             .map(|image| {
@@ -282,7 +293,7 @@ impl Renderer {
                 Framebuffer::new(
                     render_pass.clone(),
                     FramebufferCreateInfo {
-                        attachments: vec![view],
+                        attachments: vec![view, depth_buffer.clone()],
                         ..Default::default()
                     },
                 )
@@ -311,7 +322,7 @@ impl Renderer {
         };
         
         self.vk_swapchain = new_swapchain;
-        self.vk_frame_buffers = Self::get_framebuffers(&new_images, &self.vk_render_pass);
+        self.vk_frame_buffers = Self::get_framebuffers(&new_images, dimensions, &self.vk_render_pass, &self.vk_memory_allocator);
     }
 
     /// Recreates the graphics pipeline of this renderer
@@ -325,6 +336,10 @@ impl Renderer {
         );
     }
 
+    pub fn upload_chunk(&mut self, pos: IVec2, chunk: impl Renderable) {
+        self.vertex_chunk_buffer.push_chunk_vertices(pos, chunk, &self.texture_atlas);
+    }
+
     /// Get a command buffer that will upload `self`'s texture atlas to the GPU when executed.
     /// 
     /// The atlas is stored in `self`'s `PersistentDescriptorSet`
@@ -335,7 +350,7 @@ impl Renderer {
             CommandBufferUsage::OneTimeSubmit,
         ).unwrap();
 
-        let texture = self.texture_atlas.into_texture(
+        let texture = self.texture_atlas.get_texture(
             &self.vk_memory_allocator, 
             &mut builder
         );
@@ -419,7 +434,12 @@ impl Renderer {
         builder
             .begin_render_pass(
                 RenderPassBeginInfo {
-                    clear_values: vec![Some([0.1, 0.1, 0.1, 1.0].into())],
+                    clear_values: vec![
+                        // Color
+                        Some([0.1, 0.1, 0.1, 1.0].into()),
+                        // Depth buffer
+                        Some(1.0.into())
+                    ],
                     ..RenderPassBeginInfo::framebuffer(self.vk_frame_buffers[image_index].clone())
                 },
                 SubpassContents::Inline,

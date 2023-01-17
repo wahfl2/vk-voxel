@@ -1,9 +1,12 @@
 use event_handler::{InputHandlerEvent, InputHandler};
-use render::{renderer::Renderer, util::RenderState, vertex::VertexRaw, fps_log::FpsLog, camera::camera::CameraController};
+use render::{renderer::Renderer, util::RenderState, vertex::VertexRaw, fps_log::FpsLog, camera::camera::CameraController, mesh::{quad::TexturedSquare, cube::UnitCube}};
 
+use ultraviolet::Vec3;
+use util::Facing;
 use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent}};
 
 pub mod render;
+pub mod util;
 pub mod world;
 pub mod event_handler;
 
@@ -17,35 +20,12 @@ fn main() {
     let mut camera_controller = CameraController::default();
     let mut fps_log = FpsLog::new();
 
-    let vertices = [
-        VertexRaw {
-            position: [1.0, 0.0, 0.0],
-            tex_coords: [1.0, 0.0],
-        },
-        VertexRaw {
-            position: [0.0, 1.0, 0.0],
-            tex_coords: [0.0, 1.0],
-        },
-        VertexRaw {
-            position: [0.0, 0.0, 0.0],
-            tex_coords: [0.0, 0.0],
-        },
+    let cube = UnitCube {
+        center: Vec3::zero(),
+        texture_idx: 0,
+    };
 
-        VertexRaw {
-            position: [1.0, 1.0, 0.0],
-            tex_coords: [1.0, 1.0],
-        },
-        VertexRaw {
-            position: [0.0, 1.0, 0.0],
-            tex_coords: [0.0, 1.0],
-        },
-        VertexRaw {
-            position: [1.0, 0.0, 0.0],
-            tex_coords: [1.0, 0.0],
-        },
-    ];
-
-    renderer.vertex_chunk_buffer.push_chunk_vertices((0, 0).into(), vertices.as_slice());
+    renderer.upload_chunk((0, 0).into(), cube);
 
     let mut window_resized = false;
     let mut recreate_swapchain = false;
