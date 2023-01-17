@@ -1,8 +1,7 @@
 use event_handler::{InputHandlerEvent, InputHandler};
-use render::{renderer::Renderer, util::RenderState, vertex::VertexRaw, fps_log::FpsLog, camera::camera::CameraController, mesh::{quad::TexturedSquare, cube::UnitCube}};
+use render::{renderer::Renderer, util::RenderState, fps_log::FpsLog, camera::camera::CameraController, mesh::cube::UnitCube};
 
 use ultraviolet::Vec3;
-use util::Facing;
 use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent}};
 
 pub mod render;
