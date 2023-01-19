@@ -1,8 +1,8 @@
 use event_handler::{InputHandlerEvent, InputHandler};
 use render::{renderer::Renderer, util::RenderState, fps_log::FpsLog, camera::camera::CameraController, mesh::cube::UnitCube};
 
-use ultraviolet::Vec3;
-use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent}};
+use ultraviolet::{Vec3, Vec2};
+use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent, DeviceEvent}};
 
 pub mod render;
 pub mod util;
@@ -21,7 +21,7 @@ fn main() {
 
     let cube = UnitCube {
         center: Vec3::zero(),
-        texture_idx: 0,
+        texture_idx: 2,
     };
 
     renderer.upload_chunk((0, 0).into(), cube);
@@ -51,17 +51,16 @@ fn main() {
                 }
             },
 
+            Event::DeviceEvent { event: DeviceEvent::MouseMotion { delta }, .. } => {
+                camera_controller.turn(Vec2::new(delta.0 as f32, delta.1 as f32));
+            }
+
             Event::DeviceEvent { event, .. } => {
                 input_handler.handle_event(event, &mut proxy);
             }
 
-            Event::UserEvent(ev) => {
-                match ev {
-                    InputHandlerEvent::MouseMovement(delta) => {
-                        camera_controller.turn(delta);
-                    },
-                    _ => ()
-                }
+            Event::UserEvent(_ev) => {
+                
             }
 
             Event::WindowEvent { event: WindowEvent::Resized(_), .. } => window_resized = true,

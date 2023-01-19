@@ -1,15 +1,19 @@
-use std::{fs::File, sync::Arc, ffi::OsString};
+use std::{fs::File, sync::Arc, ffi::OsString, path::PathBuf};
 
 use glob::glob;
 use guillotiere::{SimpleAtlasAllocator, euclid::{Box2D, UnknownUnit}};
+use png::Transformations;
+use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::UVec2;
-use vulkano::{memory::allocator::FastMemoryAllocator, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::ImageView}, format::Format};
+use vulkano::{memory::allocator::StandardMemoryAllocator, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::{ImageView, ImageViewCreateInfo}}, format::Format};
 
 use super::{util::{VecConvenience, BoxToUV}, mesh::quad::QuadUV};
 
 pub struct TextureAtlas {
+    /// Map that matches file names to the index of the texture
+    pub name_index_map: FxHashMap<String, usize>,
     pub data: ImageData,
-    pub allocations: Vec<Box2D<i32, UnknownUnit>>,
+    allocations: Vec<Box2D<i32, UnknownUnit>>,
     pub uvs: Vec<QuadUV>,
 }
 
@@ -20,17 +24,21 @@ impl TextureAtlas {
         let mut num_images = 0;
         for path in glob {
             num_images += 1;
-            paths.push(path.unwrap().into_os_string());
+            paths.push(path.unwrap());
         }
         println!("{:?}", num_images);
         Self::from_images(paths)
     }
 
-    pub fn from_images(paths: Vec<OsString>) -> Self {
+    pub fn from_images(paths: Vec<PathBuf>) -> Self {
         let mut images = Vec::new();
+        let mut name_index_map = FxHashMap::default();
         let mut total_image_area = 0;
-        for path in paths.into_iter() {
-            let image = ImageData::new_file(path);
+        for (index, path) in paths.into_iter().enumerate() {
+            let file_name = path.file_name().unwrap().to_str().unwrap().to_owned();
+            name_index_map.insert(file_name, index);
+
+            let image = ImageData::new_file(path.into());
             total_image_area += image.dimensions.x * image.dimensions.y;
             images.push(image);
         }
@@ -68,6 +76,7 @@ impl TextureAtlas {
         }
 
         Self {
+            name_index_map,
             data: ImageData::new(atlas_data, atlas_size),
             allocations,
             uvs,
@@ -76,7 +85,7 @@ impl TextureAtlas {
 
     pub fn get_texture(
         &self,
-        allocator: &FastMemoryAllocator,
+        allocator: &StandardMemoryAllocator,
         cbb: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     ) -> Arc<ImageView<ImmutableImage>> {
         let image = ImmutableImage::from_iter(
@@ -102,27 +111,29 @@ pub struct ImageData {
     pub dimensions: UVec2,
 }
 
+// TODO: Add support for more bit depths
 impl ImageData {
     pub fn new_file(path: OsString) -> Self {
-        let decoder = png::Decoder::new(File::open(path).unwrap());
+        let mut decoder = png::Decoder::new(File::open(path.clone()).unwrap());
+        decoder.set_transformations(Transformations::normalize_to_color8());
         let mut reader = decoder.read_info().unwrap();
 
         let info = reader.info();
         let dimensions = UVec2::new(info.width, info.height);
 
         let mut buf = vec![0; reader.output_buffer_size()];
-        let bpp = info.bytes_per_pixel();
+        let bpp = info.bits_per_pixel();
         reader.next_frame(&mut buf).unwrap();
 
         match bpp {
-            4 => Self { data: buf, dimensions },
-            3 => {
+            32 => Self { data: buf, dimensions },
+            24 => {
                 let data: Vec<u8> = buf.chunks(3).map(|chunk| {
                     [chunk[0], chunk[1], chunk[2], 255]
                 }).flatten().collect();
                 Self { data, dimensions }
             },
-            p => panic!("Unsupported bytes per pixel: {p}")
+            p => panic!("Unsupported bit depth ({p}) in {}", path.to_owned().to_str().unwrap())
         }
     }
 

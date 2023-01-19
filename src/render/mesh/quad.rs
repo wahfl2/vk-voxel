@@ -47,10 +47,10 @@ impl TexturedSquare {
     pub const HALF_SIZE: f32 = Self::SIZE / 2.0;
 
     pub const CORNER_OFFSETS_X: [Vec3; 4] = [
+        Vec3::new(0.0, -Self::HALF_SIZE, -Self::HALF_SIZE),
         Vec3::new(0.0, Self::HALF_SIZE, -Self::HALF_SIZE),
         Vec3::new(0.0, Self::HALF_SIZE, Self::HALF_SIZE),
         Vec3::new(0.0, -Self::HALF_SIZE, Self::HALF_SIZE),
-        Vec3::new(0.0, -Self::HALF_SIZE, -Self::HALF_SIZE),
     ];
 
     pub const CORNER_OFFSETS_Y: [Vec3; 4] = [
@@ -86,8 +86,7 @@ impl Renderable for TexturedSquare {
         }.map(|offset| { (self.center + offset).as_array().to_owned() });
 
         if self.facing.sign == Sign::Negative {
-            corners.swap(0, 1);
-            corners.swap(2, 3);
+            corners.reverse();
         }
 
         let uv = atlas.get_uv(self.texture_idx);

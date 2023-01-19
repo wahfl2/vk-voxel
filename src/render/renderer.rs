@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
 use ultraviolet::{Mat4, IVec2};
-use vulkano::{memory::allocator::FastMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage, AttachmentImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
+use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage, AttachmentImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
 
@@ -19,7 +19,7 @@ pub struct Renderer {
     pub vk_queue: Arc<Queue>,
     pub vk_command_buffer_allocator: StandardCommandBufferAllocator,
     pub vk_descriptor_set_allocator: StandardDescriptorSetAllocator,
-    pub vk_memory_allocator: FastMemoryAllocator,
+    pub vk_memory_allocator: StandardMemoryAllocator,
     pub vk_persistent_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
     pub vk_swapchain: Arc<Swapchain>,
     pub vk_swapchain_images: Vec<Arc<SwapchainImage>>,
@@ -92,7 +92,7 @@ impl Renderer {
 
         let vk_descriptor_set_allocator = StandardDescriptorSetAllocator::new(vk_device.clone());
         
-        let vk_memory_allocator = FastMemoryAllocator::new_default(vk_device.clone());
+        let vk_memory_allocator = StandardMemoryAllocator::new_default(vk_device.clone());
 
         let capabilities = vk_physical
             .surface_capabilities(&vk_surface, Default::default())
@@ -121,6 +121,7 @@ impl Renderer {
                     ..Default::default()
                 },
                 composite_alpha,
+                image_color_space: ColorSpace::SrgbNonLinear,
                 ..Default::default()
             },
         ).unwrap();
@@ -280,7 +281,7 @@ impl Renderer {
         images: &[Arc<SwapchainImage>], 
         dimensions: PhysicalSize<u32>,
         render_pass: &Arc<RenderPass>, 
-        allocator: &FastMemoryAllocator
+        allocator: &StandardMemoryAllocator
     ) -> Vec<Arc<Framebuffer>> {
         let depth_buffer = ImageView::new_default(
             AttachmentImage::transient(allocator, dimensions.into(), Format::D16_UNORM).unwrap()

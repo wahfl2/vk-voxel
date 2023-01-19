@@ -16,27 +16,27 @@ impl UnitCube {
         [
             TexturedSquare::new(
                 self.center + Vec3::unit_x() * HALF_SIZE, 
-                Facing::RIGHT, self.texture_idx
+                Facing::RIGHT, 2
             ),
             TexturedSquare::new(
                 self.center - Vec3::unit_x() * HALF_SIZE, 
-                Facing::LEFT, self.texture_idx
+                Facing::LEFT, 2
             ),
             TexturedSquare::new(
                 self.center + Vec3::unit_y() * HALF_SIZE, 
-                Facing::UP, self.texture_idx
+                Facing::UP, 3
             ),
             TexturedSquare::new(
                 self.center - Vec3::unit_y() * HALF_SIZE, 
-                Facing::DOWN, self.texture_idx
+                Facing::DOWN, 1
             ),
             TexturedSquare::new(
                 self.center + Vec3::unit_z() * HALF_SIZE, 
-                Facing::FORWARD, self.texture_idx
+                Facing::FORWARD, 2
             ),
             TexturedSquare::new(
                 self.center - Vec3::unit_z() * HALF_SIZE, 
-                Facing::BACK, self.texture_idx
+                Facing::BACK, 2
             ),
         ]
     }

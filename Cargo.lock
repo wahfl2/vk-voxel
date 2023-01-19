@@ -1527,6 +1527,8 @@ dependencies = [
  "rand",
  "rgb",
  "rustc_data_structures",
+ "serde",
+ "serde_json",
  "shaderc",
  "smallvec",
  "ultraviolet",
