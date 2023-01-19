@@ -1,5 +1,5 @@
 use event_handler::{InputHandlerEvent, InputHandler};
-use render::{renderer::Renderer, util::RenderState, fps_log::FpsLog, camera::camera::CameraController, mesh::cube::UnitCube};
+use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog, camera::camera::CameraController, mesh::cube::UnitCube};
 
 use ultraviolet::{Vec3, Vec2};
 use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent, DeviceEvent}};
@@ -31,7 +31,7 @@ fn main() {
 
     event_loop.run(move |event, _, control_flow| {
         match event {
-            Event::MainEventsCleared => {
+            Event::RedrawRequested(_) => {
                 fps_log.update();
                 if window_resized || recreate_swapchain {
                     recreate_swapchain = false;
@@ -50,6 +50,10 @@ fn main() {
                     _ => ()
                 }
             },
+
+            Event::RedrawEventsCleared => {
+                renderer.vk_surface.get_window().unwrap().request_redraw();
+            }
 
             Event::DeviceEvent { event: DeviceEvent::MouseMotion { delta }, .. } => {
                 camera_controller.turn(Vec2::new(delta.0 as f32, delta.1 as f32));
