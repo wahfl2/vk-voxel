@@ -1,6 +1,14 @@
+use std::time::Instant;
+
 use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::{Vec3, Vec2};
 use winit::{event::{VirtualKeyCode, DeviceEvent, KeyboardInput, ElementState}, event_loop::EventLoopProxy};
+
+#[derive(Clone, Debug)]
+pub enum UserEvent {
+    InputHandler(InputHandlerEvent),
+    RedrawAt(Instant),
+}
 
 #[derive(Clone, Debug)]
 pub enum InputHandlerEvent {
@@ -17,7 +25,7 @@ impl InputHandler {
         Self { key_press_map: FxHashMap::default() }
     }
 
-    pub fn handle_event(&mut self, event: DeviceEvent, proxy: &mut EventLoopProxy<InputHandlerEvent>) {
+    pub fn handle_event(&mut self, event: DeviceEvent, proxy: &mut EventLoopProxy<UserEvent>) {
         if let DeviceEvent::Key(
             KeyboardInput { virtual_keycode: Some(key), state, .. }
         ) = event {
@@ -30,11 +38,11 @@ impl InputHandler {
             );
         }
 
-        if let DeviceEvent::MouseMotion { delta } = event {
-            proxy.send_event(
-                InputHandlerEvent::MouseMovement(Vec2::new(delta.0 as f32, delta.1 as f32))
-            ).unwrap();
-        }
+        // if let DeviceEvent::MouseMotion { delta } = event {
+        //     proxy.send_event(
+        //         InputHandlerEvent::MouseMovement(Vec2::new(delta.0 as f32, delta.1 as f32))
+        //     ).unwrap();
+        // }
     }
 
     pub fn is_pressed(&self, key: VirtualKeyCode) -> bool {

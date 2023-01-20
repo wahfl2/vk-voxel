@@ -1,4 +1,6 @@
-use event_handler::{InputHandlerEvent, InputHandler};
+use std::time::{Instant, Duration};
+
+use event_handler::{InputHandlerEvent, InputHandler, UserEvent};
 use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog, camera::camera::CameraController, mesh::cube::UnitCube};
 
 use ultraviolet::{Vec3, Vec2};
@@ -9,9 +11,11 @@ pub mod util;
 pub mod world;
 pub mod event_handler;
 
+pub const FRAME_TIME: f64 = 1.0 / 60.0;
+
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
-    let event_loop: EventLoop<InputHandlerEvent> = EventLoopBuilder::with_user_event().build();
+    let event_loop: EventLoop<UserEvent> = EventLoopBuilder::with_user_event().build();
     let mut proxy = event_loop.create_proxy();
 
     let mut renderer = Renderer::new(&event_loop);
@@ -28,6 +32,7 @@ fn main() {
 
     let mut window_resized = false;
     let mut recreate_swapchain = false;
+    let mut last_frame_start = Instant::now();
 
     event_loop.run(move |event, _, control_flow| {
         match event {
@@ -52,7 +57,8 @@ fn main() {
             },
 
             Event::RedrawEventsCleared => {
-                renderer.vk_surface.get_window().unwrap().request_redraw();
+                let next_render = last_frame_start + Duration::from_secs_f64(FRAME_TIME);
+                proxy.send_event(UserEvent::RedrawAt(next_render)).unwrap();
             }
 
             Event::DeviceEvent { event: DeviceEvent::MouseMotion { delta }, .. } => {
@@ -63,8 +69,19 @@ fn main() {
                 input_handler.handle_event(event, &mut proxy);
             }
 
-            Event::UserEvent(_ev) => {
-                
+            Event::UserEvent(ev) => {
+                match ev {
+                    UserEvent::RedrawAt(instant) => {
+                        if Instant::now() >= instant {
+                            last_frame_start = Instant::now();
+                            renderer.vk_surface.get_window().unwrap().request_redraw();
+                        } else {
+                            proxy.send_event(UserEvent::RedrawAt(instant)).unwrap();
+                        }
+                    }
+
+                    _ => ()
+                }
             }
 
             Event::WindowEvent { event: WindowEvent::Resized(_), .. } => window_resized = true,
