@@ -1,34 +1,72 @@
 use rustc_data_structures::stable_map::FxHashMap;
 
+use crate::render::{texture::TextureAtlas, mesh::cube::UnitCube};
+
+/// Static block data, should be initialized at startup and probably left alone.
 pub struct StaticBlockData {
-    // Could probably replace with a Vec; this is easier though
-    inner: FxHashMap<String, InitBlockData>,
+    inner: Vec<InitBlockData>,
+    ids: FxHashMap<String, usize>,
 }
 
 impl StaticBlockData {
     pub fn empty() -> Self {
-        Self { inner: Default::default() }
+        Self { 
+            inner: Default::default(),
+            ids: FxHashMap::default(),
+        }
     }
 
-    pub fn init(&mut self) {
-        self.inner = FxHashMap::from_iter([
-            ("grass_block".into(), [0, 0, 0, 0, 0, 0].into())
-        ].into_iter());
+    pub fn init(&mut self, atlas: &TextureAtlas) {
+        self.add(InitBlockData::new("air", None));
+        self.add(InitBlockData::new("grass_block", 
+            Some(UnitCube::from_textures([
+                atlas.get_handle("grass_block_top").unwrap(),
+                atlas.get_handle("grass_block_side").unwrap(),
+                atlas.get_handle("dirt").unwrap(),
+            ].to_vec())))
+        );
+    }
+
+    pub fn add(&mut self, data: InitBlockData) -> BlockHandle {
+        let idx = self.inner.len();
+        self.inner.push(data.clone());
+        self.ids.insert(data.id, idx);
+        BlockHandle::new(idx)
+    }
+
+    pub fn get(&self, handle: BlockHandle) -> InitBlockData {
+        self.inner.get(handle.inner).unwrap().to_owned()
+    }
+
+    pub fn get_handle(&self, id: &str) -> Option<BlockHandle> {
+        let idx = self.ids.get(id)?;
+        Some(BlockHandle::new(*idx))
     }
 }
 
-/// Only represents face textures right now, will have more in the future.
+/// Represents the readable ID of this block as well as its model.
+#[derive(Debug, Clone)]
 pub struct InitBlockData {
-    pub face_texures: [usize; 6],
+    pub id: String,
+    pub model: Option<UnitCube>,
 }
 
-impl From<[usize; 6]> for InitBlockData {
-    fn from(value: [usize; 6]) -> Self {
-        Self { face_texures: value }
+impl InitBlockData {
+    pub fn new(id: &str, model: Option<UnitCube>) -> Self {
+        Self { id: id.to_string(), model }
     }
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct BlockHandle {
+    inner: usize
+}
 
+impl BlockHandle {
+    fn new(inner: usize) -> Self {
+        Self { inner }
+    }
+}
 
 // Unused, may use later if bottlenecked?
 

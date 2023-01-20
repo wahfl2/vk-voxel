@@ -35,7 +35,7 @@ impl TextureAtlas {
         let mut name_index_map = FxHashMap::default();
         let mut total_image_area = 0;
         for (index, path) in paths.into_iter().enumerate() {
-            let file_name = path.file_name().unwrap().to_str().unwrap().to_owned();
+            let file_name = path.file_stem().unwrap().to_str().unwrap().to_owned();
             name_index_map.insert(file_name, index);
 
             let image = ImageData::new_file(path.into());
@@ -83,6 +83,13 @@ impl TextureAtlas {
         }
     }
 
+    pub fn get_handle(&self, file_name: &str) -> Option<TextureHandle> {
+        if let Some(idx) = self.name_index_map.get(file_name) {
+            return Some(TextureHandle { inner_index: *idx })
+        }
+        None
+    }
+
     pub fn get_texture(
         &self,
         allocator: &StandardMemoryAllocator,
@@ -100,10 +107,15 @@ impl TextureAtlas {
         ImageView::new_default(image).unwrap()
     }
 
-    pub fn get_uv(&self, texture_idx: usize) -> QuadUV {
-        let alloc = self.allocations[texture_idx];
+    pub fn get_uv(&self, handle: TextureHandle) -> QuadUV {
+        let alloc = self.allocations[handle.inner_index];
         alloc.to_quad_uv(self.data.dimensions)
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct TextureHandle {
+    inner_index: usize,
 }
 
 pub struct ImageData {

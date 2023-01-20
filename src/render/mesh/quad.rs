@@ -1,6 +1,6 @@
 use ultraviolet::{Vec3, Vec2};
 
-use crate::{util::{Axis, Sign, Facing}, render::{vertex::VertexRaw, texture::TextureAtlas}};
+use crate::{util::{Axis, Sign, Facing}, render::{vertex::VertexRaw, texture::{TextureAtlas, TextureHandle}}};
 
 use super::renderable::Renderable;
 
@@ -38,7 +38,7 @@ pub struct QuadUV {
 pub struct TexturedSquare {
     pub center: Vec3,
     pub facing: Facing,
-    pub texture_idx: usize,
+    pub texture_handle: TextureHandle,
 }
 
 impl TexturedSquare {
@@ -67,8 +67,8 @@ impl TexturedSquare {
         Vec3::new(-Self::HALF_SIZE, -Self::HALF_SIZE, 0.0),
     ];
 
-    pub fn new(center: Vec3, facing: Facing, texture_idx: usize) -> Self {
-        Self { center, facing, texture_idx }
+    pub fn new(center: Vec3, facing: Facing, texture_handle: TextureHandle) -> Self {
+        Self { center, facing, texture_handle }
     }
 }
 
@@ -89,7 +89,7 @@ impl Renderable for TexturedSquare {
             corners.reverse();
         }
 
-        let uv = atlas.get_uv(self.texture_idx);
+        let uv = atlas.get_uv(self.texture_handle);
         let tex_coords = [
             [uv.max.x, uv.max.y],
             [uv.max.x, uv.min.y],

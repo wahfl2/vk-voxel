@@ -5,6 +5,7 @@ use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog
 
 use ultraviolet::{Vec3, Vec2};
 use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent, DeviceEvent}};
+use world::block_data::StaticBlockData;
 
 pub mod render;
 pub mod util;
@@ -19,16 +20,17 @@ fn main() {
     let mut proxy = event_loop.create_proxy();
 
     let mut renderer = Renderer::new(&event_loop);
+    let mut static_block_data = StaticBlockData::empty();
+    static_block_data.init(&renderer.texture_atlas);
+
     let mut input_handler = InputHandler::new();
     let mut camera_controller = CameraController::default();
     let mut fps_log = FpsLog::new();
 
-    let cube = UnitCube {
-        center: Vec3::zero(),
-        texture_idx: 2,
-    };
+    let grass_handle = static_block_data.get_handle("grass_block").unwrap();
+    let init = static_block_data.get(grass_handle);
 
-    renderer.upload_chunk((0, 0).into(), cube);
+    renderer.upload_chunk((0, 0).into(), init.model.unwrap());
 
     let mut window_resized = false;
     let mut recreate_swapchain = false;
