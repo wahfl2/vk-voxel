@@ -1,9 +1,9 @@
 use std::time::{Instant, Duration};
 
-use event_handler::{InputHandlerEvent, InputHandler, UserEvent};
-use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog, camera::camera::CameraController, mesh::cube::UnitCube};
+use event_handler::{InputHandler, UserEvent};
+use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog, camera::camera::CameraController};
 
-use ultraviolet::{Vec3, Vec2};
+use ultraviolet::Vec2;
 use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent, DeviceEvent}};
 use world::block_data::StaticBlockData;
 

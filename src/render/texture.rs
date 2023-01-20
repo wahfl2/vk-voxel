@@ -5,7 +5,7 @@ use guillotiere::{SimpleAtlasAllocator, euclid::{Box2D, UnknownUnit}};
 use png::Transformations;
 use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::UVec2;
-use vulkano::{memory::allocator::StandardMemoryAllocator, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::{ImageView, ImageViewCreateInfo}}, format::Format};
+use vulkano::{memory::allocator::StandardMemoryAllocator, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::ImageView}, format::Format};
 
 use super::{util::{VecConvenience, BoxToUV}, mesh::quad::QuadUV};
 

@@ -6,7 +6,7 @@ use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapcha
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
 
-use crate::event_handler::{InputHandlerEvent, UserEvent};
+use crate::event_handler::UserEvent;
 
 use super::{buffer::{allocator::VertexChunkBuffer, buffer_queue::BufferQueueTask}, texture::TextureAtlas, shader_module::LoadFromPath, util::{GetWindow, RenderState}, vertex::VertexRaw, mesh::renderable::Renderable};
 
