@@ -1,6 +1,6 @@
 use ultraviolet::Vec3;
 
-use crate::{render::{texture::{TextureAtlas, TextureHandle}, vertex::VertexRaw}, util::Facing};
+use crate::{render::{texture::{TextureAtlas, TextureHandle}, vertex::VertexRaw}, util::Facing, world::block_data::StaticBlockData};
 
 use super::{renderable::Renderable, quad::TexturedSquare};
 
@@ -63,7 +63,7 @@ impl UnitCube {
 }
 
 impl Renderable for UnitCube {
-    fn get_vertices(&self, atlas: &TextureAtlas) -> Vec<VertexRaw> {
-        self.get_faces().get_vertices(atlas)
+    fn get_vertices(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> Vec<VertexRaw> {
+        self.get_faces().get_vertices(atlas, block_data)
     }
 }

@@ -7,4 +7,6 @@ pub trait BlockAccess {
     /// 
     /// Will panic if OOB, might change that later.
     fn get_block(&self, pos: UVec3) -> BlockHandle;
+
+    fn set_block(&mut self, pos: UVec3, block: BlockHandle);
 }

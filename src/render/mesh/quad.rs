@@ -1,6 +1,6 @@
 use ultraviolet::{Vec3, Vec2};
 
-use crate::{util::{Axis, Sign, Facing}, render::{vertex::VertexRaw, texture::{TextureAtlas, TextureHandle}}};
+use crate::{util::{Axis, Sign, Facing}, render::{vertex::VertexRaw, texture::{TextureAtlas, TextureHandle}}, world::block_data::{self, StaticBlockData}};
 
 use super::renderable::Renderable;
 
@@ -73,7 +73,7 @@ impl TexturedSquare {
 }
 
 impl Renderable for TexturedSquare {
-    fn get_vertices(&self, atlas: &TextureAtlas) -> Vec<VertexRaw> {
+    fn get_vertices(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> Vec<VertexRaw> {
         const INDICES: [usize; 6] = [
             0, 1, 2,
             0, 2, 3,

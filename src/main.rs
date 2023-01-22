@@ -3,9 +3,10 @@ use std::time::{Instant, Duration};
 use event_handler::{InputHandler, UserEvent};
 use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog, camera::camera::CameraController};
 
-use ultraviolet::Vec2;
+use ultraviolet::{Vec2, Vec3};
+use util::AdditionalSwizzles;
 use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent, DeviceEvent}};
-use world::block_data::StaticBlockData;
+use world::{block_data::StaticBlockData, world::World};
 
 pub mod render;
 pub mod util;
@@ -22,15 +23,26 @@ fn main() {
     let mut renderer = Renderer::new(&event_loop);
     let mut static_block_data = StaticBlockData::empty();
     static_block_data.init(&renderer.texture_atlas);
+    let mut world = World::new();
 
     let mut input_handler = InputHandler::new();
     let mut camera_controller = CameraController::default();
     let mut fps_log = FpsLog::new();
 
     let grass_handle = static_block_data.get_handle("grass_block").unwrap();
-    let init = static_block_data.get(grass_handle);
+    // let init = static_block_data.get(&grass_handle);
+    // let mut model = init.model.unwrap();
 
-    renderer.upload_chunk((0, 0).into(), init.model.unwrap());
+    // model.center = Vec3::new(0.0, 1.0, 0.0);
+    // renderer.upload_chunk((0, 0).into(), model.clone(), &static_block_data);
+    // model.center = Vec3::new(0.0, -1.0, 0.0);
+    // renderer.upload_chunk((1, 0).into(), model.clone(), &static_block_data);
+    // model.center = Vec3::new(0.0, -2.0, 0.0);
+    // renderer.upload_chunk((2, 0).into(), model.clone(), &static_block_data);
+    // model.center = Vec3::new(0.0, -3.0, 0.0);
+    // renderer.upload_chunk((3, 0).into(), model.clone(), &static_block_data);
+    // model.center = Vec3::new(1.0, 0.0, 0.0);
+    // renderer.upload_chunk((4, 0).into(), model.clone(), &static_block_data);
 
     let mut window_resized = false;
     let mut recreate_swapchain = false;
@@ -51,7 +63,10 @@ fn main() {
                 }
 
                 camera_controller.tick(&input_handler);
+                world.player_pos = camera_controller.camera.pos.xz();
+                // world.frame_update(&mut renderer, &static_block_data);
                 renderer.cam_uniform = Some(camera_controller.camera.calculate_matrix(&renderer.viewport));
+
                 match renderer.render() {
                     RenderState::OutOfDate | RenderState::Suboptimal => recreate_swapchain = true,
                     _ => ()

@@ -49,3 +49,17 @@ impl Facing {
         Self { axis, sign }
     }
 }
+
+pub trait AdditionalSwizzles {
+    type Out;
+
+    fn xz(&self) -> Self::Out;
+}
+
+impl AdditionalSwizzles for Vec3 {
+    type Out = Vec2;
+
+    fn xz(&self) -> Self::Out {
+        Self::Out::new(self.x, self.z)
+    }
+}

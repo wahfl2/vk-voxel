@@ -23,6 +23,10 @@ impl BufferQueue {
         self.tasks.clear();
         ret
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.tasks.is_empty()
+    }
 }
 
 #[derive(Clone)]

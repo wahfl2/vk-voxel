@@ -34,7 +34,7 @@ impl StaticBlockData {
         BlockHandle::new(idx)
     }
 
-    pub fn get(&self, handle: BlockHandle) -> InitBlockData {
+    pub fn get(&self, handle: &BlockHandle) -> InitBlockData {
         self.inner.get(handle.inner).unwrap().to_owned()
     }
 
@@ -64,6 +64,11 @@ pub struct BlockHandle {
 
 impl BlockHandle {
     fn new(inner: usize) -> Self {
+        Self { inner }
+    }
+
+    #[deprecated = "Should be replaced and unused ASAP"]
+    pub fn new_unsafe(inner: usize) -> Self {
         Self { inner }
     }
 }

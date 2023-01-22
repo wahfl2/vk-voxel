@@ -1,12 +1,12 @@
-use std::sync::Arc;
+use std::{sync::Arc, mem::size_of_val};
 
 use bytemuck::{Pod, Zeroable};
 use ultraviolet::{Mat4, IVec2};
-use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions}, image::{view::ImageView, ImageUsage, SwapchainImage, AttachmentImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
+use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features}, image::{view::ImageView, ImageUsage, SwapchainImage, AttachmentImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
 
-use crate::event_handler::UserEvent;
+use crate::{event_handler::UserEvent, world::block_data::StaticBlockData};
 
 use super::{buffer::{allocator::VertexChunkBuffer, buffer_queue::BufferQueueTask}, texture::TextureAtlas, shader_module::LoadFromPath, util::{GetWindow, RenderState}, vertex::VertexRaw, mesh::renderable::Renderable};
 
@@ -16,7 +16,7 @@ pub struct Renderer {
     pub vk_surface: Arc<Surface>,
     pub vk_physical: Arc<PhysicalDevice>,
     pub vk_device: Arc<Device>,
-    pub vk_queue: Arc<Queue>,
+    pub vk_graphics_queue: Arc<Queue>,
     pub vk_command_buffer_allocator: StandardCommandBufferAllocator,
     pub vk_descriptor_set_allocator: StandardDescriptorSetAllocator,
     pub vk_memory_allocator: StandardMemoryAllocator,
@@ -65,7 +65,7 @@ impl Renderer {
             .build_vk_surface(event_loop, vk_instance.clone())
             .unwrap();
             
-        let (vk_physical, queue_family_index) = Self::select_physical_device(
+        let (vk_physical, queue_family_indices) = Self::select_physical_device(
             &vk_instance, 
             &vk_surface, 
             &device_extensions
@@ -74,16 +74,22 @@ impl Renderer {
         let (vk_device, mut queues) = Device::new(
             vk_physical.clone(),
             DeviceCreateInfo {
-                queue_create_infos: vec![QueueCreateInfo {
-                    queue_family_index,
+                enabled_features: Features {
+                    multi_draw_indirect: true,
                     ..Default::default()
-                }],
+                },
+                queue_create_infos: vec![
+                    QueueCreateInfo {
+                        queue_family_index: queue_family_indices.graphics,
+                        ..Default::default()
+                    }
+                ],
                 enabled_extensions: device_extensions,
                 ..Default::default()
             },
         ).expect("failed to create device");
 
-        let vk_queue = queues.next().unwrap();
+        let vk_graphics_queue = queues.next().unwrap();
 
         let vk_command_buffer_allocator = StandardCommandBufferAllocator::new(
             vk_device.clone(), 
@@ -166,7 +172,7 @@ impl Renderer {
             vk_surface,
             vk_physical,
             vk_device: vk_device.clone(),
-            vk_queue,
+            vk_graphics_queue,
             vk_command_buffer_allocator,
             vk_descriptor_set_allocator,
             vk_memory_allocator,
@@ -202,22 +208,22 @@ impl Renderer {
         instance: &Arc<Instance>,
         surface: &Arc<Surface>,
         device_extensions: &DeviceExtensions,
-    ) -> (Arc<PhysicalDevice>, u32) {
+    ) -> (Arc<PhysicalDevice>, QueueFamilyIndices) {
         instance
             .enumerate_physical_devices()
             .expect("could not enumerate devices")
             .filter(|p| p.supported_extensions().contains(&device_extensions))
             .filter_map(|p| {
-                p.queue_family_properties()
-                    .iter()
-                    .enumerate()
-                    // Find the first first queue family that is suitable.
-                    // If none is found, `None` is returned to `filter_map`,
-                    // which disqualifies this physical device.
-                    .position(|(i, q)| {
-                        q.queue_flags.graphics && p.surface_support(i as u32, &surface).unwrap_or(false)
-                    })
-                    .map(|q| (p, q as u32))
+                let mut graphics = None;
+                for (i, q) in p.queue_family_properties().iter().enumerate() {
+                    if q.queue_flags.graphics && p.surface_support(i as u32, surface).unwrap() {
+                        graphics = Some(i);
+                    }
+                }
+
+                Some((p, QueueFamilyIndices {
+                    graphics: graphics? as u32,
+                }))
             })
             .min_by_key(|(p, _)| match p.properties().device_type {
                 PhysicalDeviceType::DiscreteGpu => 0,
@@ -324,7 +330,12 @@ impl Renderer {
         };
         
         self.vk_swapchain = new_swapchain;
-        self.vk_frame_buffers = Self::get_framebuffers(&new_images, dimensions, &self.vk_render_pass, &self.vk_memory_allocator);
+        self.vk_frame_buffers = Self::get_framebuffers(
+            &new_images, 
+            dimensions, 
+            &self.vk_render_pass, 
+            &self.vk_memory_allocator
+        );
     }
 
     /// Recreates the graphics pipeline of this renderer
@@ -338,8 +349,8 @@ impl Renderer {
         );
     }
 
-    pub fn upload_chunk(&mut self, pos: IVec2, chunk: impl Renderable) {
-        self.vertex_chunk_buffer.push_chunk_vertices(pos, chunk, &self.texture_atlas);
+    pub fn upload_chunk(&mut self, pos: IVec2, chunk: impl Renderable, block_data: &StaticBlockData) {
+        self.vertex_chunk_buffer.push_chunk_vertices(pos, chunk, &self.texture_atlas, block_data);
     }
 
     /// Get a command buffer that will upload `self`'s texture atlas to the GPU when executed.
@@ -348,7 +359,7 @@ impl Renderer {
     pub fn get_upload_command_buffer(&mut self) -> Arc<PrimaryAutoCommandBuffer> {
         let mut builder = AutoCommandBufferBuilder::primary(
             &self.vk_command_buffer_allocator, 
-            self.vk_queue.queue_family_index(), 
+            self.vk_graphics_queue.queue_family_index(), 
             CommandBufferUsage::OneTimeSubmit,
         ).unwrap();
 
@@ -378,7 +389,7 @@ impl Renderer {
         
         let mut builder = AutoCommandBufferBuilder::primary(
             &self.vk_command_buffer_allocator,
-            self.vk_queue.queue_family_index(),
+            self.vk_graphics_queue.queue_family_index(),
             CommandBufferUsage::OneTimeSubmit,
         ).unwrap();
 
@@ -395,28 +406,11 @@ impl Renderer {
             };
             builder.push_constants(self.vk_pipeline.layout().clone(), 0, pc);
         }
-        
-        let mut update_indirect_buffer = false;
-        for task in self.vertex_chunk_buffer.queue.flush().into_iter() {
-            update_indirect_buffer = true;
-            match task {
-                BufferQueueTask::Write(write) => {
-                    builder.update_buffer(
-                        write.data.into_boxed_slice(), 
-                        v_buffer.clone(), 
-                        write.start_idx.into()
-                    ).unwrap();
-                },
-                BufferQueueTask::Transfer(transfer) => {
-                    let copy = 
-                        CopyBufferInfoTyped::buffers(transfer.src_buf, transfer.dst_buf);
+             
+        if !self.vertex_chunk_buffer.queue.is_empty() {
+            self.vertex_chunk_buffer.execute_queue(&mut builder);
 
-                    builder.copy_buffer(copy).unwrap();
-                },
-            }
-        }
-        
-        if update_indirect_buffer {
+            // Vertex data is updated, recreate indirect command buffer.
             let data = self.vertex_chunk_buffer.get_indirect_commands();
             if data.len() > 0 {
                 self.indirect_buffer = Some(DeviceLocalBuffer::from_iter(
@@ -494,21 +488,21 @@ impl Renderer {
         // Get the previous future
         let previous_future = match self.fences[self.previous_fence_i].clone() {
             None => sync::now(self.vk_device.clone()).boxed(),
-            Some(fence) => Box::new(fence),
+            Some(fence) => fence.boxed(),
         };
 
-        // Wait for the previous future
+        // Wait for the previous future as well as the swapchain image acquire
         let join = previous_future.join(acquire_future);
 
         let mut exec = join.boxed();
         for command_buffer in command_buffers.into_iter() {
             // Execute command buffers in order
-            exec = exec.then_execute(self.vk_queue.clone(), command_buffer).unwrap().boxed();
+            exec = exec.then_execute(self.vk_graphics_queue.clone(), command_buffer).unwrap().boxed();
         }
             
         // Present overwritten swapchain image
         let present_future = exec.then_swapchain_present(
-            self.vk_queue.clone(),
+            self.vk_graphics_queue.clone(),
             SwapchainPresentInfo::swapchain_image_index(self.vk_swapchain.clone(), image_i)
         )
             .boxed() // Box it into a dyn GpuFuture for easier handling
@@ -536,4 +530,8 @@ impl Renderer {
 #[derive(Copy, Clone, Debug, Zeroable, Pod)]
 pub struct PushConstants {
     camera: [[f32; 4]; 4],
+}
+
+struct QueueFamilyIndices {
+    graphics: u32,
 }
