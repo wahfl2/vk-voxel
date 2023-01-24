@@ -2,7 +2,7 @@ use std::ops::{Index, IndexMut, Mul};
 
 use ultraviolet::{UVec3, Vec3};
 
-use crate::{render::{mesh::{renderable::Renderable, quad::TexturedSquare}, texture::TextureAtlas, vertex::VertexRaw}, util::{Facing, Axis, Sign}};
+use crate::render::{mesh::{renderable::Renderable, quad::TexturedSquare}, texture::TextureAtlas, vertex::VertexRaw};
 
 use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType}};
 
@@ -69,7 +69,7 @@ impl Section {
             let mut faces_op: Option<[TexturedSquare; 6]> = None;
             let block_offset = pos.into_vec3() + offset;
             for (i, neighbor) in self.get_neighbors(pos).into_iter().enumerate() {
-                if let Neighbor::Block { handle, pos } = neighbor {
+                if let Neighbor::Block { handle, pos: _ } = neighbor {
                     if block_data.get(&handle).block_type == BlockType::Full {
                         continue;
                     }
@@ -172,7 +172,7 @@ impl Neighbor {
 }
 
 impl Renderable for Section {
-    fn get_vertices(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> Vec<VertexRaw> {
+    fn get_vertices(&self, _atlas: &TextureAtlas, _block_data: &StaticBlockData) -> Vec<VertexRaw> {
         self.mesh.clone()
     }
 }

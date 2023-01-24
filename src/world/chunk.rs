@@ -1,9 +1,8 @@
-use std::array;
-use ultraviolet::{IVec2, UVec3, Vec2, Vec3, IVec3};
+use ultraviolet::{IVec2, UVec3, IVec3};
 
 use crate::render::{mesh::renderable::Renderable, texture::TextureAtlas, vertex::VertexRaw};
 
-use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, self}, terrain::TerrainGenerator};
+use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData}, terrain::TerrainGenerator};
 
 pub struct Chunk {
     pub pos: IVec2,

@@ -1,14 +1,14 @@
-use std::{sync::Arc, mem::size_of_val};
+use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
 use ultraviolet::{Mat4, IVec2};
-use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, CopyBufferInfoTyped, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features}, image::{view::ImageView, ImageUsage, SwapchainImage, AttachmentImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
+use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features}, image::{view::ImageView, ImageUsage, SwapchainImage, AttachmentImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
 
 use crate::{event_handler::UserEvent, world::block_data::StaticBlockData};
 
-use super::{buffer::{allocator::VertexChunkBuffer, buffer_queue::BufferQueueTask}, texture::TextureAtlas, shader_module::LoadFromPath, util::{GetWindow, RenderState}, vertex::VertexRaw, mesh::renderable::Renderable};
+use super::{buffer::{allocator::VertexChunkBuffer}, texture::TextureAtlas, shader_module::LoadFromPath, util::{GetWindow, RenderState}, vertex::VertexRaw, mesh::renderable::Renderable};
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
