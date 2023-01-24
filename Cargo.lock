@@ -1511,6 +1511,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio"
+version = "1.24.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "597a12a59981d9e3c38d216785b0c37399f6e415e8d0712047620f189371b0bb"
+dependencies = [
+ "autocfg",
+ "pin-project-lite",
+ "windows-sys 0.42.0",
+]
+
+[[package]]
 name = "toml"
 version = "0.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1604,6 +1615,7 @@ dependencies = [
  "serde_json",
  "shaderc",
  "smallvec",
+ "tokio",
  "ultraviolet",
  "vulkano",
  "vulkano-util",

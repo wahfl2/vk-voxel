@@ -48,6 +48,17 @@ impl Facing {
     pub fn new(axis: Axis, sign: Sign) -> Self {
         Self { axis, sign }
     }
+
+    pub fn num_texture(&self) -> usize {
+        match (self.sign, self.axis) {
+            (Sign::Positive, Axis::X) => 0,
+            (Sign::Negative, Axis::X) => 1,
+            (Sign::Positive, Axis::Y) => 2,
+            (Sign::Negative, Axis::Y) => 3,
+            (Sign::Positive, Axis::Z) => 4,
+            (Sign::Negative, Axis::Z) => 5,
+        }
+    }
 }
 
 pub trait AdditionalSwizzles {

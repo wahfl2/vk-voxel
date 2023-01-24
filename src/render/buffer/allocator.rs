@@ -20,7 +20,7 @@ pub struct VertexChunkBuffer {
 }
 
 impl VertexChunkBuffer {
-    const INITIAL_SIZE: u64 = 50000;
+    const INITIAL_SIZE: u64 = 50_000;
 
     pub fn new(device: Arc<Device>) -> Self {
         let allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
@@ -48,6 +48,7 @@ impl VertexChunkBuffer {
         let verts: Vec<VertexRaw> = chunk.get_vertices(atlas, block_data);
         let size = verts.len() as u32;
         let allocation = self.chunk_allocator.allocate(size);
+        println!("allocation: {:?}", allocation);
         self.allocations.insert(chunk_pos.into(), allocation);
         while (allocation.back as u64) >= self.inner_vertex_size {
             self.grow_inner_vertex();
@@ -155,13 +156,17 @@ impl VertexChunkBuffer {
     }
 
     fn grow_inner_vertex(&mut self) {
-        let old_buffer = self.inner_vertex.clone();
+        let old_v_buffer = self.inner_vertex.clone();
+        let old_q_buffer = self.queue_buf.clone();
+
         let buffers = Self::create_buffers(self.allocator.clone(), self.inner_vertex_size * 2);
         self.inner_vertex = buffers.0;
         self.queue_buf = buffers.1;
 
         let write = &mut self.inner_vertex.write().unwrap();
-        write[0..self.inner_vertex_size as usize].copy_from_slice(&old_buffer.read().unwrap());
+        write[0..self.inner_vertex_size as usize].copy_from_slice(&old_v_buffer.read().unwrap());
+        let write = &mut self.queue_buf.write().unwrap();
+        write[0..self.inner_vertex_size as usize].copy_from_slice(&old_q_buffer.read().unwrap());
         self.inner_vertex_size *= 2;
         println!("new size {}", self.inner_vertex_size);
     }
@@ -204,7 +209,6 @@ impl ChunkBufferAllocator {
             if free_size != size { self.dual_map.insert(front + size, back); }
             ChunkBufferAllocation::new_size(front, size)
         } else {
-            self.dual_map.insert(self.top, self.top + size);
             let old_top = self.top;
             self.top += size;
             ChunkBufferAllocation::new_size(old_top, size)

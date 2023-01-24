@@ -1,7 +1,7 @@
 use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::{IVec2, Vec2};
 
-use crate::render::renderer::Renderer;
+use crate::render::{renderer::Renderer, texture::TextureAtlas};
 
 use super::{chunk::Chunk, terrain::TerrainGenerator, block_data::StaticBlockData};
 
@@ -23,10 +23,11 @@ impl World {
         }
     }
 
-    pub fn load_chunk(&mut self, chunk_pos: IVec2) {
+    pub fn load_chunk(&mut self, chunk_pos: IVec2, atlas: &TextureAtlas, block_data: &StaticBlockData) {
         // TODO: Load from storage
         let mut new_chunk = Chunk::empty(chunk_pos);
         new_chunk.gen(&self.terrain_generator);
+        new_chunk.rebuild_mesh(atlas, block_data);
         self.loaded_chunks.insert(chunk_pos, new_chunk);
         println!("Loaded ({}, {})", chunk_pos.x, chunk_pos.y);
     }
@@ -34,7 +35,7 @@ impl World {
     pub fn frame_update(&mut self, renderer: &mut Renderer, block_data: &StaticBlockData) {
         for _ in 0..Self::CHUNK_UPDATES_PER_FRAME {
             if let Some(pos) = self.get_closest_unloaded_chunk() {
-                self.load_chunk(pos);
+                self.load_chunk(pos, &renderer.texture_atlas, block_data);
                 renderer.upload_chunk(pos, self.loaded_chunks.get(&pos).unwrap(), block_data);
             } else {
                 break

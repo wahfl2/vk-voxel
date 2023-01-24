@@ -25,24 +25,13 @@ fn main() {
     static_block_data.init(&renderer.texture_atlas);
     let mut world = World::new();
 
+    for _ in 0..100 {
+        world.frame_update(&mut renderer, &static_block_data);
+    }
+
     let mut input_handler = InputHandler::new();
     let mut camera_controller = CameraController::default();
     let mut fps_log = FpsLog::new();
-
-    let grass_handle = static_block_data.get_handle("grass_block").unwrap();
-    // let init = static_block_data.get(&grass_handle);
-    // let mut model = init.model.unwrap();
-
-    // model.center = Vec3::new(0.0, 1.0, 0.0);
-    // renderer.upload_chunk((0, 0).into(), model.clone(), &static_block_data);
-    // model.center = Vec3::new(0.0, -1.0, 0.0);
-    // renderer.upload_chunk((1, 0).into(), model.clone(), &static_block_data);
-    // model.center = Vec3::new(0.0, -2.0, 0.0);
-    // renderer.upload_chunk((2, 0).into(), model.clone(), &static_block_data);
-    // model.center = Vec3::new(0.0, -3.0, 0.0);
-    // renderer.upload_chunk((3, 0).into(), model.clone(), &static_block_data);
-    // model.center = Vec3::new(1.0, 0.0, 0.0);
-    // renderer.upload_chunk((4, 0).into(), model.clone(), &static_block_data);
 
     let mut window_resized = false;
     let mut recreate_swapchain = false;
@@ -64,7 +53,6 @@ fn main() {
 
                 camera_controller.tick(&input_handler);
                 world.player_pos = camera_controller.camera.pos.xz();
-                // world.frame_update(&mut renderer, &static_block_data);
                 renderer.cam_uniform = Some(camera_controller.camera.calculate_matrix(&renderer.viewport));
 
                 match renderer.render() {

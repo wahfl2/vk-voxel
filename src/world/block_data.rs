@@ -17,14 +17,16 @@ impl StaticBlockData {
     }
 
     pub fn init(&mut self, atlas: &TextureAtlas) {
-        self.add(InitBlockData::new("air", None));
-        self.add(InitBlockData::new("grass_block", 
+        self.add(InitBlockData::new("air", None, BlockType::None));
+        self.add(InitBlockData::new(
+            "grass_block", 
             Some(UnitCube::from_textures([
                 atlas.get_handle("grass_block_top").unwrap(),
                 atlas.get_handle("grass_block_side").unwrap(),
                 atlas.get_handle("dirt").unwrap(),
-            ].to_vec())))
-        );
+            ].to_vec())),
+            BlockType::Full,
+        ));
     }
 
     pub fn add(&mut self, data: InitBlockData) -> BlockHandle {
@@ -49,12 +51,19 @@ impl StaticBlockData {
 pub struct InitBlockData {
     pub id: String,
     pub model: Option<UnitCube>,
+    pub block_type: BlockType,
 }
 
 impl InitBlockData {
-    pub fn new(id: &str, model: Option<UnitCube>) -> Self {
-        Self { id: id.to_string(), model }
+    pub fn new(id: &str, model: Option<UnitCube>, block_type: BlockType) -> Self {
+        Self { id: id.to_string(), model, block_type }
     }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+pub enum BlockType {
+    None,
+    Full,
 }
 
 #[derive(Clone, Copy, Debug, Default)]

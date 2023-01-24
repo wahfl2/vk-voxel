@@ -35,6 +35,7 @@ pub struct QuadUV {
 }
 
 /// A textured quad with a width and length of 1.0
+#[derive(Clone)]
 pub struct TexturedSquare {
     pub center: Vec3,
     pub facing: Facing,

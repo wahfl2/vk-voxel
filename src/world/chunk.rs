@@ -1,9 +1,9 @@
 use std::array;
-use ultraviolet::{IVec2, UVec3, Vec2, Vec3};
+use ultraviolet::{IVec2, UVec3, Vec2, Vec3, IVec3};
 
 use crate::render::{mesh::renderable::Renderable, texture::TextureAtlas, vertex::VertexRaw};
 
-use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData}, terrain::TerrainGenerator};
+use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, self}, terrain::TerrainGenerator};
 
 pub struct Chunk {
     pub pos: IVec2,
@@ -40,6 +40,13 @@ impl Chunk {
         }
     }
 
+    pub fn rebuild_mesh(&mut self, atlas: &TextureAtlas, block_data: &StaticBlockData) {
+        self.sections.iter_mut().enumerate().for_each(|(i, section)| {
+            let offset = IVec3::new(self.pos.x * 16, i as i32 * 16, self.pos.y * 16);
+            section.rebuild_mesh(offset.into(), atlas, block_data);
+        });
+    }
+
     fn fill_column(&mut self, x: usize, z: usize, height: u32, fill_block: BlockHandle) {
         let column_iter = self.sections.iter_mut().flat_map(
             |s| { s.column_iter_mut(x, z) }
@@ -54,22 +61,6 @@ impl Chunk {
 
 impl Renderable for &Chunk {
     fn get_vertices(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> Vec<VertexRaw> {
-        // Horrid
-        let mut models = Vec::new();
-        let xz = Vec2::from(self.pos * 16) + Vec2::new(0.5, 0.5);
-        let base = Vec3::new(xz.x, 0.5, xz.y);
-
-        for (i, section) in self.sections.iter().enumerate() {
-            let y_add = i as f32;
-            for (relative_pos, block) in section.flat_iter() {
-                if let Some(mut model) = block_data.get(block).model {
-                    let section_add = base + (Vec3::unit_y() * y_add) + Vec3::from(relative_pos);
-                    model.center += section_add;
-                    models.push(model);
-                }
-            }
-        }
-
-        models.get_vertices(atlas, block_data)
+        self.sections.get_vertices(atlas, block_data)
     }
 }
