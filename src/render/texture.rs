@@ -100,7 +100,7 @@ impl TextureAtlas {
             self.data.data.clone(),
             self.data.dimensions.to_image_dimensions(),
             MipmapsCount::One,
-            Format::R8G8B8A8_SRGB,
+            Format::R8G8B8A8_UNORM,
             cbb,
         ).unwrap();
 
