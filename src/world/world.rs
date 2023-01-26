@@ -40,10 +40,10 @@ impl World {
 
         const DIRS: [Facing; 4] = [Facing::RIGHT, Facing::LEFT, Facing::FORWARD, Facing::BACK];
         for (dir, offset) in DIRS.iter().zip(Self::ADJ_CHUNK_OFFSETS.iter()) {
-            if let Some(chunk) = self.loaded_chunks.get_mut(&(chunk_pos + *offset)) {
-                new_chunk.cull_adjacent(*dir, chunk, .., block_data);
-                chunk.cull_adjacent(dir.opposite(), &new_chunk, .., block_data);
-                chunk.rebuild_mesh(atlas, block_data);
+            if let Some(adj_chunk) = self.loaded_chunks.get_mut(&(chunk_pos + *offset)) {
+                new_chunk.cull_adjacent(*dir, adj_chunk, .., block_data);
+                adj_chunk.cull_adjacent(dir.opposite(), &new_chunk, .., block_data);
+                adj_chunk.rebuild_mesh(atlas, block_data);
             }
         }
 
