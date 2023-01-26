@@ -4,7 +4,7 @@ use event_handler::{InputHandler, UserEvent};
 use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog, camera::camera::CameraController};
 
 use ultraviolet::Vec2;
-use util::AdditionalSwizzles;
+use crate::util::util::AdditionalSwizzles;
 use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent, DeviceEvent}};
 use world::{block_data::StaticBlockData, world::World};
 

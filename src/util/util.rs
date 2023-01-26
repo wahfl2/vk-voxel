@@ -49,7 +49,7 @@ impl Facing {
         Self { axis, sign }
     }
 
-    pub fn num_texture(&self) -> usize {
+    pub fn to_num(&self) -> usize {
         match (self.sign, self.axis) {
             (Sign::Positive, Axis::X) => 0,
             (Sign::Negative, Axis::X) => 1,
@@ -57,6 +57,28 @@ impl Facing {
             (Sign::Negative, Axis::Y) => 3,
             (Sign::Positive, Axis::Z) => 4,
             (Sign::Negative, Axis::Z) => 5,
+        }
+    }
+
+    pub fn from_num(num: usize) -> Self {
+        match num {
+            0 => Self::new(Axis::X, Sign::Positive),
+            1 => Self::new(Axis::X, Sign::Negative),
+            2 => Self::new(Axis::Y, Sign::Positive),
+            3 => Self::new(Axis::Y, Sign::Negative),
+            4 => Self::new(Axis::Z, Sign::Positive),
+            5 => Self::new(Axis::Z, Sign::Negative),
+            _ => panic!("Out of bounds.")
+        }
+    }
+
+    pub fn opposite(&self) -> Self {
+        Self { 
+            axis: self.axis, 
+            sign: match self.sign {
+                Sign::Positive => Sign::Negative,
+                Sign::Negative => Sign::Positive,
+            }
         }
     }
 }
