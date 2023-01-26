@@ -9,7 +9,7 @@ pub struct TerrainGenerator {
 }
 
 impl TerrainGenerator {
-    const NOISE_SCALE: f32 = 0.01;
+    const NOISE_SCALE: f32 = 0.02;
 
     pub fn new(seed: u32) -> Self {
         let noise = ScaleNoise::new(Vec2::new(Self::NOISE_SCALE, Self::NOISE_SCALE), seed);

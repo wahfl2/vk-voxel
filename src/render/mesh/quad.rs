@@ -1,6 +1,6 @@
 use ultraviolet::{Vec3, Vec2};
 
-use crate::{util::{Axis, Sign, Facing}, render::{vertex::VertexRaw, texture::{TextureAtlas, TextureHandle}}, world::block_data::{self, StaticBlockData}};
+use crate::{util::util::{Axis, Sign, Facing}, render::{vertex::VertexRaw, texture::{TextureAtlas, TextureHandle}}, world::block_data::{self, StaticBlockData}};
 
 use super::renderable::Renderable;
 

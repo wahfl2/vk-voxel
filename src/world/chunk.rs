@@ -1,12 +1,15 @@
+use std::ops::{RangeBounds, RangeInclusive};
+
+use ndarray::{s, Axis};
 use ultraviolet::{IVec2, UVec3, IVec3};
 
-use crate::render::{mesh::renderable::Renderable, texture::TextureAtlas, vertex::VertexRaw};
+use crate::{render::{mesh::renderable::Renderable, texture::TextureAtlas, vertex::VertexRaw}, util::util::{Facing, Sign}};
 
-use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData}, terrain::TerrainGenerator};
+use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData}, terrain::TerrainGenerator, world::World};
 
 pub struct Chunk {
     pub pos: IVec2,
-    sections: Vec<Section>,
+    pub sections: Vec<Section>,
 }
 
 impl BlockAccess for Chunk {
@@ -39,16 +42,85 @@ impl Chunk {
         }
     }
 
+    pub fn cull_inner(&mut self, section_range: impl RangeBounds<usize>, block_data: &StaticBlockData) {
+        let range = Self::get_section_range(section_range);
+        for i in range {
+            self.sections[i].cull_inner(block_data);
+            if i > 0 {
+                let plane = self.sections[i - 1].blocks.index_axis(Axis(1), 15).to_owned();
+                self.sections[i].cull_outer(Facing::DOWN, &plane, block_data);
+            }
+
+            if i < 15 {
+                let plane = self.sections[i + 1].blocks.index_axis(Axis(1), 1).to_owned();
+                self.sections[i].cull_outer(Facing::UP, &plane, block_data);
+            }
+        }
+    }
+
+    pub fn cull_adjacent(
+        &mut self, 
+        dir: Facing, 
+        adjacent_chunk: &Chunk, 
+        section_range: impl RangeBounds<usize>, 
+        block_data: &StaticBlockData
+    ) {
+        // TODO: replace Facing with a 2D variant here
+        if dir == Facing::UP || dir == Facing::DOWN { panic!("Wrong Facing dummy.") }
+
+        let range = Self::get_section_range(section_range);
+        for i in range {
+            let inner_section = self.sections.get_mut(i).unwrap();
+            let outer_section = &adjacent_chunk.sections[i];
+
+            let outer_data = match (dir.axis, dir.sign) {
+                (crate::util::util::Axis::X, Sign::Positive) => outer_section.blocks.index_axis(Axis(0), 0),
+                (crate::util::util::Axis::X, Sign::Negative) => outer_section.blocks.index_axis(Axis(0), 15),
+                (crate::util::util::Axis::Z, Sign::Positive) => outer_section.blocks.index_axis(Axis(2), 0),
+                (crate::util::util::Axis::Z, Sign::Negative) => outer_section.blocks.index_axis(Axis(2), 15),
+                _ => unreachable!()
+            }.to_owned();
+
+            inner_section.cull_outer(dir, &outer_data, block_data);
+        }
+    }
+
+    fn get_section_range(r: impl RangeBounds<usize>) -> RangeInclusive<usize> {
+        let start = match r.start_bound() {
+            std::ops::Bound::Included(n) => *n,
+            std::ops::Bound::Excluded(n) => n + 1,
+            std::ops::Bound::Unbounded => 0,
+        };
+
+        let end = match r.end_bound() {
+            std::ops::Bound::Included(n) => *n,
+            std::ops::Bound::Excluded(n) => n - 1,
+            std::ops::Bound::Unbounded => 15,
+        };
+
+        if start > 15 || end > 15 { panic!("Section range out of bounds.") }
+        start..=end
+    }
+
+    pub fn init_mesh(&mut self, atlas: &TextureAtlas, block_data: &StaticBlockData) {
+        self.cull_inner(.., block_data);
+        self.rebuild_mesh(atlas, block_data);
+    }
+
     pub fn rebuild_mesh(&mut self, atlas: &TextureAtlas, block_data: &StaticBlockData) {
-        self.sections.iter_mut().enumerate().for_each(|(i, section)| {
+        for i in 0..self.sections.len() {
             let offset = IVec3::new(self.pos.x * 16, i as i32 * 16, self.pos.y * 16);
-            section.rebuild_mesh(offset.into(), atlas, block_data);
-        });
+            self.sections[i].rebuild_mesh(
+                offset.into(), 
+                atlas, 
+                block_data
+            );
+        }
     }
 
     fn fill_column(&mut self, x: usize, z: usize, height: u32, fill_block: BlockHandle) {
         let column_iter = self.sections.iter_mut().flat_map(
-            |s| { s.column_iter_mut(x, z) }
+            |s| { s.blocks.slice_mut(s![x, .., z]) }
         );
 
         for (i, block) in column_iter.enumerate() {

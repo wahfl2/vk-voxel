@@ -1,173 +1,202 @@
-use std::ops::{Index, IndexMut, Mul};
-
+use ndarray::{Array3, arr3, Axis, s, Array2};
 use ultraviolet::{UVec3, Vec3};
 
-use crate::render::{mesh::{renderable::Renderable, quad::TexturedSquare}, texture::TextureAtlas, vertex::VertexRaw};
+use crate::{render::{mesh::{renderable::Renderable, quad::TexturedSquare}, texture::TextureAtlas, vertex::VertexRaw, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
 
 use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType}};
 
 pub struct Section {
-    blocks: [[[BlockHandle; 16]; 16]; 16],
+    pub blocks: Array3<BlockHandle>,
+    pub cull: Array3<BlockCull>,
     mesh: Vec<VertexRaw>,
 }
 
 impl BlockAccess for Section {
     fn get_block(&self, pos: UVec3) -> BlockHandle {
-        self.blocks[pos.x as usize][pos.y as usize][pos.z as usize]
+        *self.blocks.get((pos.x as usize, pos.y as usize, pos.z as usize)).unwrap()
     }
 
     fn set_block(&mut self, pos: UVec3, block: BlockHandle) {
-        self.blocks[pos.x as usize][pos.y as usize][pos.z as usize] = block;
+        *self.blocks.get_mut((pos.x as usize, pos.y as usize, pos.z as usize)).unwrap() = block;
     }
 }
 
 impl Section {
     pub fn empty() -> Self {
+        
         Self {
-            blocks: [[[BlockHandle::default(); 16]; 16]; 16],
+            blocks: arr3(&[[[BlockHandle::default(); 16]; 16]; 16]),
+            cull: arr3(&[[[BlockCull::none(); 16]; 16]; 16]),
             mesh: Vec::new(),
         }
     }
 
     pub fn flat_iter(&self) -> impl Iterator<Item = (UVec3, &BlockHandle)> {
-        self.blocks.iter().enumerate()
-            .flat_map(|(x, b)| { b.iter().enumerate()
-                .flat_map(move |(y, b)| { b.iter().enumerate()
-                    .map(move |(z, b)| { (UVec3::new(x as u32, y as u32, z as u32), b) }) }
-                ) }
-            )
+        self.blocks.indexed_iter()
+            .map(|((x, y, z), b)| { ((x as u32, y as u32, z as u32).into(), b) })
     }
 
-    pub fn get_column(&self, x: usize, z: usize) -> [&BlockHandle; 16] {
-        let x_plane = self.blocks.get(x).unwrap();
-        let column: Vec<&BlockHandle> = x_plane.iter().map(
-            |f| { f.get(z).unwrap() }
-        ).collect();
+    pub fn cull_inner(&mut self, block_data: &StaticBlockData) {
+        let iter = self.blocks.indexed_iter().map(|(p, b)| { (UsizeVec3::from(p), b) });
 
-        column[..16].try_into().unwrap()
-    }
-
-    pub fn column_iter_mut(&mut self, x: usize, z: usize) -> impl Iterator<Item = &mut BlockHandle> {
-        let x_plane = self.blocks.get_mut(x).unwrap();
-        x_plane.iter_mut().map(move |p| { p.get_mut(z).unwrap() })
-    }
-
-    pub fn rebuild_mesh(&mut self, offset: Vec3, atlas: &TextureAtlas, block_data: &StaticBlockData) {
-        // Iterate through every single block with the pos attached
-        let iter = self.blocks.iter().enumerate()
-            .flat_map(|(x, b)| { b.iter().enumerate()
-                .flat_map(move |(y, b)| { b.iter().enumerate()
-                    .filter_map(move |(z, b)| { 
-                        if block_data.get(b).block_type == BlockType::None { return None } 
-                        Some((UsizeVec3::new(x, y, z), b))
-                    })
-                })
-            });
-
-        let mut quads = Vec::new();
-        for (pos, handle) in iter {
-            let mut faces_op: Option<[TexturedSquare; 6]> = None;
-            let block_offset = pos.into_vec3() + offset;
-            for (i, neighbor) in self.get_neighbors(pos).into_iter().enumerate() {
-                if let Neighbor::Block { handle, pos: _ } = neighbor {
-                    if block_data.get(&handle).block_type == BlockType::Full {
-                        continue;
-                    }
+        for (pos, block) in iter {
+            if block_data.get(block).block_type == BlockType::None { continue; }
+            for (face, n) in self.get_neighbors(pos).into_iter().enumerate() {
+                match n {
+                    Neighbor::Block(b) => {
+                        let cull = self.cull.get_mut((pos.x, pos.y, pos.z)).unwrap();
+                        if block_data.get(&b).block_type == BlockType::Full {
+                            cull.set_face(face, true);
+                        } else {
+                            cull.set_face(face, false);
+                        }
+                    },
+                    _ => (),
                 }
-
-                let face_idx = i;
-                let mut face = match faces_op.as_ref() {
-                    Some(faces) => faces[face_idx].clone(),
-                    None => {
-                        let faces = block_data.get(handle).model.unwrap().get_faces();
-                        let ret = faces[face_idx].clone();
-                        faces_op = Some(faces);
-                        ret
-                    }
-                };
-
-                face.center += block_offset;
-                quads.push(face);
             }
         }
+    }
+
+    pub fn cull_outer(&mut self, dir: Facing, outer_data: &Array2<BlockHandle>, block_data: &StaticBlockData) {
+        let face_num = dir.to_num();
+        let axis = match dir.axis {
+            crate::util::util::Axis::X => Axis(0),
+            crate::util::util::Axis::Y => Axis(1),
+            crate::util::util::Axis::Z => Axis(2),
+        };
+
+        let depth = match dir.sign {
+            Sign::Positive => 15,
+            Sign::Negative => 0,
+        };
+
+        let plane = self.blocks.index_axis(axis, depth);
+        let mut cull_plane = self.cull.index_axis_mut(axis, depth);
+        let iter = plane.indexed_iter().zip(cull_plane.iter_mut().zip(outer_data.iter()));
+
+        for ((_pos, inner_block), (cull, outer_block)) in iter {
+            if block_data.get(inner_block).block_type == BlockType::None { continue; }
+            cull.set_face(face_num, block_data.get(outer_block).block_type == BlockType::Full);
+        }
+    }
+
+    pub fn cull_all_outer(&mut self, outer_data: [Option<Array2<BlockHandle>>; 6], block_data: &StaticBlockData) {
+        for i in 0..6 {
+            if let Some(outer) = &outer_data[i] {
+                self.cull_outer(Facing::from_num(i), outer, block_data);
+            }
+        }
+    }
+
+    pub fn cull_all(&mut self, outer_data: [Option<Array2<BlockHandle>>; 6], block_data: &StaticBlockData) {
+        self.cull_inner(block_data);
+        self.cull_all_outer(outer_data, block_data);
+    }
+
+    pub fn rebuild_mesh(
+        &mut self, 
+        offset: Vec3, 
+        atlas: &TextureAtlas, 
+        block_data: &StaticBlockData,
+    ) {
+        let mut quads = Vec::new();
+        for (pos, block) in self.blocks.indexed_iter().map(|(p, b)| { (UsizeVec3::from(p), b) }) {
+            let data = block_data.get(block);
+            if data.block_type == BlockType::None { continue; }
+            let mut model = data.model.unwrap();
+            model.center = offset + Vec3::new(pos.x as f32, pos.y as f32, pos.z as f32);
+            let faces = model.get_faces();
+            let cull = self.cull.get((pos.x, pos.y, pos.z)).unwrap();
+
+            for (i, side_culled) in cull.get_bools().into_iter().enumerate() {
+                if !side_culled {
+                    quads.push(faces[i].clone());
+                }
+            }
+        }
+
         self.mesh = quads.get_vertices(atlas, block_data);
     }
 
     fn get_neighbors(&self, pos: UsizeVec3) -> [Neighbor; 6] {
-        let mut neighbors = [Neighbor::Boundary; 6];
+        let mut n = [Neighbor::Boundary; 6];
 
-        if pos.x < 15 { neighbors[0] = self.neighbor_block((pos.x + 1, pos.y, pos.z).into()); }
-        if pos.x > 0  { neighbors[1] = self.neighbor_block((pos.x - 1, pos.y, pos.z).into()); }
-        if pos.y < 15 { neighbors[2] = self.neighbor_block((pos.x, pos.y + 1, pos.z).into()); }
-        if pos.y > 0  { neighbors[3] = self.neighbor_block((pos.x, pos.y - 1, pos.z).into()); }
-        if pos.z < 15 { neighbors[4] = self.neighbor_block((pos.x, pos.y, pos.z + 1).into()); }
-        if pos.z > 0  { neighbors[5] = self.neighbor_block((pos.x, pos.y, pos.z - 1).into()); }
-        
-        neighbors
+        if pos.x < 15 { n[0] = Neighbor::Block(*self.blocks.get((pos.x + 1, pos.y, pos.z)).unwrap()) }
+        if pos.x > 0  { n[1] = Neighbor::Block(*self.blocks.get((pos.x - 1, pos.y, pos.z)).unwrap()) }
+        if pos.y < 15 { n[2] = Neighbor::Block(*self.blocks.get((pos.x, pos.y + 1, pos.z)).unwrap()) }
+        if pos.y > 0  { n[3] = Neighbor::Block(*self.blocks.get((pos.x, pos.y - 1, pos.z)).unwrap()) }
+        if pos.z < 15 { n[4] = Neighbor::Block(*self.blocks.get((pos.x, pos.y, pos.z + 1)).unwrap()) }
+        if pos.z > 0  { n[5] = Neighbor::Block(*self.blocks.get((pos.x, pos.y, pos.z - 1)).unwrap()) }
+
+        n
     }
 
     fn neighbor_block(&self, pos: UsizeVec3) -> Neighbor {
-        Neighbor::new_block(self.blocks[pos], pos)
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-struct UsizeVec3 {
-    x: usize,
-    y: usize,
-    z: usize,
-}
-
-impl UsizeVec3 {
-    fn new(x: usize, y: usize, z: usize) -> Self {
-        Self { x, y, z }
-    }
-    
-    fn into_vec3(self) -> Vec3 {
-        Vec3::new(self.x as f32, self.y as f32, self.z as f32)
-    }
-}
-
-impl<T, const N: usize, const M: usize, const P: usize> Index<UsizeVec3> for [[[T; N]; M]; P] {
-    type Output = T;
-
-    fn index(&self, index: UsizeVec3) -> &Self::Output {
-        &self[index.x][index.y][index.z]
-    }
-}
-
-impl<T, const N: usize, const M: usize, const P: usize> IndexMut<UsizeVec3> for [[[T; N]; M]; P] {
-    fn index_mut(&mut self, index: UsizeVec3) -> &mut Self::Output {
-        &mut self[index.x][index.y][index.z]
-    }
-}
-
-impl Mul<usize> for UsizeVec3 {
-    type Output = UsizeVec3;
-
-    fn mul(self, rhs: usize) -> Self::Output {
-        (self.x * rhs, self.y * rhs, self.z * rhs).into()
-    }
-}
-
-impl From<(usize, usize, usize)> for UsizeVec3 {
-    fn from(value: (usize, usize, usize)) -> Self {
-        Self::new(value.0, value.1, value.2)
+        Neighbor::Block(*self.blocks.get((pos.x, pos.y, pos.z)).unwrap())
     }
 }
 
 #[derive(Copy, Clone, Debug)]
 enum Neighbor {
     Boundary,
-    Block {
-        handle: BlockHandle,
-        pos: UsizeVec3,
-    },
+    Block(BlockHandle),
 }
 
-impl Neighbor {
-    fn new_block(handle: BlockHandle, pos: UsizeVec3) -> Self {
-        Self::Block { handle, pos }
+impl From<Option<BlockHandle>> for Neighbor {
+    fn from(value: Option<BlockHandle>) -> Self {
+        match value {
+            Some(b) => Self::Block(b),
+            None => Self::Boundary,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct BlockCull {
+    inner: u8,
+}
+
+impl BlockCull {
+    pub fn none() -> Self {
+        Self { inner: 0 }
+    }
+
+    /// The last six bits represent `+X -X +Y -Y +Z -Z`
+    pub fn from_bits(bits: u8) -> Self {
+        Self { inner: bits }
+    }
+
+    pub fn from_array(arr: [bool; 6]) -> Self {
+        let mut bits = 0u8;
+        for (i, b) in arr.reversed().iter().enumerate() {
+            bits |= Self::to_u8(b) << i;
+        }
+
+        Self::from_bits(bits)
+    }
+
+    pub fn is_culled(&self, dir: Facing) -> bool {
+        self.is_culled_num(dir.to_num())
+    }
+
+    fn is_culled_num(&self, num: usize) -> bool {
+        self.inner & (1 << (6 - num)) > 0
+    }
+
+    pub fn set_face(&mut self, face: usize, b: bool) {
+        let mask = 1 << (6 - face);
+        self.inner = (self.inner & !mask) | (Self::to_u8(&b) << (6 - face));
+    }
+
+    pub fn get_bools(&self) -> [bool; 6] {
+        (0..6usize).map(|n| { self.is_culled_num(n) }).collect::<Vec<_>>()[..6].try_into().unwrap()
+    }
+    
+    fn to_u8(b: &bool) -> u8 {
+        match b {
+            true => 1,
+            false => 0,
+        }
     }
 }
 

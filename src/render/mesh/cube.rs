@@ -1,6 +1,6 @@
 use ultraviolet::Vec3;
 
-use crate::{render::{texture::{TextureAtlas, TextureHandle}, vertex::VertexRaw}, util::Facing, world::block_data::StaticBlockData};
+use crate::{render::{texture::{TextureAtlas, TextureHandle}, vertex::VertexRaw}, util::util::Facing, world::block_data::StaticBlockData};
 
 use super::{renderable::Renderable, quad::TexturedSquare};
 

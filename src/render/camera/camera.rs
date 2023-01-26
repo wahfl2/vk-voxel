@@ -25,7 +25,7 @@ impl Default for Camera {
             pitch: 0.0, 
             fov: 80.0, 
             near: 0.1, 
-            far: 10000.0,
+            far: 1000.0,
         }
     }
 }

@@ -1,7 +1,9 @@
+use ndarray::Array2;
+use png::chunk;
 use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::{IVec2, Vec2};
 
-use crate::render::{renderer::Renderer, texture::TextureAtlas};
+use crate::{render::{renderer::Renderer, texture::TextureAtlas}, util::util::{Axis, Facing}, world::block_data::BlockHandle};
 
 use super::{chunk::Chunk, terrain::TerrainGenerator, block_data::StaticBlockData};
 
@@ -15,6 +17,13 @@ impl World {
     const CHUNK_UPDATES_PER_FRAME: u32 = 4;
     const RENDER_DISTANCE: u32 = 5;
 
+    const ADJ_CHUNK_OFFSETS: [IVec2; 4] = [
+        IVec2::new(1, 0),
+        IVec2::new(-1, 0),
+        IVec2::new(0, 1),
+        IVec2::new(0, -1),
+    ];
+
     pub fn new() -> Self {
         Self {
             loaded_chunks: FxHashMap::default(),
@@ -27,6 +36,17 @@ impl World {
         // TODO: Load from storage
         let mut new_chunk = Chunk::empty(chunk_pos);
         new_chunk.gen(&self.terrain_generator);
+        new_chunk.init_mesh(atlas, block_data);
+
+        const DIRS: [Facing; 4] = [Facing::RIGHT, Facing::LEFT, Facing::FORWARD, Facing::BACK];
+        for (dir, offset) in DIRS.iter().zip(Self::ADJ_CHUNK_OFFSETS.iter()) {
+            if let Some(chunk) = self.loaded_chunks.get_mut(&(chunk_pos + *offset)) {
+                new_chunk.cull_adjacent(*dir, chunk, .., block_data);
+                chunk.cull_adjacent(dir.opposite(), &new_chunk, .., block_data);
+                chunk.rebuild_mesh(atlas, block_data);
+            }
+        }
+
         new_chunk.rebuild_mesh(atlas, block_data);
         self.loaded_chunks.insert(chunk_pos, new_chunk);
         println!("Loaded ({}, {})", chunk_pos.x, chunk_pos.y);
