@@ -1,12 +1,12 @@
 use std::ops::{RangeBounds, RangeInclusive};
 
 use ndarray::{s, Axis};
-use rayon::prelude::{IntoParallelIterator, ParallelIterator, IntoParallelRefMutIterator, IndexedParallelIterator};
+use rayon::prelude::{ParallelIterator, IntoParallelRefMutIterator, IndexedParallelIterator};
 use ultraviolet::{IVec2, UVec3, IVec3};
 
 use crate::{render::{mesh::renderable::Renderable, texture::TextureAtlas, vertex::VertexRaw}, util::util::{Facing, Sign}};
 
-use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData}, terrain::TerrainGenerator, world::World};
+use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData}, terrain::TerrainGenerator};
 
 pub struct Chunk {
     pub pos: IVec2,

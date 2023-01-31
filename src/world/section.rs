@@ -2,7 +2,7 @@ use ndarray::{Array3, arr3, Axis, Array2};
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use ultraviolet::{UVec3, Vec3};
 
-use crate::{render::{mesh::{renderable::Renderable, quad::TexturedSquare}, texture::TextureAtlas, vertex::VertexRaw, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
+use crate::{render::{mesh::renderable::Renderable, texture::TextureAtlas, vertex::VertexRaw, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
 
 use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType}};
 

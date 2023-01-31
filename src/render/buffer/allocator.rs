@@ -1,13 +1,13 @@
-use std::{sync::Arc, collections::hash_map::Iter, time::Instant};
+use std::{sync::Arc, collections::hash_map::Iter};
 
 use rustc_data_structures::stable_map::FxHashMap;
-use smallvec::{smallvec, SmallVec};
+
 use ultraviolet::IVec2;
-use vulkano::{buffer::{BufferUsage, CpuAccessibleBuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::{DrawIndirectCommand, AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, BufferCopy, CopyBufferInfoTyped}};
+use vulkano::{buffer::CpuAccessibleBuffer, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::DrawIndirectCommand};
 
 use crate::{render::{vertex::VertexRaw, mesh::renderable::Renderable, texture::TextureAtlas}, world::block_data::StaticBlockData};
 
-use super::{buffer_queue::{BufferQueue, BufferQueueTask}, swap_buffer::SwappingBuffer};
+use super::swap_buffer::SwappingBuffer;
 
 pub struct VertexChunkBuffer {
     buffer: SwappingBuffer,
