@@ -411,7 +411,6 @@ impl Renderer {
         // TODO: Only update this buffer when swap buffer is swapped.
         if just_swapped {
             let data = self.vertex_chunk_buffer.get_indirect_commands();
-            println!("Multidraw commands: {}", data.len());
             if data.len() > 0 {
                 self.indirect_buffer = Some(DeviceLocalBuffer::from_iter(
                     &self.vk_memory_allocator, 

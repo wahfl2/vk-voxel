@@ -11,22 +11,22 @@ use super::swap_buffer::SwappingBuffer;
 
 pub struct VertexChunkBuffer {
     buffer: SwappingBuffer,
-    allocator: StandardMemoryAllocator,
     chunk_allocator: ChunkBufferAllocator,
     allocations: FxHashMap<(i32, i32), ChunkBufferAllocation>,
+    pub highest: usize,
 }
 
 impl VertexChunkBuffer {
-    const INITIAL_SIZE: usize = 10_000_000;
+    const INITIAL_SIZE: usize = 50_000_000;
 
     pub fn new(device: Arc<Device>) -> Self {
         let allocator = StandardMemoryAllocator::new_default(device.clone());
 
         VertexChunkBuffer {
             buffer: SwappingBuffer::new(Self::INITIAL_SIZE, &allocator),
-            allocator,
             chunk_allocator: ChunkBufferAllocator::new(),
             allocations: FxHashMap::default(),
+            highest: 0
         }
     }
 
@@ -44,6 +44,11 @@ impl VertexChunkBuffer {
         let verts: Vec<VertexRaw> = chunk.get_vertices(atlas, block_data);
         let size = verts.len() as u32;
         let allocation = self.chunk_allocator.allocate(size);
+        if allocation.back as usize > self.highest {
+            self.highest = allocation.back as usize;
+            println!("Buffer size: {}", self.highest);
+        }
+
         self.allocations.insert(chunk_pos.into(), allocation);
         self.buffer.write_vertices(allocation.front.try_into().unwrap(), &verts);
     }

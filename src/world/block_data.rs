@@ -5,7 +5,7 @@ use crate::render::{texture::TextureAtlas, mesh::cube::UnitCube};
 /// Static block data, should be initialized at startup and probably left alone.
 pub struct StaticBlockData {
     inner: Vec<InitBlockData>,
-    ids: FxHashMap<String, usize>,
+    ids: FxHashMap<String, u32>,
 }
 
 impl StaticBlockData {
@@ -30,14 +30,14 @@ impl StaticBlockData {
     }
 
     pub fn add(&mut self, data: InitBlockData) -> BlockHandle {
-        let idx = self.inner.len();
+        let idx = self.inner.len() as u32;
         self.inner.push(data.clone());
         self.ids.insert(data.id, idx);
         BlockHandle::new(idx)
     }
 
     pub fn get(&self, handle: &BlockHandle) -> &InitBlockData {
-        self.inner.get(handle.inner).unwrap()
+        self.inner.get(handle.inner as usize).unwrap()
     }
 
     pub fn get_handle(&self, id: &str) -> Option<BlockHandle> {
@@ -68,16 +68,16 @@ pub enum BlockType {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct BlockHandle {
-    inner: usize
+    inner: u32
 }
 
 impl BlockHandle {
-    fn new(inner: usize) -> Self {
+    fn new(inner: u32) -> Self {
         Self { inner }
     }
 
     #[deprecated = "Should be replaced and unused ASAP"]
-    pub fn new_unsafe(inner: usize) -> Self {
+    pub fn new_unsafe(inner: u32) -> Self {
         Self { inner }
     }
 }
