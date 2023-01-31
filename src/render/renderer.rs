@@ -385,6 +385,7 @@ impl Renderer {
 
     /// Get a command buffer that will render the scene.
     pub fn get_render_command_buffer(&mut self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
+        let just_swapped = self.vertex_chunk_buffer.update();
         let v_buffer = self.vertex_chunk_buffer.get_buffer();
         
         let mut builder = AutoCommandBufferBuilder::primary(
@@ -406,12 +407,11 @@ impl Renderer {
             };
             builder.push_constants(self.vk_pipeline.layout().clone(), 0, pc);
         }
-             
-        if !self.vertex_chunk_buffer.queue.is_empty() {
-            self.vertex_chunk_buffer.execute_queue(&mut builder);
 
-            // Vertex data is updated, recreate indirect command buffer.
+        // TODO: Only update this buffer when swap buffer is swapped.
+        if just_swapped {
             let data = self.vertex_chunk_buffer.get_indirect_commands();
+            println!("Multidraw commands: {}", data.len());
             if data.len() > 0 {
                 self.indirect_buffer = Some(DeviceLocalBuffer::from_iter(
                     &self.vk_memory_allocator, 

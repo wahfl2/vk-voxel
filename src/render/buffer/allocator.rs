@@ -3,39 +3,35 @@ use std::{sync::Arc, collections::hash_map::Iter, time::Instant};
 use rustc_data_structures::stable_map::FxHashMap;
 use smallvec::{smallvec, SmallVec};
 use ultraviolet::IVec2;
-use vulkano::{buffer::{BufferUsage, CpuAccessibleBuffer}, device::Device, memory::allocator::{FastMemoryAllocator, StandardMemoryAllocator}, command_buffer::{DrawIndirectCommand, AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, CopyBufferInfo, BufferCopy, CopyBufferInfoTyped}, NonExhaustive};
+use vulkano::{buffer::{BufferUsage, CpuAccessibleBuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::{DrawIndirectCommand, AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, BufferCopy, CopyBufferInfoTyped}};
 
 use crate::{render::{vertex::VertexRaw, mesh::renderable::Renderable, texture::TextureAtlas}, world::block_data::StaticBlockData};
 
-use super::buffer_queue::{BufferQueue, BufferQueueTask};
+use super::{buffer_queue::{BufferQueue, BufferQueueTask}, swap_buffer::SwappingBuffer};
 
 pub struct VertexChunkBuffer {
-    inner_vertex: Arc<CpuAccessibleBuffer<[VertexRaw]>>,
-    queue_buf: Arc<CpuAccessibleBuffer<[VertexRaw]>>,
-    inner_vertex_size: u64,
-    allocator: Arc<StandardMemoryAllocator>,
+    buffer: SwappingBuffer,
+    allocator: StandardMemoryAllocator,
     chunk_allocator: ChunkBufferAllocator,
     allocations: FxHashMap<(i32, i32), ChunkBufferAllocation>,
-    pub queue: BufferQueue,
 }
 
 impl VertexChunkBuffer {
-    const INITIAL_SIZE: u64 = 50_000;
+    const INITIAL_SIZE: usize = 10_000_000;
 
     pub fn new(device: Arc<Device>) -> Self {
-        let allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
-        let (inner_vertex, queue_buf) = 
-            Self::create_buffers(allocator.clone(), Self::INITIAL_SIZE);
+        let allocator = StandardMemoryAllocator::new_default(device.clone());
 
         VertexChunkBuffer {
-            inner_vertex,
-            queue_buf,
-            inner_vertex_size: Self::INITIAL_SIZE,
+            buffer: SwappingBuffer::new(Self::INITIAL_SIZE, &allocator),
             allocator,
             chunk_allocator: ChunkBufferAllocator::new(),
             allocations: FxHashMap::default(),
-            queue: BufferQueue::new()
         }
+    }
+
+    pub fn update(&mut self) -> bool {
+        self.buffer.update()
     }
 
     pub fn push_chunk_vertices(
@@ -49,28 +45,31 @@ impl VertexChunkBuffer {
         let size = verts.len() as u32;
         let allocation = self.chunk_allocator.allocate(size);
         self.allocations.insert(chunk_pos.into(), allocation);
-        while (allocation.back as u64) >= self.inner_vertex_size {
-            self.grow_inner_vertex();
-        }
-
-        let mut write = self.queue_buf.write().expect("Epic queue write fail.");
-        write[(allocation.front as usize)..(allocation.back as usize)]
-            .copy_from_slice(&verts);
-        
-        self.queue.push_data(allocation.front, verts);
+        self.buffer.write_vertices(allocation.front.try_into().unwrap(), &verts);
     }
 
     pub fn remove_chunk(&mut self, chunk_pos: IVec2) {
-        if let Some(allocation) = self.allocations.get(&chunk_pos.into()) {
-            self.chunk_allocator.deallocate(allocation);
+        if let Some(allocation) = self.allocations.remove(&chunk_pos.into()) {
+            self.chunk_allocator.deallocate(&allocation);
             // No need to push to queue, corresponding memory will not be read
         } else {
             panic!("Tried to remove chunk that was not allocated. Chunk pos: {:?}", chunk_pos);
         }
     }
 
+    pub fn readd_chunk(
+        &mut self, 
+        chunk_pos: IVec2, 
+        chunk: impl Renderable, 
+        atlas: &TextureAtlas, 
+        block_data: &StaticBlockData
+    ) {
+        self.remove_chunk(chunk_pos);
+        self.push_chunk_vertices(chunk_pos, chunk, atlas, block_data);
+    }
+
     pub fn get_buffer(&self) -> Arc<CpuAccessibleBuffer<[VertexRaw]>> {
-        self.inner_vertex.clone()
+        self.buffer.get_current_buffer()
     }
 
     pub fn get_indirect_commands(&self) -> Vec<DrawIndirectCommand> {
@@ -84,96 +83,6 @@ impl VertexChunkBuffer {
             });
         }
         ret
-    }
-
-    /// Should only be executed in a context where you know it's in sync.
-    pub fn execute_queue(&mut self, command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>) {
-        let mut copy_regions: SmallVec<[_; 1]> = smallvec![];
-        for task in self.queue.flush() {
-            match task {
-                BufferQueueTask::Write(write) => {
-                    let offset = write.start_idx as u64;
-                    let size = write.data.len() as u64;
-
-                    copy_regions.push(BufferCopy {
-                        src_offset: offset,
-                        dst_offset: offset,
-                        size,
-                        ..Default::default()
-                    });
-                },
-                BufferQueueTask::Transfer(transfer) => {
-                    let copy = 
-                        CopyBufferInfoTyped::buffers(transfer.src_buf, transfer.dst_buf);
-
-                    command_buffer_builder.copy_buffer(copy).unwrap();
-                },
-            }
-        }
-
-        if !copy_regions.is_empty() {
-            let mut copy_buffer_info = CopyBufferInfoTyped::buffers(
-                self.queue_buf.clone(), 
-                self.inner_vertex.clone(),
-            );
-            copy_buffer_info.regions = copy_regions;
-            command_buffer_builder.copy_buffer(copy_buffer_info).expect("EPIC FAIL");
-        }
-    }
-
-    // TODO: move growable buffer to its own struct maybe
-    fn create_buffers(
-        allocator: Arc<StandardMemoryAllocator>, 
-        size: u64
-    ) -> (Arc<CpuAccessibleBuffer<[VertexRaw]>>, Arc<CpuAccessibleBuffer<[VertexRaw]>>) {
-        (
-            unsafe {
-                CpuAccessibleBuffer::uninitialized_array(
-                    &allocator, 
-                    size, 
-                    BufferUsage {
-                        vertex_buffer: true,
-                        transfer_dst: true,
-                        ..Default::default()
-                    }, 
-                    false
-                ).unwrap()
-            },
-            
-            unsafe {
-                CpuAccessibleBuffer::uninitialized_array(
-                    &allocator, 
-                    size, 
-                    BufferUsage {
-                        transfer_src: true,
-                        ..Default::default()
-                    }, 
-                    false
-                ).unwrap()
-            },
-        )
-    }
-
-    /// 
-    fn grow_inner_vertex(&mut self) {
-        let old_v_buffer = self.inner_vertex.clone();
-        let old_q_buffer = self.queue_buf.clone();
-
-        println!("Creating new buffers...");
-        let buffers = Self::create_buffers(self.allocator.clone(), self.inner_vertex_size * 2);
-        self.inner_vertex = buffers.0;
-        self.queue_buf = buffers.1;
-
-        print!("Writing old data... ");
-        let prev = Instant::now();
-        let write = &mut self.inner_vertex.write().unwrap();
-        write[0..self.inner_vertex_size as usize].copy_from_slice(&old_v_buffer.read().unwrap());
-        let write = &mut self.queue_buf.write().unwrap();
-        write[0..self.inner_vertex_size as usize].copy_from_slice(&old_q_buffer.read().unwrap());
-        println!("{}ms", (Instant::now() - prev).as_millis());
-
-        self.inner_vertex_size *= 2;
-        println!("New size: {}", self.inner_vertex_size);
     }
 }
 

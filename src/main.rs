@@ -1,3 +1,5 @@
+#![feature(array_zip)]
+
 use std::time::{Instant, Duration};
 
 use event_handler::{InputHandler, UserEvent};
@@ -13,7 +15,7 @@ pub mod util;
 pub mod world;
 pub mod event_handler;
 
-pub const FRAME_TIME: f64 = 1.0 / 60.0;
+pub const FRAME_TIME: f64 = 1.0 / 240.0;
 
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
@@ -24,10 +26,6 @@ fn main() {
     let mut static_block_data = StaticBlockData::empty();
     static_block_data.init(&renderer.texture_atlas);
     let mut world = World::new();
-
-    for _ in 0..100 {
-        world.frame_update(&mut renderer, &static_block_data);
-    }
 
     let mut input_handler = InputHandler::new();
     let mut camera_controller = CameraController::default();
@@ -53,6 +51,7 @@ fn main() {
 
                 camera_controller.tick(&input_handler);
                 world.player_pos = camera_controller.camera.pos.xz();
+                world.frame_update(&mut renderer, &static_block_data);
                 renderer.cam_uniform = Some(camera_controller.camera.calculate_matrix(&renderer.viewport));
 
                 match renderer.render() {

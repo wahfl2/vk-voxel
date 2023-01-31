@@ -1,9 +1,7 @@
-use ndarray::Array2;
-use png::chunk;
 use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::{IVec2, Vec2};
 
-use crate::{render::{renderer::Renderer, texture::TextureAtlas}, util::util::{Axis, Facing}, world::block_data::BlockHandle};
+use crate::{render::renderer::Renderer, util::util::Facing};
 
 use super::{chunk::Chunk, terrain::TerrainGenerator, block_data::StaticBlockData};
 
@@ -14,8 +12,8 @@ pub struct World {
 }
 
 impl World {
-    const CHUNK_UPDATES_PER_FRAME: u32 = 4;
-    const RENDER_DISTANCE: u32 = 5;
+    const CHUNK_UPDATES_PER_FRAME: u32 = 1;
+    const RENDER_DISTANCE: u32 = 12;
 
     const ADJ_CHUNK_OFFSETS: [IVec2; 4] = [
         IVec2::new(1, 0),
@@ -32,39 +30,46 @@ impl World {
         }
     }
 
-    pub fn load_chunk(&mut self, chunk_pos: IVec2, atlas: &TextureAtlas, block_data: &StaticBlockData) {
+    pub fn load_chunk(&mut self, chunk_pos: IVec2, renderer: &mut Renderer, block_data: &StaticBlockData) {
         // TODO: Load from storage
         let mut new_chunk = Chunk::empty(chunk_pos);
         new_chunk.gen(&self.terrain_generator);
-        new_chunk.init_mesh(atlas, block_data);
+        new_chunk.init_mesh(block_data);
 
         const DIRS: [Facing; 4] = [Facing::RIGHT, Facing::LEFT, Facing::FORWARD, Facing::BACK];
         for (dir, offset) in DIRS.iter().zip(Self::ADJ_CHUNK_OFFSETS.iter()) {
             if let Some(adj_chunk) = self.loaded_chunks.get_mut(&(chunk_pos + *offset)) {
                 new_chunk.cull_adjacent(*dir, adj_chunk, .., block_data);
                 adj_chunk.cull_adjacent(dir.opposite(), &new_chunk, .., block_data);
-                adj_chunk.rebuild_mesh(atlas, block_data);
+                adj_chunk.rebuild_mesh(&renderer.texture_atlas, block_data);
+                renderer.vertex_chunk_buffer.readd_chunk(
+                    adj_chunk.pos,
+                    &*adj_chunk,
+                    &renderer.texture_atlas,
+                    block_data,
+                );
             }
         }
 
-        new_chunk.rebuild_mesh(atlas, block_data);
+        new_chunk.rebuild_mesh(&renderer.texture_atlas, block_data);
+        renderer.vertex_chunk_buffer.push_chunk_vertices(chunk_pos, &new_chunk, &renderer.texture_atlas, block_data);
         self.loaded_chunks.insert(chunk_pos, new_chunk);
-        println!("Loaded ({}, {})", chunk_pos.x, chunk_pos.y);
     }
 
     pub fn frame_update(&mut self, renderer: &mut Renderer, block_data: &StaticBlockData) {
-        for _ in 0..Self::CHUNK_UPDATES_PER_FRAME {
-            if let Some(pos) = self.get_closest_unloaded_chunk() {
-                self.load_chunk(pos, &renderer.texture_atlas, block_data);
-                renderer.upload_chunk(pos, self.loaded_chunks.get(&pos).unwrap(), block_data);
-            } else {
-                break
-            }
+        let to_load = self.get_closest_unloaded_chunks(Self::CHUNK_UPDATES_PER_FRAME.try_into().unwrap());
+        for pos in to_load.into_iter() {
+            self.load_chunk(pos, renderer, block_data);
+        }
+
+        for pos in self.get_chunks_to_unload() {
+            renderer.vertex_chunk_buffer.remove_chunk(pos);
+            self.loaded_chunks.remove(&pos);
         }
     }
 
-    fn get_closest_unloaded_chunk(&self) -> Option<IVec2> {
-        let div_16 = self.player_pos / 16.0;
+    fn get_closest_unloaded_chunks(&self, num: usize) -> Vec<IVec2> {
+        let div_16 = self.player_pos / -16.0;
         let center_chunk = IVec2::new(div_16.x.floor() as i32, div_16.y.floor() as i32);
         
         let mut check = center_chunk.clone();
@@ -73,7 +78,9 @@ impl World {
         let mut step_amount = 1;
         let mut up_step = false;
 
-        while let Some(_) = self.loaded_chunks.get(&check) {
+        let mut ret = Vec::new();
+
+        while ret.len() < num {
             match step {
                 SpiralStep::Right => check.x += 1,
                 SpiralStep::Up => check.y += 1,
@@ -81,8 +88,12 @@ impl World {
                 SpiralStep::Down => check.y -= 1,
             }
 
-            if (check - center_chunk).mag() as u32 > Self::RENDER_DISTANCE {
-                return None
+            if (check - center_chunk).abs().component_max() as u32 > Self::RENDER_DISTANCE {
+                break;
+            }
+
+            if let None = self.loaded_chunks.get(&check) {
+                ret.push(check);
             }
 
             steps_left -= 1;
@@ -93,7 +104,20 @@ impl World {
                 step.next();
             }
         }
-        return Some(check);
+        return ret;
+    }
+
+    fn get_chunks_to_unload(&self) -> Vec<IVec2> {
+        let div_16 = self.player_pos / -16.0;
+        let player_pos = IVec2::new(div_16.x.floor() as i32, div_16.y.floor() as i32);
+
+        let mut ret = Vec::new();
+        for pos in self.loaded_chunks.keys() {
+            if (*pos - player_pos).abs().component_max() as u32 > Self::RENDER_DISTANCE + 1 {
+                ret.push(*pos);
+            }
+        }
+        ret
     }
 }
 

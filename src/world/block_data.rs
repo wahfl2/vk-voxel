@@ -36,8 +36,8 @@ impl StaticBlockData {
         BlockHandle::new(idx)
     }
 
-    pub fn get(&self, handle: &BlockHandle) -> InitBlockData {
-        self.inner.get(handle.inner).unwrap().to_owned()
+    pub fn get(&self, handle: &BlockHandle) -> &InitBlockData {
+        self.inner.get(handle.inner).unwrap()
     }
 
     pub fn get_handle(&self, id: &str) -> Option<BlockHandle> {

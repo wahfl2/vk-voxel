@@ -1,6 +1,7 @@
 use std::ops::{RangeBounds, RangeInclusive};
 
 use ndarray::{s, Axis};
+use rayon::prelude::{IntoParallelIterator, ParallelIterator, IntoParallelRefMutIterator, IndexedParallelIterator};
 use ultraviolet::{IVec2, UVec3, IVec3};
 
 use crate::{render::{mesh::renderable::Renderable, texture::TextureAtlas, vertex::VertexRaw}, util::util::{Facing, Sign}};
@@ -102,20 +103,19 @@ impl Chunk {
         start..=end
     }
 
-    pub fn init_mesh(&mut self, atlas: &TextureAtlas, block_data: &StaticBlockData) {
+    pub fn init_mesh(&mut self, block_data: &StaticBlockData) {
         self.cull_inner(.., block_data);
-        self.rebuild_mesh(atlas, block_data);
     }
 
     pub fn rebuild_mesh(&mut self, atlas: &TextureAtlas, block_data: &StaticBlockData) {
-        for i in 0..self.sections.len() {
+        self.sections.par_iter_mut().enumerate().for_each(|(i, section)| {
             let offset = IVec3::new(self.pos.x * 16, i as i32 * 16, self.pos.y * 16);
-            self.sections[i].rebuild_mesh(
+            section.rebuild_mesh(
                 offset.into(), 
                 atlas, 
                 block_data
             );
-        }
+        });
     }
 
     fn fill_column(&mut self, x: usize, z: usize, height: u32, fill_block: BlockHandle) {
