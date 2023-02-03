@@ -141,11 +141,7 @@ impl Section {
             }))
         }).flatten();
 
-        self.mesh = match empty.load(Ordering::Relaxed).clone() {
-            true => Vec::with_capacity(0),
-            false => Vec::with_capacity(1000),
-        };
-
+        self.mesh.clear();
         self.mesh.extend(mesh_iter);
     }
 
