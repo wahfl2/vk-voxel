@@ -52,7 +52,7 @@ impl Chunk {
             }
 
             if i < 15 {
-                let plane = self.sections[i + 1].blocks.index_axis(Axis(1), 1).to_owned();
+                let plane = self.sections[i + 1].blocks.index_axis(Axis(1), 0).to_owned();
                 self.sections[i].cull_outer(Facing::UP, &plane, block_data);
             }
         }
