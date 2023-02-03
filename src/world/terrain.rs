@@ -56,7 +56,7 @@ impl TerrainGenerator {
             return self.cache[3]
         } else if m >= 0.30 {
             return self.cache[2]
-        } else if m >= 0.20 {
+        } else if m >= 0.15 {
             return self.cache[1]
         } else {
             return self.cache[0]

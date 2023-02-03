@@ -12,8 +12,8 @@ pub struct World {
 }
 
 impl World {
-    const CHUNK_UPDATES_PER_FRAME: u32 = 2;
-    const RENDER_DISTANCE: u32 = 16;
+    const CHUNK_UPDATES_PER_FRAME: u32 = 1;
+    const RENDER_DISTANCE: u32 = 12;
 
     const ADJ_CHUNK_OFFSETS: [IVec2; 4] = [
         IVec2::new(1, 0),
