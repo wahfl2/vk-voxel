@@ -1,7 +1,7 @@
 use std::ops::{RangeBounds, RangeInclusive};
 
 use ndarray::{s, Axis};
-use rayon::prelude::{ParallelIterator, IntoParallelRefMutIterator, IndexedParallelIterator};
+use rayon::prelude::{ParallelIterator, IntoParallelRefMutIterator, IndexedParallelIterator, IntoParallelIterator};
 use ultraviolet::{IVec2, UVec3, IVec3};
 
 use crate::{render::{mesh::{renderable::Renderable, chunk_render::{ChunkRender, BlockQuad}}, texture::TextureAtlas, vertex::VertexRaw}, util::util::{Facing, Sign}};
@@ -33,14 +33,13 @@ impl Chunk {
         Self { pos, sections }
     }
 
-    pub fn gen(&mut self, generator: &TerrainGenerator) {
-        let x_range = (self.pos.x * 16)..((self.pos.x+1) * 16);
-        let z_range = (self.pos.y * 16)..((self.pos.y+1) * 16);
-        for (rel_x, x) in x_range.enumerate() {
-            for (rel_z, z) in z_range.clone().enumerate() {
-                self.fill_column(rel_x, rel_z, generator.get_height((x, z).into()), generator.fill_block)
-            }
-        }
+    pub fn generate(pos: IVec2, generator: &TerrainGenerator) -> Self {
+        let mut collect = Vec::with_capacity(16);
+        (0..16).into_par_iter().map(|section_y| {
+            let offset = IVec3::new(pos.x * 16, section_y * 16, pos.y * 16);
+            Section::generate(offset, generator)
+        }).collect_into_vec(&mut collect);
+        Self { pos, sections: collect }
     }
 
     pub fn cull_inner(&mut self, section_range: impl RangeBounds<usize>, block_data: &StaticBlockData) {

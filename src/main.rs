@@ -25,7 +25,7 @@ fn main() {
     let mut renderer = Renderer::new(&event_loop);
     let mut static_block_data = StaticBlockData::empty();
     static_block_data.init(&renderer.texture_atlas);
-    let mut world = World::new();
+    let mut world = World::new(&static_block_data);
 
     let mut input_handler = InputHandler::new();
     let mut camera_controller = CameraController::default();

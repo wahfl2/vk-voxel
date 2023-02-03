@@ -22,18 +22,17 @@ impl World {
         IVec2::new(0, -1),
     ];
 
-    pub fn new() -> Self {
+    pub fn new(block_data: &StaticBlockData) -> Self {
         Self {
             loaded_chunks: FxHashMap::default(),
-            terrain_generator: TerrainGenerator::new_random(),
+            terrain_generator: TerrainGenerator::new_random(block_data),
             player_pos: Vec2::zero(),
         }
     }
 
     pub fn load_chunk(&mut self, chunk_pos: IVec2, renderer: &mut Renderer, block_data: &StaticBlockData) {
         // TODO: Load from storage
-        let mut new_chunk = Chunk::empty(chunk_pos);
-        new_chunk.gen(&self.terrain_generator);
+        let mut new_chunk = Chunk::generate(chunk_pos, &self.terrain_generator);
         new_chunk.init_mesh(block_data);
 
         const DIRS: [Facing; 4] = [Facing::RIGHT, Facing::LEFT, Facing::FORWARD, Facing::BACK];

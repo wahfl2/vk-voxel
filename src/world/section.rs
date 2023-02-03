@@ -1,10 +1,12 @@
+use std::array;
+
 use ndarray::{Array3, arr3, Axis, Array2};
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
-use ultraviolet::{UVec3, Vec3};
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator, IntoParallelIterator};
+use ultraviolet::{UVec3, Vec3, IVec3};
 
-use crate::{render::{mesh::{renderable::Renderable, chunk_render::{BlockQuad, ChunkRender}}, texture::TextureAtlas, vertex::VertexRaw, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
+use crate::{render::{mesh::chunk_render::{BlockQuad, ChunkRender}, texture::TextureAtlas, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
 
-use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType}};
+use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType}, terrain::TerrainGenerator};
 
 pub struct Section {
     pub blocks: Array3<BlockHandle>,
@@ -24,11 +26,27 @@ impl BlockAccess for Section {
 
 impl Section {
     pub fn empty() -> Self {
-        
         Self {
             blocks: arr3(&[[[BlockHandle::default(); 16]; 16]; 16]),
             cull: arr3(&[[[BlockCull::none(); 16]; 16]; 16]),
             mesh: Vec::new(),
+        }
+    }
+
+    pub fn generate(offset: IVec3, terrain_gen: &TerrainGenerator) -> Self {
+        let arr: [[[BlockHandle; 16]; 16]; 16] = 
+            array::from_fn(|x_off| {
+                array::from_fn(|y_off| {
+                    array::from_fn(|z_off| {
+                        let pos = offset + (x_off as i32, y_off as i32, z_off as i32).into();
+                        terrain_gen.gen_at(pos.into())
+                    })
+                })
+            });
+
+        Self {
+            blocks: arr3(&arr),
+            ..Self::empty()
         }
     }
 
