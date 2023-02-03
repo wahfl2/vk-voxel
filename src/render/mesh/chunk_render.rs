@@ -9,7 +9,6 @@ pub struct BlockQuad {
     pub position: [f32; 3],
     pub face: u32,
     pub tex: [f32; 4],
-
 }
 
 impl BlockQuad {
