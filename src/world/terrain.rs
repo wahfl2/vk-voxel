@@ -1,9 +1,10 @@
+use ndarray::{arr3, Array3, Axis};
 use noise::{SuperSimplex, NoiseFn};
-use ultraviolet::{IVec2, Vec2, Vec3};
+use ultraviolet::{IVec2, Vec2, Vec3, IVec3};
 
 use crate::util::util::AdditionalSwizzles;
 
-use super::block_data::{BlockHandle, StaticBlockData};
+use super::{block_data::{BlockHandle, StaticBlockData}, section::Section};
 
 pub struct TerrainGenerator {
     pub planar_noise: ScaleNoise,
@@ -51,7 +52,7 @@ impl TerrainGenerator {
     }
 
     pub fn gen_at(&self, pos: Vec3) -> BlockHandle {
-        let m = self.world_noise.get_3d(pos) as f32 + self.height_multiplier(pos);
+        let m = self.world_noise.get_3d(pos) as f32;
         if m >= 0.9 {
             return self.cache[3]
         } else if m >= 0.30 {
@@ -62,12 +63,42 @@ impl TerrainGenerator {
             return self.cache[0]
         }
     }
+    // ((height as f32 - pos.y) / 20.0).clamp(-1.0, 1.0)
+    pub fn gen_section(&self, offset: IVec3) -> Section {
+        let mut arr = Array3::from_elem((16, 16, 16), BlockHandle::default());
+        for (i, mut column) in arr.lanes_mut(Axis(1)).into_iter().enumerate() {
+            let x_off = (i / 16) as i32;
+            let z_off = (i % 16) as i32;
+            let height = self.height_multiplier(IVec2::from((offset.x + x_off, offset.z + z_off)).into());
+            for (y_usize, block) in column.iter_mut().enumerate() {
+                let y_off = y_usize as i32;
+                let section_offset = IVec3::new(x_off, y_off, z_off);
+                let pos = Vec3::from(offset + section_offset);
+                let m = self.world_noise.get_3d(pos) as f32 + ((height - pos.y) / 20.0).clamp(-1.0, 1.0);
 
-    fn height_multiplier(&self, pos: Vec3) -> f32 {
+                *block = {
+                    if m >= 0.9 {
+                        self.cache[3]
+                    } else if m >= 0.30 {
+                        self.cache[2]
+                    } else if m >= 0.15 {
+                        self.cache[1]
+                    } else {
+                        self.cache[0]
+                    }
+                }
+            }
+        }
+        
+        Section {
+            blocks: arr,
+            ..Section::empty()
+        }
+    }
 
-        let flatness = self.overall_height.get_2d(pos.xz());
-        let height = self.planar_noise.get_2d(pos.xz()).powi(2) * (flatness * 30.0) + 50.0;
-        ((height as f32 - pos.y) / 20.0).clamp(-1.0, 1.0)
+    fn height_multiplier(&self, pos: Vec2) -> f32 {
+        let flatness = self.overall_height.get_2d(pos);
+        (self.planar_noise.get_2d(pos).powi(2) * (flatness * 30.0) + 50.0) as f32
     }
 }
 

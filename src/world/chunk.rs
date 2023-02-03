@@ -37,7 +37,7 @@ impl Chunk {
         let mut collect = Vec::with_capacity(16);
         (0..16).into_par_iter().map(|section_y| {
             let offset = IVec3::new(pos.x * 16, section_y * 16, pos.y * 16);
-            Section::generate(offset, generator)
+            generator.gen_section(offset)
         }).collect_into_vec(&mut collect);
         Self { pos, sections: collect }
     }

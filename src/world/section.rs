@@ -1,7 +1,8 @@
 use std::array;
 
 use ndarray::{Array3, arr3, Axis, Array2};
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator, IntoParallelIterator};
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator, IntoParallelIterator, ParallelExtend};
+use rustc_data_structures::sync::{AtomicBool, Ordering};
 use ultraviolet::{UVec3, Vec3, IVec3};
 
 use crate::{render::{mesh::chunk_render::{BlockQuad, ChunkRender}, texture::TextureAtlas, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
@@ -11,7 +12,7 @@ use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData
 pub struct Section {
     pub blocks: Array3<BlockHandle>,
     pub cull: Array3<BlockCull>,
-    mesh: Vec<BlockQuad>,
+    pub mesh: Vec<BlockQuad>,
 }
 
 impl BlockAccess for Section {
@@ -118,22 +119,34 @@ impl Section {
         atlas: &TextureAtlas, 
         block_data: &StaticBlockData,
     ) {
+        let empty = AtomicBool::new(true);
         let blocks = self.blocks.indexed_iter().map(|(p, b)| { (UsizeVec3::from(p), b) }).collect::<Vec<_>>();
-        self.mesh = blocks.par_iter().filter_map(|(pos, block)| {
+        let mesh_iter = blocks.iter().filter_map(|(pos, block)| {
             let data = block_data.get(block);
             if data.block_type == BlockType::None { return None }
             let mut model = data.model.clone().unwrap();
             model.center = offset + Vec3::new(pos.x as f32, pos.y as f32, pos.z as f32);
             let faces = model.get_faces();
             let cull = self.cull.get((pos.x, pos.y, pos.z)).unwrap();
+            let empty = &empty;
 
             Some(cull.get_bools().into_iter().enumerate().filter_map(move |(i, side_culled)| {
                 match side_culled {
                     true => None,
-                    false => Some(faces[i].into_block_quad(atlas))
+                    false => {
+                        empty.store(false, Ordering::Relaxed);
+                        Some(faces[i].into_block_quad(atlas))
+                    }
                 }
             }))
-        }).flatten_iter().collect::<Vec<_>>();
+        }).flatten();
+
+        self.mesh = match empty.load(Ordering::Relaxed).clone() {
+            true => Vec::with_capacity(0),
+            false => Vec::with_capacity(1000),
+        };
+
+        self.mesh.extend(mesh_iter);
     }
 
     fn get_neighbors(&self, pos: UsizeVec3) -> [Neighbor; 6] {
