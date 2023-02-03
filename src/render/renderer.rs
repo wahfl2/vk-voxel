@@ -426,9 +426,17 @@ impl Renderer {
             ],
         );
 
+        const FACE_LIGHTING: FaceLighting = FaceLighting {
+            positive: [0.5, 1.0, 0.75],
+            negative: [0.5, 0.25, 0.75],
+            _pad1: 0,
+            _pad2: 0,
+        };
+        
         if let Some(mat) = self.cam_uniform.take() {
             let pc = PushConstants {
                 camera: mat.into(),
+                face_lighting: FACE_LIGHTING,
             };
             builder.push_constants(self.vk_pipeline.layout().clone(), 0, pc);
         }
@@ -552,6 +560,27 @@ impl Renderer {
 #[derive(Copy, Clone, Debug, Zeroable, Pod)]
 pub struct PushConstants {
     camera: [[f32; 4]; 4],
+    face_lighting: FaceLighting,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Zeroable, Pod)]
+pub struct FaceLighting {
+    positive: [f32; 3],
+    _pad1: u32,
+    negative: [f32; 3],
+    _pad2: u32,
+}
+
+impl Default for FaceLighting {
+    fn default() -> Self {
+        Self { 
+            positive: [1.0, 1.0, 1.0], 
+            negative: [1.0, 1.0, 1.0], 
+            _pad1: Default::default(), 
+            _pad2: Default::default(),
+        }
+    }
 }
 
 struct QueueFamilyIndices {

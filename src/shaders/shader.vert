@@ -6,6 +6,8 @@ struct BlockQuad {
     vec4 tex;
 };
 
+struct FaceLighting { uint _; };
+
 layout(std140, set = 1, binding = 0) readonly buffer ObjectBuffer {
     BlockQuad quads[];
 } block_buffer;
