@@ -129,13 +129,15 @@ impl ImageData {
         decoder.set_transformations(Transformations::normalize_to_color8());
         let mut reader = decoder.read_info().unwrap();
 
-        let info = reader.info();
+        let info = reader.info().to_owned();
         let dimensions = UVec2::new(info.width, info.height);
+        let color_type = info.color_type;
 
         let mut buf = vec![0; reader.output_buffer_size()];
         let bpp = info.bits_per_pixel();
         reader.next_frame(&mut buf).unwrap();
 
+        // TODO: Make this more robust
         match bpp {
             32 => Self { data: buf, dimensions },
             24 => {
@@ -144,6 +146,17 @@ impl ImageData {
                 }).flatten().collect();
                 Self { data, dimensions }
             },
+            8 => {
+                match color_type {
+                    png::ColorType::Grayscale => {
+                        let data: Vec<u8> = buf.into_iter().flat_map(|gray| {
+                            [gray, gray, gray, 255]
+                        }).collect();
+                        Self { data, dimensions }
+                    },
+                    _ => panic!("PALETTED IMAGE WAHHHHHHH"),
+                }
+            }
             p => panic!("Unsupported bit depth ({p}) in {}", path.to_owned().to_str().unwrap())
         }
     }

@@ -19,6 +19,20 @@ impl StaticBlockData {
     pub fn init(&mut self, atlas: &TextureAtlas) {
         self.add(InitBlockData::new("air", None, BlockType::None));
         self.add(InitBlockData::new(
+            "stone", 
+            Some(UnitCube::from_textures([
+                atlas.get_handle("stone").unwrap(),
+            ].to_vec())),
+            BlockType::Full,
+        ));
+        self.add(InitBlockData::new(
+            "dirt", 
+            Some(UnitCube::from_textures([
+                atlas.get_handle("dirt").unwrap(),
+            ].to_vec())),
+            BlockType::Full,
+        ));
+        self.add(InitBlockData::new(
             "grass_block", 
             Some(UnitCube::from_textures([
                 atlas.get_handle("grass_block_top").unwrap(),
