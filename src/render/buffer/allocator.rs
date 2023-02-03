@@ -5,7 +5,7 @@ use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::IVec2;
 use vulkano::{buffer::CpuAccessibleBuffer, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::DrawIndirectCommand};
 
-use crate::{render::{vertex::VertexRaw, mesh::renderable::Renderable, texture::TextureAtlas}, world::block_data::StaticBlockData};
+use crate::{render::{vertex::VertexRaw, mesh::{renderable::Renderable, chunk_render::{BlockQuad, ChunkRender}}, texture::TextureAtlas}, world::block_data::StaticBlockData};
 
 use super::swap_buffer::SwappingBuffer;
 
@@ -34,23 +34,22 @@ impl VertexChunkBuffer {
         self.buffer.update()
     }
 
-    pub fn push_chunk_vertices(
+    pub fn push_chunk(
         &mut self, 
         chunk_pos: IVec2, 
-        chunk: impl Renderable, 
+        chunk: impl ChunkRender, 
         atlas: &TextureAtlas, 
         block_data: &StaticBlockData
     ) {
-        let verts: Vec<VertexRaw> = chunk.get_vertices(atlas, block_data);
-        let size = verts.len() as u32;
+        let quads: Vec<BlockQuad> = chunk.get_block_quads(atlas, block_data);
+        let size = quads.len() as u32;
         let allocation = self.chunk_allocator.allocate(size);
         if allocation.back as usize > self.highest {
             self.highest = allocation.back as usize;
-            println!("Buffer size: {}", self.highest);
         }
 
         self.allocations.insert(chunk_pos.into(), allocation);
-        self.buffer.write_vertices(allocation.front.try_into().unwrap(), &verts);
+        self.buffer.write_vertices(allocation.front.try_into().unwrap(), &quads);
     }
 
     pub fn remove_chunk(&mut self, chunk_pos: IVec2) {
@@ -65,15 +64,15 @@ impl VertexChunkBuffer {
     pub fn readd_chunk(
         &mut self, 
         chunk_pos: IVec2, 
-        chunk: impl Renderable, 
+        chunk: impl ChunkRender, 
         atlas: &TextureAtlas, 
         block_data: &StaticBlockData
     ) {
         self.remove_chunk(chunk_pos);
-        self.push_chunk_vertices(chunk_pos, chunk, atlas, block_data);
+        self.push_chunk(chunk_pos, chunk, atlas, block_data);
     }
 
-    pub fn get_buffer(&self) -> Arc<CpuAccessibleBuffer<[VertexRaw]>> {
+    pub fn get_buffer(&self) -> Arc<CpuAccessibleBuffer<[BlockQuad]>> {
         self.buffer.get_current_buffer()
     }
 
@@ -81,9 +80,9 @@ impl VertexChunkBuffer {
         let mut ret = Vec::with_capacity(self.allocations.len());
         for alloc in self.allocations.values() {
             ret.push(DrawIndirectCommand {
-                vertex_count: alloc.back - alloc.front,
+                vertex_count: (alloc.back - alloc.front) * 6,
                 instance_count: 1,
-                first_vertex: alloc.front,
+                first_vertex: alloc.front * 6,
                 first_instance: 0,
             });
         }

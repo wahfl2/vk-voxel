@@ -26,3 +26,6 @@ vulkano = "0.32.3"
 vulkano-util = "0.32.0"
 vulkano-win = "0.32.0"
 winit = "0.27.5"
+
+[profile.release]
+debug = true

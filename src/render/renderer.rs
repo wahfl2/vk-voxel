@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
 use ultraviolet::{Mat4, IVec2};
-use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features}, image::{view::ImageView, ImageUsage, SwapchainImage, AttachmentImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, vertex_input::BuffersDefinition, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
+use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features}, image::{view::ImageView, ImageUsage, SwapchainImage, AttachmentImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, shader::ShaderModule, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
 
 use crate::{event_handler::UserEvent, world::block_data::StaticBlockData};
 
-use super::{buffer::{allocator::VertexChunkBuffer}, texture::TextureAtlas, shader_module::LoadFromPath, util::{GetWindow, RenderState}, vertex::VertexRaw, mesh::renderable::Renderable};
+use super::{buffer::allocator::VertexChunkBuffer, texture::TextureAtlas, shader_module::LoadFromPath, util::{GetWindow, RenderState}, mesh::{renderable::Renderable, chunk_render::ChunkRender}};
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
@@ -20,7 +20,6 @@ pub struct Renderer {
     pub vk_command_buffer_allocator: StandardCommandBufferAllocator,
     pub vk_descriptor_set_allocator: StandardDescriptorSetAllocator,
     pub vk_memory_allocator: StandardMemoryAllocator,
-    pub vk_persistent_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
     pub vk_swapchain: Arc<Swapchain>,
     pub vk_swapchain_images: Vec<Arc<SwapchainImage>>,
     pub vk_render_pass: Arc<RenderPass>,
@@ -34,6 +33,8 @@ pub struct Renderer {
     pub cam_uniform: Option<Mat4>,
     pub texture_atlas: TextureAtlas,
     pub texture_sampler: Arc<Sampler>,
+    pub atlas_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
+    pub vertex_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
 
     pub upload_texture_atlas: bool,
 
@@ -75,6 +76,7 @@ impl Renderer {
             vk_physical.clone(),
             DeviceCreateInfo {
                 enabled_features: Features {
+                    shader_storage_texel_buffer_array_dynamic_indexing: true,
                     multi_draw_indirect: true,
                     ..Default::default()
                 },
@@ -176,7 +178,6 @@ impl Renderer {
             vk_command_buffer_allocator,
             vk_descriptor_set_allocator,
             vk_memory_allocator,
-            vk_persistent_descriptor_set: None,
             vk_swapchain,
             vk_swapchain_images,
             vk_render_pass,
@@ -190,6 +191,8 @@ impl Renderer {
             cam_uniform: None,
             texture_atlas,
             texture_sampler,
+            atlas_descriptor_set: None,
+            vertex_descriptor_set: None,
 
             upload_texture_atlas: true,
 
@@ -249,7 +252,6 @@ impl Renderer {
                 front_face: StateMode::Fixed(FrontFace::CounterClockwise),
                 ..Default::default()
             })
-            .vertex_input_state(BuffersDefinition::new().vertex::<VertexRaw>())
             .vertex_shader(vs.entry_point("main").unwrap(), ())
             .input_assembly_state(InputAssemblyState::new())
             .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
@@ -349,8 +351,8 @@ impl Renderer {
         );
     }
 
-    pub fn upload_chunk(&mut self, pos: IVec2, chunk: impl Renderable, block_data: &StaticBlockData) {
-        self.vertex_chunk_buffer.push_chunk_vertices(pos, chunk, &self.texture_atlas, block_data);
+    pub fn upload_chunk(&mut self, pos: IVec2, chunk: impl ChunkRender, block_data: &StaticBlockData) {
+        self.vertex_chunk_buffer.push_chunk(pos, chunk, &self.texture_atlas, block_data);
     }
 
     /// Get a command buffer that will upload `self`'s texture atlas to the GPU when executed.
@@ -378,7 +380,7 @@ impl Renderer {
                 self.texture_sampler.clone(),
             )]
         ).unwrap();
-        self.vk_persistent_descriptor_set = Some(set);
+        self.atlas_descriptor_set = Some(set);
 
         builder.build().unwrap().into()
     }
@@ -386,7 +388,27 @@ impl Renderer {
     /// Get a command buffer that will render the scene.
     pub fn get_render_command_buffer(&mut self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
         let just_swapped = self.vertex_chunk_buffer.update();
+        // Invalidate vertex descriptor set
+        if just_swapped { self.vertex_descriptor_set = None; }
+        
         let v_buffer = self.vertex_chunk_buffer.get_buffer();
+
+        let vert_desc_set = match &self.vertex_descriptor_set {
+            Some(v) => v.clone(),
+            None => {
+                let layout = &self.vk_pipeline.layout().set_layouts()[1];
+                let vertex_set = PersistentDescriptorSet::new(
+                    &self.vk_descriptor_set_allocator, 
+                    layout.clone(), 
+                    [WriteDescriptorSet::buffer(
+                        0, 
+                        v_buffer,
+                    )]
+                ).unwrap();
+                self.vertex_descriptor_set = Some(vertex_set.clone());
+                vertex_set
+            }
+        };
         
         let mut builder = AutoCommandBufferBuilder::primary(
             &self.vk_command_buffer_allocator,
@@ -398,7 +420,10 @@ impl Renderer {
             PipelineBindPoint::Graphics, 
             self.vk_pipeline.layout().to_owned(), 
             0, 
-            self.vk_persistent_descriptor_set.as_ref().unwrap().to_owned(),
+            vec![
+                self.atlas_descriptor_set.as_ref().unwrap().to_owned(),
+                vert_desc_set.to_owned()
+            ],
         );
 
         if let Some(mat) = self.cam_uniform.take() {
@@ -408,7 +433,6 @@ impl Renderer {
             builder.push_constants(self.vk_pipeline.layout().clone(), 0, pc);
         }
 
-        // TODO: Only update this buffer when swap buffer is swapped.
         if just_swapped {
             let data = self.vertex_chunk_buffer.get_indirect_commands();
             if data.len() > 0 {
@@ -442,7 +466,6 @@ impl Renderer {
 
         if let Some(multi_buffer) = &self.indirect_buffer {
             builder.bind_pipeline_graphics(self.vk_pipeline.clone())
-                .bind_vertex_buffers(0, v_buffer)
                 .draw_indirect(multi_buffer.clone())
                 .unwrap();
         }
@@ -455,7 +478,7 @@ impl Renderer {
     /// Get the command buffers to be executed on the GPU this frame.
     fn get_command_buffers(&mut self, image_index: usize) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
         let mut ret = Vec::new();
-        if self.upload_texture_atlas || self.vk_persistent_descriptor_set.is_none() {
+        if self.upload_texture_atlas || self.atlas_descriptor_set.is_none() {
             self.upload_texture_atlas = false;
             ret.push(self.get_upload_command_buffer());
         }

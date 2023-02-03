@@ -2,14 +2,14 @@ use ndarray::{Array3, arr3, Axis, Array2};
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use ultraviolet::{UVec3, Vec3};
 
-use crate::{render::{mesh::renderable::Renderable, texture::TextureAtlas, vertex::VertexRaw, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
+use crate::{render::{mesh::{renderable::Renderable, chunk_render::{BlockQuad, ChunkRender}}, texture::TextureAtlas, vertex::VertexRaw, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
 
 use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType}};
 
 pub struct Section {
     pub blocks: Array3<BlockHandle>,
     pub cull: Array3<BlockCull>,
-    mesh: Vec<VertexRaw>,
+    mesh: Vec<BlockQuad>,
 }
 
 impl BlockAccess for Section {
@@ -101,7 +101,7 @@ impl Section {
         block_data: &StaticBlockData,
     ) {
         let blocks = self.blocks.indexed_iter().map(|(p, b)| { (UsizeVec3::from(p), b) }).collect::<Vec<_>>();
-        let quads = blocks.par_iter().filter_map(|(pos, block)| {
+        self.mesh = blocks.par_iter().filter_map(|(pos, block)| {
             let data = block_data.get(block);
             if data.block_type == BlockType::None { return None }
             let mut model = data.model.clone().unwrap();
@@ -112,12 +112,10 @@ impl Section {
             Some(cull.get_bools().into_iter().enumerate().filter_map(move |(i, side_culled)| {
                 match side_culled {
                     true => None,
-                    false => Some(faces[i].clone())
+                    false => Some(faces[i].into_block_quad(atlas))
                 }
             }))
         }).flatten_iter().collect::<Vec<_>>();
-
-        self.mesh = quads.get_vertices(atlas, block_data);
     }
 
     fn get_neighbors(&self, pos: UsizeVec3) -> [Neighbor; 6] {
@@ -202,8 +200,8 @@ impl BlockCull {
     }
 }
 
-impl Renderable for Section {
-    fn get_vertices(&self, _atlas: &TextureAtlas, _block_data: &StaticBlockData) -> Vec<VertexRaw> {
+impl ChunkRender for Section {
+    fn get_block_quads(&self, _atlas: &TextureAtlas, _block_data: &StaticBlockData) -> Vec<BlockQuad> {
         self.mesh.clone()
     }
 }

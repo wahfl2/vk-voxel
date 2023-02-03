@@ -2,25 +2,25 @@ use std::sync::Arc;
 
 use vulkano::{buffer::{CpuAccessibleBuffer, cpu_access::WriteLock, BufferUsage}, memory::allocator::StandardMemoryAllocator};
 
-use crate::render::vertex::VertexRaw;
+use crate::render::{vertex::VertexRaw, mesh::chunk_render::BlockQuad};
 
 pub struct SwappingBuffer {
     current: u8,
     queue: Vec<SwapBufferQueueTask>,
     after_free: Vec<SwapBufferQueueTask>,
-    pub buffer_1: Arc<CpuAccessibleBuffer<[VertexRaw]>>,
-    pub buffer_2: Arc<CpuAccessibleBuffer<[VertexRaw]>>,
+    pub buffer_1: Arc<CpuAccessibleBuffer<[BlockQuad]>>,
+    pub buffer_2: Arc<CpuAccessibleBuffer<[BlockQuad]>>,
     pub dirty: SwapDirtyPhase,
 }
 
 #[derive(Clone, Debug)]
 pub struct SwapBufferQueueTask {
     pub start_idx: usize,
-    pub data: Vec<VertexRaw>,
+    pub data: Vec<BlockQuad>,
 }
 
 impl SwapBufferQueueTask {
-    pub fn new(start_idx: usize, data: Vec<VertexRaw>) -> Self {
+    pub fn new(start_idx: usize, data: Vec<BlockQuad>) -> Self {
         Self { start_idx, data }
     }
 }
@@ -48,9 +48,10 @@ impl SwappingBuffer {
         }
     }
 
-    fn create_buffer(size: usize, allocator: &StandardMemoryAllocator) -> Arc<CpuAccessibleBuffer<[VertexRaw]>> {
+    fn create_buffer(size: usize, allocator: &StandardMemoryAllocator) -> Arc<CpuAccessibleBuffer<[BlockQuad]>> {
         let usage = BufferUsage {
-            vertex_buffer: true,
+            storage_buffer: true,
+            storage_texel_buffer: true,
             ..Default::default()
         };
 
@@ -68,7 +69,7 @@ impl SwappingBuffer {
         self.current = 3 - self.current;
     }
 
-    pub fn get_current_buffer(&self) -> Arc<CpuAccessibleBuffer<[VertexRaw]>> {
+    pub fn get_current_buffer(&self) -> Arc<CpuAccessibleBuffer<[BlockQuad]>> {
         match self.current {
             1 => self.buffer_1.clone(),
             2 => self.buffer_2.clone(),
@@ -76,7 +77,7 @@ impl SwappingBuffer {
         }
     }
 
-    fn get_free_buffer(&self) -> Arc<CpuAccessibleBuffer<[VertexRaw]>> {
+    fn get_free_buffer(&self) -> Arc<CpuAccessibleBuffer<[BlockQuad]>> {
         match self.current {
             2 => self.buffer_1.clone(),
             1 => self.buffer_2.clone(),
@@ -84,7 +85,7 @@ impl SwappingBuffer {
         }
     }
 
-    pub fn write_vertices(&mut self, start_idx: usize, vertices: &[VertexRaw]) {
+    pub fn write_vertices(&mut self, start_idx: usize, vertices: &[BlockQuad]) {
         self.queue.push(SwapBufferQueueTask::new(start_idx, vertices.to_owned()));
         match self.dirty {
             SwapDirtyPhase::SwappedWaiting => self.dirty = SwapDirtyPhase::SwappedImmediate,
@@ -140,7 +141,7 @@ impl SwappingBuffer {
     }
 
     /// Writes a queue to a write lock and clears the queue.
-    fn write_queue_buffer(queue: &mut Vec<SwapBufferQueueTask>, write_lock: &mut WriteLock<[VertexRaw]>) {
+    fn write_queue_buffer(queue: &mut Vec<SwapBufferQueueTask>, write_lock: &mut WriteLock<[BlockQuad]>) {
         queue.iter().for_each(|task| {
             let end = task.start_idx + task.data.len();
             write_lock[task.start_idx..end].copy_from_slice(&task.data);

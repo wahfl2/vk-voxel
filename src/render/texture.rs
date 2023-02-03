@@ -26,7 +26,6 @@ impl TextureAtlas {
             num_images += 1;
             paths.push(path.unwrap());
         }
-        println!("{:?}", num_images);
         Self::from_images(paths)
     }
 

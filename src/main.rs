@@ -15,7 +15,7 @@ pub mod util;
 pub mod world;
 pub mod event_handler;
 
-pub const FRAME_TIME: f64 = 1.0 / 240.0;
+pub const FRAME_TIME: f64 = 1.0 / 60.0;
 
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");

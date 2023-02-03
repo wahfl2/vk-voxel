@@ -1,8 +1,9 @@
+use bytemuck::{Pod, Zeroable};
 use ultraviolet::{Vec3, Vec2};
 
 use crate::{util::util::{Axis, Sign, Facing}, render::{vertex::VertexRaw, texture::{TextureAtlas, TextureHandle}}, world::block_data::StaticBlockData};
 
-use super::renderable::Renderable;
+use super::{renderable::Renderable, chunk_render::{ChunkRender, BlockQuad}};
 
 pub struct RawQuad {
     pub points: [Vec3; 4],
@@ -70,6 +71,15 @@ impl TexturedSquare {
 
     pub fn new(center: Vec3, facing: Facing, texture_handle: TextureHandle) -> Self {
         Self { center, facing, texture_handle }
+    }
+
+    pub fn into_block_quad(&self, atlas: &TextureAtlas) -> BlockQuad {
+        let uv = atlas.get_uv(self.texture_handle);
+        BlockQuad::new(
+            self.center.into(),
+            [uv.min.x, uv.min.y, uv.max.x, uv.max.y],
+            self.facing.to_num() as u32,
+        )
     }
 }
 

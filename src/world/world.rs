@@ -12,7 +12,7 @@ pub struct World {
 }
 
 impl World {
-    const CHUNK_UPDATES_PER_FRAME: u32 = 1;
+    const CHUNK_UPDATES_PER_FRAME: u32 = 2;
     const RENDER_DISTANCE: u32 = 16;
 
     const ADJ_CHUNK_OFFSETS: [IVec2; 4] = [
@@ -52,7 +52,7 @@ impl World {
         }
 
         new_chunk.rebuild_mesh(&renderer.texture_atlas, block_data);
-        renderer.vertex_chunk_buffer.push_chunk_vertices(chunk_pos, &new_chunk, &renderer.texture_atlas, block_data);
+        renderer.vertex_chunk_buffer.push_chunk(chunk_pos, &new_chunk, &renderer.texture_atlas, block_data);
         self.loaded_chunks.insert(chunk_pos, new_chunk);
     }
 
@@ -62,6 +62,7 @@ impl World {
             self.load_chunk(pos, renderer, block_data);
         }
 
+        // TODO: Unloading chunks could use a better method based on movement
         for pos in self.get_chunks_to_unload() {
             renderer.vertex_chunk_buffer.remove_chunk(pos);
             self.loaded_chunks.remove(&pos);
@@ -81,6 +82,10 @@ impl World {
         let mut ret = Vec::new();
 
         while ret.len() < num {
+            if let None = self.loaded_chunks.get(&check) {
+                ret.push(check);
+            }
+
             match step {
                 SpiralStep::Right => check.x += 1,
                 SpiralStep::Up => check.y += 1,
@@ -90,10 +95,6 @@ impl World {
 
             if (check - center_chunk).abs().component_max() as u32 > Self::RENDER_DISTANCE {
                 break;
-            }
-
-            if let None = self.loaded_chunks.get(&check) {
-                ret.push(check);
             }
 
             steps_left -= 1;

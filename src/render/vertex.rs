@@ -8,8 +8,6 @@ pub struct VertexRaw {
     pub tex_coords: [f32; 2],
 }
 
-vulkano::impl_vertex!(VertexRaw, position, tex_coords);
-
 pub struct Vertex {
     pub position: Vec3,
     pub tex_coords: Vec2,
