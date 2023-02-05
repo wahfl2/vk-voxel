@@ -33,10 +33,12 @@ pub trait BoxToUV {
 impl BoxToUV for Box2D<i32, UnknownUnit> {
     fn to_quad_uv(self, atlas_size: UVec2) -> QuadUV {
         let size = Vec2::from(atlas_size);
+        let x_recip = 1.0 / size.x;
+        let y_recip = 1.0 / size.y;
 
         QuadUV {
-            min: Vec2::new(self.min.x as f32 / size.x, self.min.y as f32 / size.y),
-            max: Vec2::new(self.max.x as f32 / size.x, self.max.y as f32 / size.y),
+            min: Vec2::new(self.min.x as f32 * x_recip, self.min.y as f32 * y_recip),
+            max: Vec2::new(self.max.x as f32 * x_recip, self.max.y as f32 * y_recip),
         }        
     }
 }

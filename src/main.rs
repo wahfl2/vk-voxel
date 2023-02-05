@@ -3,6 +3,7 @@
 use std::time::{Instant, Duration};
 
 use event_handler::{InputHandler, UserEvent};
+use mimalloc::MiMalloc;
 use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog, camera::camera::CameraController};
 
 use ultraviolet::Vec2;
@@ -15,7 +16,10 @@ pub mod util;
 pub mod world;
 pub mod event_handler;
 
-pub const FRAME_TIME: f64 = 1.0 / 60.0;
+pub const FRAME_TIME: f64 = 1.0 / 240.0;
+
+#[global_allocator]
+pub static GLOBAL: MiMalloc = MiMalloc;
 
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");

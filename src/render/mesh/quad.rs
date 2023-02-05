@@ -5,6 +5,7 @@ use crate::{util::util::{Axis, Sign, Facing}, render::{vertex::VertexRaw, textur
 
 use super::{renderable::Renderable, chunk_render::{ChunkRender, BlockQuad}};
 
+// Unused
 pub struct RawQuad {
     pub points: [Vec3; 4],
 }
@@ -36,7 +37,7 @@ pub struct QuadUV {
 }
 
 /// A textured quad with a width and length of 1.0
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TexturedSquare {
     pub center: Vec3,
     pub facing: Facing,
@@ -83,6 +84,7 @@ impl TexturedSquare {
     }
 }
 
+// Unused
 impl Renderable for TexturedSquare {
     fn get_vertices(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> Vec<VertexRaw> {
         const INDICES: [usize; 6] = [
