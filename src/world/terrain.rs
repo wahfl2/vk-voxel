@@ -14,8 +14,8 @@ pub struct TerrainGenerator {
 }
 
 impl TerrainGenerator {
-    const NOISE_SCALE: f32 = 0.02;
-    const OVERALL_SCALE: f32 = 0.005;
+    const NOISE_SCALE: f32 = 0.01;
+    const OVERALL_SCALE: f32 = 0.001;
 
     pub fn new(seed: u32, block_data: &StaticBlockData) -> Self {
         let planar_noise = ScaleNoise::new(
@@ -67,17 +67,21 @@ impl TerrainGenerator {
     pub fn gen_section(&self, offset: IVec3) -> Section {
         let mut arr = Array3::from_elem((16, 16, 16), BlockHandle::default());
         for (i, mut column) in arr.lanes_mut(Axis(1)).into_iter().enumerate() {
-            let x_off = (i / 16) as i32;
-            let z_off = (i % 16) as i32;
-            let height = self.height_multiplier(IVec2::from((offset.x + x_off, offset.z + z_off)).into());
-            for (y_usize, block) in column.iter_mut().enumerate() {
+            let xz_off = IVec2::new((i / 16) as i32, (i % 16) as i32);
+            let xz = IVec2::new(offset.x + xz_off.x, offset.z + xz_off.y);
+            let height = self.height_modifier(xz.into());
+            let flatness = self.flatness_modifier(xz.into());
+            for (y_usize, block) in column.iter_mut().enumerate().rev() {
                 let y_off = y_usize as i32;
-                let section_offset = IVec3::new(x_off, y_off, z_off);
+                let section_offset = IVec3::new(xz_off.x, y_off, xz_off.y);
                 let pos = Vec3::from(offset + section_offset);
-                let m = self.world_noise.get_3d(pos) as f32 + ((height - pos.y) / 20.0).clamp(-1.0, 1.0);
+                let m = self.world_noise.get_3d(pos) as f32 + ((height - pos.y) / (flatness * 10.0)).clamp(-1.0, 1.0);
+
+                let pos = pos + (Vec3::unit_y() * 4.0);
+                let m4 = self.world_noise.get_3d(pos) as f32 + ((height - pos.y) / (flatness * 10.0)).clamp(-1.0, 1.0);
 
                 *block = {
-                    if m >= 0.9 {
+                    if m >= 1.0 || m4 >= 0.15 {
                         self.cache[3]
                     } else if m >= 0.30 {
                         self.cache[2]
@@ -96,9 +100,12 @@ impl TerrainGenerator {
         }
     }
 
-    fn height_multiplier(&self, pos: Vec2) -> f32 {
-        let flatness = self.overall_height.get_2d(pos);
-        (self.planar_noise.get_2d(pos).powi(2) * (flatness * 30.0) + 50.0) as f32
+    fn height_modifier(&self, pos: Vec2) -> f32 {
+        (self.planar_noise.get_2d(pos).powi(2) * 30.0) as f32 + 50.0
+    }
+
+    fn flatness_modifier(&self, pos: Vec2) -> f32 {
+        ((self.overall_height.get_2d(pos) + 1.0) * 0.5) as f32
     }
 }
 

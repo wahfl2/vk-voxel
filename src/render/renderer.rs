@@ -427,8 +427,8 @@ impl Renderer {
         );
 
         const FACE_LIGHTING: FaceLighting = FaceLighting {
-            positive: [0.5, 1.0, 0.75],
-            negative: [0.5, 0.25, 0.75],
+            positive: [0.6, 1.0, 0.8],
+            negative: [0.6, 0.4, 0.8],
             _pad1: 0,
             _pad2: 0,
         };
