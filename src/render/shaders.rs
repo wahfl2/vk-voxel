@@ -47,3 +47,19 @@ fn match_shader_ext(ext: &str) -> ShaderKind {
         e => panic!("Unsupported shader extension: {}", e),
     }
 }
+
+pub struct ShaderPair {
+    pub vertex: Arc<ShaderModule>,
+    pub fragment: Arc<ShaderModule>,
+}
+
+impl ShaderPair {
+    pub fn new(vertex: Arc<ShaderModule>, fragment: Arc<ShaderModule>) -> Self { Self { vertex, fragment } }
+
+    pub fn load(device: Arc<Device>, path: &str) -> Self {
+        Self {
+            vertex: ShaderModule::load(device.clone(), &format!("{path}.vert")),
+            fragment: ShaderModule::load(device.clone(), &format!("{path}.frag")),
+        }
+    }
+}

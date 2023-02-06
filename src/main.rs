@@ -1,4 +1,5 @@
 #![feature(array_zip)]
+#![feature(slice_as_chunks)]
 
 use std::time::{Instant, Duration};
 

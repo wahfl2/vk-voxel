@@ -1,5 +1,5 @@
 pub mod renderer;
-pub mod shader_module;
+pub mod shaders;
 pub mod util;
 pub mod vertex;
 pub mod fps_log;

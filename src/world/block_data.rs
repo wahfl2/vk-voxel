@@ -41,6 +41,22 @@ impl StaticBlockData {
             ].to_vec())),
             BlockType::Full,
         ));
+        self.add(InitBlockData::new(
+            "leaves", 
+            Some(UnitCube::from_textures([
+                atlas.get_handle("leaves").unwrap(),
+            ].to_vec())),
+            BlockType::Transparent,
+        ));
+        self.add(InitBlockData::new(
+            "log", 
+            Some(UnitCube::from_textures([
+                atlas.get_handle("log_top").unwrap(),
+                atlas.get_handle("log_side").unwrap(),
+                atlas.get_handle("log_top").unwrap(),
+            ].to_vec())),
+            BlockType::Full,
+        ));
     }
 
     pub fn add(&mut self, data: InitBlockData) -> BlockHandle {
@@ -77,6 +93,7 @@ impl InitBlockData {
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum BlockType {
     None,
+    Transparent,
     Full,
 }
 

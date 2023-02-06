@@ -10,7 +10,7 @@ use crate::{render::{vertex::VertexRaw, mesh::{renderable::Renderable, chunk_ren
 use super::swap_buffer::SwappingBuffer;
 
 pub struct VertexChunkBuffer {
-    buffer: SwappingBuffer,
+    buffer: SwappingBuffer<BlockQuad>,
     chunk_allocator: ChunkBufferAllocator,
     allocations: FxHashMap<(i32, i32), ChunkBufferAllocation>,
     pub highest: usize,
@@ -49,7 +49,7 @@ impl VertexChunkBuffer {
         }
 
         self.allocations.insert(chunk_pos.into(), allocation);
-        self.buffer.write_vertices(allocation.front.try_into().unwrap(), &quads);
+        self.buffer.write(allocation.front.try_into().unwrap(), &quads);
     }
 
     pub fn remove_chunk(&mut self, chunk_pos: IVec2) {
@@ -77,16 +77,14 @@ impl VertexChunkBuffer {
     }
 
     pub fn get_indirect_commands(&self) -> Vec<DrawIndirectCommand> {
-        let mut ret = Vec::with_capacity(self.allocations.len());
-        for alloc in self.allocations.values() {
-            ret.push(DrawIndirectCommand {
+        self.allocations.values().map(|alloc| {
+            DrawIndirectCommand {
                 vertex_count: (alloc.back - alloc.front) * 6,
                 instance_count: 1,
                 first_vertex: alloc.front * 6,
                 first_instance: 0,
-            });
-        }
-        ret
+            }
+        }).collect()
     }
 }
 

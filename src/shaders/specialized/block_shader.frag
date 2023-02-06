@@ -1,7 +1,7 @@
 #version 450
 
 layout(location = 0) in vec2 tex_out;
-layout(location = 1) in vec3 normal_out;
+layout(location = 1) in vec3 normal;
 
 layout(location = 0) out vec4 f_color;
 
@@ -26,6 +26,6 @@ void normal_shading(in vec3 n, out float ret) {
 void main() {
     vec4 tex_color = texture(tex, tex_out);
     float shading;
-    normal_shading(normal_out, shading);
+    normal_shading(normal, shading);
     f_color = vec4(tex_color.rgb * shading, tex_color.a);
 }

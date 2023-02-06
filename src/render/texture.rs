@@ -2,7 +2,7 @@ use std::{fs::File, sync::Arc, ffi::OsString, path::PathBuf};
 
 use glob::glob;
 use guillotiere::{SimpleAtlasAllocator, euclid::{Box2D, UnknownUnit}};
-use png::Transformations;
+use png::{Transformations, ColorType, BitDepth};
 use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::UVec2;
 use vulkano::{memory::allocator::StandardMemoryAllocator, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::ImageView}, format::Format};
@@ -122,43 +122,44 @@ pub struct ImageData {
     pub dimensions: UVec2,
 }
 
-// TODO: Add support for more bit depths
 impl ImageData {
     pub fn new_file(path: OsString) -> Self {
         let mut decoder = png::Decoder::new(File::open(path.clone()).unwrap());
         decoder.set_transformations(Transformations::normalize_to_color8());
         let mut reader = decoder.read_info().unwrap();
 
-        let info = reader.info().to_owned();
-        let dimensions = UVec2::new(info.width, info.height);
-        let color_type = info.color_type;
-
         let mut buf = vec![0; reader.output_buffer_size()];
-        let bpp = info.bits_per_pixel();
         reader.next_frame(&mut buf).unwrap();
 
-        // TODO: Make this more robust
-        match bpp {
-            32 => Self { data: buf, dimensions },
-            24 => {
-                let data: Vec<u8> = buf.chunks(3).map(|chunk| {
-                    [chunk[0], chunk[1], chunk[2], 255]
-                }).flatten().collect();
-                Self { data, dimensions }
-            },
-            8 => {
-                match color_type {
-                    png::ColorType::Grayscale => {
-                        let data: Vec<u8> = buf.into_iter().flat_map(|gray| {
-                            [gray, gray, gray, 255]
-                        }).collect();
-                        Self { data, dimensions }
-                    },
-                    _ => panic!("PALETTED IMAGE WAHHHHHHH"),
-                }
-            }
-            p => panic!("Unsupported bit depth ({p}) in {}", path.to_owned().to_str().unwrap())
-        }
+        let info = reader.info().to_owned();
+        let dimensions = UVec2::new(info.width, info.height);
+
+        let transformed_color_type = match info.color_type {
+            ColorType::Indexed => ColorType::Rgb,
+            c => c,
+        };
+
+        let data = match transformed_color_type {
+            ColorType::Grayscale => buf.into_iter().flat_map(|gray| {
+                [gray, gray, gray, 255]
+            }).collect(),
+
+            ColorType::GrayscaleAlpha => buf.chunks(2).flat_map(|chunk| {
+                let (gray, alpha) = (chunk[0], chunk[1]);
+                [gray, gray, gray, alpha]
+            }).collect(),
+
+            ColorType::Rgb => buf.chunks(3).flat_map(|chunk| {
+                let (r, g, b) = (chunk[0], chunk[1], chunk[2]);
+                [r, g, b, 255]
+            }).collect(),
+
+            ColorType::Rgba => buf,
+
+            ColorType::Indexed => unreachable!(),
+        };
+
+        Self { data, dimensions }
     }
 
     pub fn new(data: Vec<u8>, dimensions: UVec2) -> Self {
