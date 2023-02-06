@@ -1,8 +1,6 @@
 use std::array;
 
 use ndarray::{Array3, arr3, Axis, Array2};
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator, IntoParallelIterator, ParallelExtend};
-use rustc_data_structures::sync::{AtomicBool, Ordering};
 use ultraviolet::{UVec3, Vec3, IVec3};
 
 use crate::{render::{mesh::chunk_render::{BlockQuad, ChunkRender}, texture::TextureAtlas, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
@@ -119,7 +117,6 @@ impl Section {
         atlas: &TextureAtlas, 
         block_data: &StaticBlockData,
     ) {
-        let empty = AtomicBool::new(true);
         let blocks = self.blocks.indexed_iter().map(|(p, b)| { (UsizeVec3::from(p), b) }).collect::<Vec<_>>();
         let mesh_iter = blocks.iter().filter_map(|(pos, block)| {
             let data = block_data.get(block);
@@ -128,17 +125,8 @@ impl Section {
             model.center = offset + Vec3::new(pos.x as f32, pos.y as f32, pos.z as f32);
             let faces = model.get_faces();
             let cull = self.cull.get((pos.x, pos.y, pos.z)).unwrap();
-            let empty = &empty;
 
-            Some(cull.get_bools().into_iter().enumerate().filter_map(move |(i, side_culled)| {
-                match side_culled {
-                    true => None,
-                    false => {
-                        empty.store(false, Ordering::Relaxed);
-                        Some(faces[i].into_block_quad(atlas))
-                    }
-                }
-            }))
+            Some(cull.get_unculled().map(move |(i, _)| { faces[i].into_block_quad(atlas) }))
         }).flatten();
 
         self.mesh.clear();
@@ -216,7 +204,13 @@ impl BlockCull {
     }
 
     pub fn get_bools(&self) -> [bool; 6] {
-        (0..6usize).map(|n| { self.is_culled_num(n) }).collect::<Vec<_>>()[..6].try_into().unwrap()
+        array::from_fn(|face| {
+            self.is_culled_num(face)
+        })
+    }
+
+    pub fn get_unculled(&self) -> impl Iterator<Item = (usize, bool)> + '_ {
+        (0..6).map(|f| { (f, self.is_culled_num(f)) }).filter(|(_, c)| { !c })
     }
     
     fn to_u8(b: &bool) -> u8 {
