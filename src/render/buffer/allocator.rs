@@ -16,6 +16,7 @@ where [T]: BufferContents,
     chunk_allocator: ChunkBufferAllocator,
     pub allocations: FxHashMap<(i32, i32), ChunkBufferAllocation>,
     pub indirect_buffer: Option<Arc<DeviceLocalBuffer<[DrawIndirectCommand]>>>,
+    pub vertex_count_multiplier: u32,
     pub highest: usize,
 }
 
@@ -24,9 +25,9 @@ where
     U: Copy + Clone,
     [U]: BufferContents,
 {
-    const INITIAL_SIZE: usize = 100_000;
+    const INITIAL_SIZE: usize = 10_000_000;
 
-    pub fn new(device: Arc<Device>, usage: BufferUsage) -> Self {
+    pub fn new(device: Arc<Device>, usage: BufferUsage, vertex_count_multiplier: u32) -> Self {
         let allocator = StandardMemoryAllocator::new_default(device.clone());
 
         HeapBuffer {
@@ -34,6 +35,7 @@ where
             chunk_allocator: ChunkBufferAllocator::new(),
             allocations: FxHashMap::default(),
             indirect_buffer: None,
+            vertex_count_multiplier,
             highest: 0
         }
     }
@@ -41,7 +43,7 @@ where
     pub fn update(&mut self, allocator: &StandardMemoryAllocator, builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>) -> bool {
         let swapped = self.buffer.update();
         if swapped {
-            let data = self.get_ind_commands();
+            let data = self.get_ind_commands(self.vertex_count_multiplier);
             if data.len() > 0 {
                 self.indirect_buffer = Some(DeviceLocalBuffer::<[DrawIndirectCommand]>::from_iter(
                     allocator, 
@@ -62,9 +64,7 @@ where
     pub fn insert(
         &mut self, 
         chunk_pos: IVec2, 
-        data: &[U], 
-        atlas: &TextureAtlas, 
-        block_data: &StaticBlockData
+        data: &[U],
     ) {
         let size = data.len() as u32;
         let allocation = self.chunk_allocator.allocate(size);
@@ -88,24 +88,22 @@ where
     pub fn reinsert(
         &mut self, 
         chunk_pos: IVec2, 
-        data: &[U], 
-        atlas: &TextureAtlas, 
-        block_data: &StaticBlockData
+        data: &[U],
     ) {
         self.remove(chunk_pos);
-        self.insert(chunk_pos, data, atlas, block_data);
+        self.insert(chunk_pos, data);
     }
 
     pub fn get_buffer(&self) -> Arc<CpuAccessibleBuffer<[U]>> {
         self.buffer.get_current_buffer()
     }
 
-    fn get_ind_commands(&self) -> Vec<DrawIndirectCommand> {
+    fn get_ind_commands(&self, multiplier: u32) -> Vec<DrawIndirectCommand> {
         self.allocations.values().map(|alloc| {
             DrawIndirectCommand {
-                vertex_count: (alloc.back - alloc.front) * 6,
+                vertex_count: (alloc.back - alloc.front) * multiplier,
                 instance_count: 1,
-                first_vertex: alloc.front * 6,
+                first_vertex: alloc.front * multiplier,
                 first_instance: 0,
             }
         }).collect()

@@ -138,7 +138,7 @@ impl Section {
                 },
 
                 ModelType::Plant(m) => {
-
+                    self.render.deco_vertices.append(&mut m.with_translation(pos.into_vec3()).get_raw_vertices());
                 },
                 _ => (),
             }

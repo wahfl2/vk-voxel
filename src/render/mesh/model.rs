@@ -14,6 +14,11 @@ pub struct Model {
 
 const HALF_SQRT_2: f32 = SQRT_2 * 0.5;
 const QUAD_INDICES: [usize; 6] = [0, 1, 2, 0, 2, 3];
+const PLANT_INDICES: [usize; 12] = [
+    0, 1, 2, 0, 2, 3,
+    4, 5, 6, 4, 6, 7,
+];
+
 const DEFAULT_PLANT_VERT_POSITIONS: [Vec3; 8] = [
     Vec3::new(-HALF_SQRT_2, -0.5, -HALF_SQRT_2),
     Vec3::new( HALF_SQRT_2, -0.5,  HALF_SQRT_2),
@@ -67,16 +72,16 @@ impl Model {
 
     pub fn create_plant_model(uv: QuadUV) -> Self {
         let min_max = uv.tex_coords();
-        let vertices = DEFAULT_PLANT_VERT_POSITIONS.iter()
-            .zip(DEFAULT_PLANT_VERT_NORMALS.iter())
-            .zip([min_max, min_max].flatten().into_iter())
-            .map(|((pos, normal), tex_coord)| {
-                Vertex {
-                    position: *pos,
-                    normal: *normal,
-                    tex_coords: *tex_coord,
-                }
-            }).collect();
+        let binding = [min_max, min_max];
+        let mm = binding.flatten();
+
+        let vertices = PLANT_INDICES.iter().map(|i| {
+            Vertex {
+                position: DEFAULT_PLANT_VERT_POSITIONS[*i],
+                normal: DEFAULT_PLANT_VERT_NORMALS[*i],
+                tex_coords: mm[*i],
+            }
+        }).collect();
 
         Self { vertices }
     }

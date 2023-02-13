@@ -26,8 +26,8 @@ const DECO_BUFFER_USAGE: BufferUsage = BufferUsage {
 impl ChunkVertexBuffer {
     pub fn new(device: Arc<Device>) -> Self {
         Self {
-            block_quad_buffer: HeapBuffer::new(device.clone(), BQ_BUFFER_USAGE),
-            deco_buffer: HeapBuffer::new(device, DECO_BUFFER_USAGE),
+            block_quad_buffer: HeapBuffer::new(device.clone(), BQ_BUFFER_USAGE, 6),
+            deco_buffer: HeapBuffer::new(device, DECO_BUFFER_USAGE, 1),
         }
     }
 
@@ -51,8 +51,8 @@ impl ChunkVertexBuffer {
             panic!("Number of vertices in the decorations were not a multiple of 3")
         }
 
-        self.block_quad_buffer.insert(chunk_pos, &render_chunk.block_quads, atlas, block_data);
-        self.deco_buffer.insert(chunk_pos, &render_chunk.deco_vertices, atlas, block_data);
+        self.block_quad_buffer.insert(chunk_pos, &render_chunk.block_quads);
+        self.deco_buffer.insert(chunk_pos, &render_chunk.deco_vertices);
     }
 
     pub fn remove_chunk(&mut self, chunk_pos: IVec2) {

@@ -8,7 +8,7 @@ use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
 
 use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk}};
 
-use super::{buffer::{vertex_buffer::ChunkVertexBuffer}, texture::TextureAtlas, shaders::{LoadFromPath, ShaderPair}, util::{GetWindow, RenderState}, vertex::VertexRaw};
+use super::{buffer::{vertex_buffer::ChunkVertexBuffer}, texture::TextureAtlas, shaders::{LoadFromPath, ShaderPair}, util::{GetWindow, RenderState}, vertex::{VertexRaw, Vertex2D}};
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
@@ -28,6 +28,7 @@ pub struct Renderer {
 
     pub viewport: Viewport,
     pub vertex_buffer: ChunkVertexBuffer,
+    pub fullscreen_quad: Option<Arc<DeviceLocalBuffer<[Vertex2D; 6]>>>,
     pub indirect_buffer: Option<Arc<DeviceLocalBuffer<[DrawIndirectCommand]>>>,
     pub num_vertices: u32,
     pub cam_uniform: Option<Mat4>,
@@ -196,6 +197,7 @@ impl Renderer {
 
             viewport,
             vertex_buffer: ChunkVertexBuffer::new(vk_device),
+            fullscreen_quad: None,
             indirect_buffer: None,
             num_vertices: 0,
             cam_uniform: None,
@@ -295,6 +297,7 @@ impl Renderer {
             .vertex_shader(final_shader.vertex.entry_point("main").unwrap(), ())
             .fragment_shader(final_shader.fragment.entry_point("main").unwrap(), ())
 
+            .vertex_input_state(BuffersDefinition::new().vertex::<Vertex2D>())
             .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
             .render_pass(Subpass::from(render_pass, 2).unwrap())
             .build(device).unwrap();
@@ -314,25 +317,25 @@ impl Renderer {
                 },
                 blocks: {
                     load: Clear,
-                    store: DontCare,
+                    store: Store,
                     format: swapchain.image_format(),
                     samples: 1,
                 },
                 decorations: {
                     load: Clear,
-                    store: DontCare,
+                    store: Store,
                     format: swapchain.image_format(),
                     samples: 1,
                 },
                 depth_blocks: {
                     load: Clear,
-                    store: DontCare,
+                    store: Store,
                     format: Format::D16_UNORM,
                     samples: 1,
                 },
                 depth_decorations: {
                     load: Clear,
-                    store: DontCare,
+                    store: Store,
                     format: Format::D16_UNORM,
                     samples: 1,
                 }
@@ -367,7 +370,17 @@ impl Renderer {
         let image_fmt = Format::D16_UNORM;
         let range = ImageSubresourceRange::from_parameters(image_fmt, 1, 1);
         let depth_buffer_image = ImageView::new(
-            AttachmentImage::transient(allocator, dimensions.into(), Format::D16_UNORM).unwrap(),
+            AttachmentImage::with_usage(
+                allocator, 
+                dimensions.into(),
+                Format::D16_UNORM,
+                ImageUsage {
+                    transient_attachment: true,
+                    input_attachment: true,
+                    depth_stencil_attachment: true,
+                    ..Default::default()
+                }
+            ).unwrap(),
             ImageViewCreateInfo {
                 format: Some(image_fmt),
                 subresource_range: range.clone(),
@@ -383,11 +396,22 @@ impl Renderer {
         let image_fmt = Format::B8G8R8A8_UNORM;
         let range = ImageSubresourceRange::from_parameters(image_fmt, 1, 1);
         let intermediate_image = ImageView::new(
-            AttachmentImage::transient(allocator, dimensions.into(), image_fmt).unwrap(),
+            AttachmentImage::with_usage(
+                allocator, 
+                dimensions.into(), 
+                image_fmt,
+                ImageUsage {
+                    transient_attachment: true,
+                    input_attachment: true,
+                    color_attachment: true,
+                    ..Default::default()
+                }
+            ).unwrap(),
             ImageViewCreateInfo {
                 format: Some(image_fmt),
                 subresource_range: range.clone(),
                 usage: ImageUsage {
+                    transient_attachment: true,
                     input_attachment: true,
                     color_attachment: true,
                     ..Default::default()
@@ -535,7 +559,7 @@ impl Renderer {
         let attachment_desc_set = match &self.attachment_descriptor_set {
             Some(ds) => ds.to_owned(),
             None => {
-                let layout = &self.pipelines.fin.layout().set_layouts()[2];
+                let layout = &self.pipelines.fin.layout().set_layouts()[0];
                 let set = PersistentDescriptorSet::new(
                     &self.vk_descriptor_set_allocator,
                     layout.clone(),
@@ -574,12 +598,32 @@ impl Renderer {
             builder.push_constants(self.pipelines.decorations.layout().clone(), 0, pc);
         }
 
+        if let None = self.fullscreen_quad {
+            self.fullscreen_quad = Some(DeviceLocalBuffer::from_data(
+                &self.vk_memory_allocator, 
+                [
+                    Vertex2D { position: [-1.0, -1.0] },
+                    Vertex2D { position: [ 1.0, -1.0] },
+                    Vertex2D { position: [ 1.0,  1.0] },
+
+                    Vertex2D { position: [-1.0, -1.0] },
+                    Vertex2D { position: [ 1.0,  1.0] },
+                    Vertex2D { position: [-1.0,  1.0] },
+                ], 
+                BufferUsage {
+                    vertex_buffer: true,
+                    ..Default::default()
+                }, 
+                &mut builder
+            ).unwrap());
+        }
+
         builder
             .begin_render_pass(
                 RenderPassBeginInfo {
                     clear_values: vec![
                         // Color
-                        Some([0.1, 0.1, 0.1, 1.0].into()),
+                        Some([1.0, 0.0, 0.0, 0.0].into()),
                         Some([0.0, 0.0, 0.0, 0.0].into()),
                         Some([0.0, 0.0, 0.0, 0.0].into()),
                         Some(1.0.into()),
@@ -617,11 +661,11 @@ impl Renderer {
                 .bind_descriptor_sets(
                     PipelineBindPoint::Graphics, 
                     self.pipelines.fin.layout().to_owned(), 
-                    2, 
+                    0, 
                     attachment_desc_set
                 )
-                .bind_vertex_buffers(0, ())
-                .draw(0, 1, 0, 0)
+                .bind_vertex_buffers(0, self.fullscreen_quad.clone().unwrap())
+                .draw(6, 1, 0, 0)
                 .unwrap();
         }
             

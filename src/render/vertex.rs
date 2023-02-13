@@ -10,7 +10,14 @@ pub struct VertexRaw {
     pub tex_coord: [f32; 2],
 }
 
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, Zeroable, Pod)]
+pub struct Vertex2D {
+    pub position: [f32; 2],
+}
+
 impl_vertex!(VertexRaw, position, normal, tex_coord);
+impl_vertex!(Vertex2D, position);
 
 #[derive(Debug, Clone)]
 pub struct Vertex {
