@@ -502,14 +502,14 @@ impl Renderer {
     }
 
     /// Get a command buffer that will render the scene.
-    pub fn get_render_command_buffer(&mut self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {
-        let (quad_swapped, deco_swapped) = self.vertex_buffer.update();
-        
+    pub fn get_render_command_buffer(&mut self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {        
         let mut builder = AutoCommandBufferBuilder::primary(
             &self.vk_command_buffer_allocator,
             self.vk_graphics_queue.queue_family_index(),
             CommandBufferUsage::OneTimeSubmit,
         ).unwrap();
+
+        let (quad_swapped, deco_swapped) = self.vertex_buffer.update(&self.vk_memory_allocator, &mut builder);
 
         const FACE_LIGHTING: FaceLighting = FaceLighting {
             positive: [0.6, 1.0, 0.8],
@@ -574,23 +574,6 @@ impl Renderer {
             builder.push_constants(self.pipelines.decorations.layout().clone(), 0, pc);
         }
 
-        if quad_swapped {
-            let data = self.vertex_buffer.get_block_quad_indirect_commands();
-            if data.len() > 0 {
-                self.indirect_buffer = Some(DeviceLocalBuffer::from_iter(
-                    &self.vk_memory_allocator, 
-                    data, 
-                    BufferUsage {
-                        indirect_buffer: true,
-                        ..Default::default()
-                    }, 
-                    &mut builder
-                ).unwrap());
-            } else {
-                self.indirect_buffer = None;
-            }
-        }
-
         builder
             .begin_render_pass(
                 RenderPassBeginInfo {
@@ -607,7 +590,7 @@ impl Renderer {
                 SubpassContents::Inline,
             ).unwrap();
 
-        if let Some(multi_buffer) = &self.indirect_buffer {
+        if let Some(multi_buffer) = &self.vertex_buffer.block_quad_buffer.indirect_buffer {
             let deco_buffer = self.vertex_buffer.deco_buffer.get_buffer();
 
             // Render blocks
@@ -625,7 +608,7 @@ impl Renderer {
                     self.atlas_descriptor_set.clone().unwrap()
                 )
                 .bind_vertex_buffers(0, deco_buffer.clone())
-                .draw(deco_buffer.len().try_into().unwrap(), 1, 0, 0)
+                .draw_indirect(self.vertex_buffer.deco_buffer.indirect_buffer.clone().unwrap())
                 .unwrap()
 
                 // Final pass, combine passes

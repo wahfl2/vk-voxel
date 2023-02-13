@@ -3,7 +3,7 @@ use std::{sync::Arc, collections::hash_map::Iter};
 use rustc_data_structures::stable_map::FxHashMap;
 
 use ultraviolet::IVec2;
-use vulkano::{buffer::{CpuAccessibleBuffer, BufferContents, BufferUsage, BufferAccess, TypedBufferAccess}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::DrawIndirectCommand};
+use vulkano::{buffer::{CpuAccessibleBuffer, BufferContents, BufferUsage, BufferAccess, TypedBufferAccess, DeviceLocalBuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::{DrawIndirectCommand, AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
 
 use crate::{render::{vertex::VertexRaw, mesh::{renderable::Renderable, chunk_render::ChunkRender}, texture::TextureAtlas}, world::block_data::StaticBlockData};
 
@@ -15,15 +15,16 @@ where [T]: BufferContents,
     buffer: SwappingBuffer<T>,
     chunk_allocator: ChunkBufferAllocator,
     pub allocations: FxHashMap<(i32, i32), ChunkBufferAllocation>,
+    pub indirect_buffer: Option<Arc<DeviceLocalBuffer<[DrawIndirectCommand]>>>,
     pub highest: usize,
 }
 
-impl<T> HeapBuffer<T> 
+impl<U> HeapBuffer<U> 
 where 
-    T: Copy + Clone,
-    [T]: BufferContents,
+    U: Copy + Clone,
+    [U]: BufferContents,
 {
-    const INITIAL_SIZE: usize = 50_000_000;
+    const INITIAL_SIZE: usize = 100_000;
 
     pub fn new(device: Arc<Device>, usage: BufferUsage) -> Self {
         let allocator = StandardMemoryAllocator::new_default(device.clone());
@@ -32,18 +33,36 @@ where
             buffer: SwappingBuffer::new(Self::INITIAL_SIZE, usage, &allocator),
             chunk_allocator: ChunkBufferAllocator::new(),
             allocations: FxHashMap::default(),
+            indirect_buffer: None,
             highest: 0
         }
     }
 
-    pub fn update(&mut self) -> bool {
-        self.buffer.update()
+    pub fn update(&mut self, allocator: &StandardMemoryAllocator, builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>) -> bool {
+        let swapped = self.buffer.update();
+        if swapped {
+            let data = self.get_ind_commands();
+            if data.len() > 0 {
+                self.indirect_buffer = Some(DeviceLocalBuffer::<[DrawIndirectCommand]>::from_iter(
+                    allocator, 
+                    data, 
+                    BufferUsage {
+                        indirect_buffer: true,
+                        ..Default::default()
+                    }, 
+                    builder
+                ).unwrap());
+            } else {
+                self.indirect_buffer = None;
+            }
+        }
+        swapped
     }
 
     pub fn insert(
         &mut self, 
         chunk_pos: IVec2, 
-        data: &[T], 
+        data: &[U], 
         atlas: &TextureAtlas, 
         block_data: &StaticBlockData
     ) {
@@ -69,7 +88,7 @@ where
     pub fn reinsert(
         &mut self, 
         chunk_pos: IVec2, 
-        data: &[T], 
+        data: &[U], 
         atlas: &TextureAtlas, 
         block_data: &StaticBlockData
     ) {
@@ -77,8 +96,19 @@ where
         self.insert(chunk_pos, data, atlas, block_data);
     }
 
-    pub fn get_buffer(&self) -> Arc<CpuAccessibleBuffer<[T]>> {
+    pub fn get_buffer(&self) -> Arc<CpuAccessibleBuffer<[U]>> {
         self.buffer.get_current_buffer()
+    }
+
+    fn get_ind_commands(&self) -> Vec<DrawIndirectCommand> {
+        self.allocations.values().map(|alloc| {
+            DrawIndirectCommand {
+                vertex_count: (alloc.back - alloc.front) * 6,
+                instance_count: 1,
+                first_vertex: alloc.front * 6,
+                first_instance: 0,
+            }
+        }).collect()
     }
 }
 
