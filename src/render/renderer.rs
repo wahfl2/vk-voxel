@@ -2,7 +2,7 @@ use std::{sync::Arc, ops::Sub};
 
 use bytemuck::{Pod, Zeroable};
 use ultraviolet::{Mat4, IVec2};
-use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features}, image::{view::{ImageView, ImageViewCreateInfo}, ImageUsage, SwapchainImage, AttachmentImage, ImageSubresourceRange, sys::Image, ImageViewAbstract}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState, vertex_input::{VertexInputState, BuffersDefinition}}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage, TypedBufferAccess}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet, DescriptorBindingResources}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format, shader::ShaderModule};
+use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features}, image::{view::{ImageView, ImageViewCreateInfo}, ImageUsage, SwapchainImage, AttachmentImage, ImageSubresourceRange, sys::Image, ImageViewAbstract}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState, vertex_input::{VertexInputState, BuffersDefinition}, color_blend::ColorBlendState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage, TypedBufferAccess}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet, DescriptorBindingResources}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format, shader::ShaderModule};
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
 
@@ -36,7 +36,7 @@ pub struct Renderer {
     pub texture_sampler: Arc<Sampler>,
     pub atlas_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
     pub vertex_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
-    pub attachment_images: (Arc<ImageView<AttachmentImage>>, Arc<ImageView<AttachmentImage>>),
+    pub attachment_images: [Arc<ImageView<AttachmentImage>>; 4],
     pub attachment_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
 
     pub upload_texture_atlas: bool,
@@ -146,12 +146,12 @@ impl Renderer {
 
         let vk_render_pass = Self::get_render_pass(vk_device.clone(), &vk_swapchain);
 
-        let (interm_image, depth_image) = 
+        let attachment_images = 
             Self::get_intermediate_attachment_images(&vk_memory_allocator, dimensions);
         
         let vk_frame_buffers = Self::get_framebuffers(
             &vk_swapchain_images, 
-            interm_image.clone(), depth_image.clone(),
+            attachment_images.clone(),
             &vk_render_pass, 
         );
 
@@ -205,7 +205,7 @@ impl Renderer {
             texture_sampler,
             atlas_descriptor_set: None,
             vertex_descriptor_set: None,
-            attachment_images: (interm_image, depth_image),
+            attachment_images,
             attachment_descriptor_set: None,
 
             upload_texture_atlas: true,
@@ -264,6 +264,7 @@ impl Renderer {
             .vertex_shader(block_shader.vertex.entry_point("main").unwrap(), ())
             .fragment_shader(block_shader.fragment.entry_point("main").unwrap(), ())
 
+            .color_blend_state(ColorBlendState::new(1).blend_alpha())
             .input_assembly_state(InputAssemblyState::new())
             .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport.clone()]))
             .depth_stencil_state(DepthStencilState::simple_depth_test())
@@ -280,6 +281,7 @@ impl Renderer {
             .vertex_shader(deco_shader.vertex.entry_point("main").unwrap(), ())
             .fragment_shader(deco_shader.fragment.entry_point("main").unwrap(), ())
             
+            .color_blend_state(ColorBlendState::new(1).blend_alpha())
             .vertex_input_state(BuffersDefinition::new().vertex::<VertexRaw>())
             .input_assembly_state(InputAssemblyState::new())
             .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport.clone()]))
@@ -297,6 +299,7 @@ impl Renderer {
             .vertex_shader(final_shader.vertex.entry_point("main").unwrap(), ())
             .fragment_shader(final_shader.fragment.entry_point("main").unwrap(), ())
 
+            .color_blend_state(ColorBlendState::new(1).blend_alpha())
             .vertex_input_state(BuffersDefinition::new().vertex::<Vertex2D>())
             .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
             .render_pass(Subpass::from(render_pass, 2).unwrap())
@@ -366,10 +369,22 @@ impl Renderer {
     fn get_intermediate_attachment_images(
         allocator: &StandardMemoryAllocator,
         dimensions: PhysicalSize<u32>,
-    ) -> (Arc<ImageView<AttachmentImage>>, Arc<ImageView<AttachmentImage>>) {
+    ) -> [Arc<ImageView<AttachmentImage>>; 4] {
+        [
+            Self::create_intermediate_image(allocator, dimensions),
+            Self::create_intermediate_image(allocator, dimensions),
+            Self::create_depth_image(allocator, dimensions),
+            Self::create_depth_image(allocator, dimensions),
+        ]
+    }
+
+    fn create_depth_image(
+        allocator: &StandardMemoryAllocator,
+        dimensions: PhysicalSize<u32>,
+    ) -> Arc<ImageView<AttachmentImage>> {
         let image_fmt = Format::D16_UNORM;
         let range = ImageSubresourceRange::from_parameters(image_fmt, 1, 1);
-        let depth_buffer_image = ImageView::new(
+        ImageView::new(
             AttachmentImage::with_usage(
                 allocator, 
                 dimensions.into(),
@@ -391,11 +406,16 @@ impl Renderer {
                 },
                 ..Default::default()
             }
-        ).unwrap();
+        ).unwrap()
+    }
 
+    fn create_intermediate_image(
+        allocator: &StandardMemoryAllocator,
+        dimensions: PhysicalSize<u32>,
+    ) -> Arc<ImageView<AttachmentImage>> {
         let image_fmt = Format::B8G8R8A8_UNORM;
         let range = ImageSubresourceRange::from_parameters(image_fmt, 1, 1);
-        let intermediate_image = ImageView::new(
+        ImageView::new(
             AttachmentImage::with_usage(
                 allocator, 
                 dimensions.into(), 
@@ -418,15 +438,12 @@ impl Renderer {
                 },
                 ..Default::default()
             }
-        ).unwrap();
-
-        (intermediate_image, depth_buffer_image)
+        ).unwrap()
     }
 
     fn get_framebuffers(
         images: &[Arc<SwapchainImage>], 
-        intermediate_image: Arc<ImageView<AttachmentImage>>,
-        depth_buffer_image: Arc<ImageView<AttachmentImage>>,
+        attachment_images: [Arc<ImageView<AttachmentImage>>; 4],
         render_pass: &Arc<RenderPass>, 
     ) -> Vec<Arc<Framebuffer>> {
         images
@@ -439,10 +456,10 @@ impl Renderer {
                     FramebufferCreateInfo {
                         attachments: vec![
                             swapchain_view, 
-                            intermediate_image.clone(), 
-                            intermediate_image.clone(), 
-                            depth_buffer_image.clone(),
-                            depth_buffer_image.clone(),
+                            attachment_images[0].clone(),
+                            attachment_images[1].clone(),
+                            attachment_images[2].clone(),
+                            attachment_images[3].clone(),
                         ],
                         ..Default::default()
                     },
@@ -474,8 +491,7 @@ impl Renderer {
         self.attachment_images = Self::get_intermediate_attachment_images(&self.vk_memory_allocator, dimensions);
         self.vk_frame_buffers = Self::get_framebuffers(
             &new_images, 
-            self.attachment_images.0.clone(),
-            self.attachment_images.1.clone(),
+            self.attachment_images.clone(),
             &self.vk_render_pass, 
         );
     }
@@ -534,6 +550,7 @@ impl Renderer {
         ).unwrap();
 
         let (quad_swapped, deco_swapped) = self.vertex_buffer.update(&self.vk_memory_allocator, &mut builder);
+        if quad_swapped { self.vertex_descriptor_set = None; }
 
         const FACE_LIGHTING: FaceLighting = FaceLighting {
             positive: [0.6, 1.0, 0.8],
@@ -549,7 +566,9 @@ impl Renderer {
                 let vertex_set = PersistentDescriptorSet::new(
                     &self.vk_descriptor_set_allocator, 
                     layout.clone(), 
-                    [WriteDescriptorSet::buffer(0, self.vertex_buffer.block_quad_buffer.get_buffer())]
+                    [
+                        WriteDescriptorSet::buffer(0, self.vertex_buffer.block_quad_buffer.get_buffer())
+                    ]
                 ).unwrap();
                 self.vertex_descriptor_set = Some(vertex_set.clone());
                 vertex_set
@@ -564,10 +583,10 @@ impl Renderer {
                     &self.vk_descriptor_set_allocator,
                     layout.clone(),
                     [
-                        WriteDescriptorSet::image_view(0, self.attachment_images.0.clone()),
-                        WriteDescriptorSet::image_view(1, self.attachment_images.0.clone()),
-                        WriteDescriptorSet::image_view(2, self.attachment_images.1.clone()),
-                        WriteDescriptorSet::image_view(3, self.attachment_images.1.clone()),
+                        WriteDescriptorSet::image_view(0, self.attachment_images[0].clone()),
+                        WriteDescriptorSet::image_view(1, self.attachment_images[1].clone()),
+                        WriteDescriptorSet::image_view(2, self.attachment_images[2].clone()),
+                        WriteDescriptorSet::image_view(3, self.attachment_images[3].clone()),
                     ]
                 ).unwrap();
                 self.attachment_descriptor_set = Some(set.clone());
@@ -623,7 +642,7 @@ impl Renderer {
                 RenderPassBeginInfo {
                     clear_values: vec![
                         // Color
-                        Some([1.0, 0.0, 0.0, 0.0].into()),
+                        Some([0.1, 0.1, 0.1, 1.0].into()),
                         Some([0.0, 0.0, 0.0, 0.0].into()),
                         Some([0.0, 0.0, 0.0, 0.0].into()),
                         Some(1.0.into()),

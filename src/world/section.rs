@@ -128,7 +128,7 @@ impl Section {
 
             match data.model.clone() {
                 ModelType::FullBlock(mut m) => {
-                    m.center = offset + Vec3::new(pos.x as f32, pos.y as f32, pos.z as f32);
+                    m.center = offset + pos.into_vec3();
                     let faces = m.get_faces();
                     let cull = self.cull.get((pos.x, pos.y, pos.z)).unwrap();
 
@@ -138,7 +138,7 @@ impl Section {
                 },
 
                 ModelType::Plant(m) => {
-                    self.render.deco_vertices.append(&mut m.with_translation(pos.into_vec3()).get_raw_vertices());
+                    self.render.deco_vertices.append(&mut m.with_translation(offset + pos.into_vec3()).get_raw_vertices());
                 },
                 _ => (),
             }

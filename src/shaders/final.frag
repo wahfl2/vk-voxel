@@ -11,8 +11,16 @@ void main() {
     float b_depth = subpassLoad(u_depth_blocks).x;
     float d_depth = subpassLoad(u_depth_decorations).x;
 
-    vec3 deco = subpassLoad(u_decorations).xyz;
-    vec3 col = subpassLoad(u_blocks).xyz;
+    if (b_depth + d_depth >= 2.0) {
+        discard;
+    }
 
-    f_color = vec4(col, 1.0);
+    vec4 deco = subpassLoad(u_decorations).xyzw;
+    vec4 block = subpassLoad(u_blocks).xyzw;
+
+    if (b_depth > d_depth) {
+        f_color = deco;
+    } else {
+        f_color = block;
+    }
 }

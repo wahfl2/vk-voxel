@@ -13,6 +13,7 @@ pub struct Model {
 }
 
 const HALF_SQRT_2: f32 = SQRT_2 * 0.5;
+const QUARTER_SQRT_2: f32 = SQRT_2 * 0.25;
 const QUAD_INDICES: [usize; 6] = [0, 1, 2, 0, 2, 3];
 const PLANT_INDICES: [usize; 12] = [
     0, 1, 2, 0, 2, 3,
@@ -20,15 +21,15 @@ const PLANT_INDICES: [usize; 12] = [
 ];
 
 const DEFAULT_PLANT_VERT_POSITIONS: [Vec3; 8] = [
-    Vec3::new(-HALF_SQRT_2, -0.5, -HALF_SQRT_2),
-    Vec3::new( HALF_SQRT_2, -0.5,  HALF_SQRT_2),
-    Vec3::new( HALF_SQRT_2,  0.5,  HALF_SQRT_2),
-    Vec3::new(-HALF_SQRT_2,  0.5, -HALF_SQRT_2),
+    Vec3::new(-QUARTER_SQRT_2, -0.5, -QUARTER_SQRT_2),
+    Vec3::new( QUARTER_SQRT_2, -0.5,  QUARTER_SQRT_2),
+    Vec3::new( QUARTER_SQRT_2,  0.5,  QUARTER_SQRT_2),
+    Vec3::new(-QUARTER_SQRT_2,  0.5, -QUARTER_SQRT_2),
 
-    Vec3::new( HALF_SQRT_2, -0.5, -HALF_SQRT_2),
-    Vec3::new(-HALF_SQRT_2, -0.5,  HALF_SQRT_2),
-    Vec3::new(-HALF_SQRT_2,  0.5,  HALF_SQRT_2),
-    Vec3::new( HALF_SQRT_2,  0.5, -HALF_SQRT_2),
+    Vec3::new( QUARTER_SQRT_2, -0.5, -QUARTER_SQRT_2),
+    Vec3::new(-QUARTER_SQRT_2, -0.5,  QUARTER_SQRT_2),
+    Vec3::new(-QUARTER_SQRT_2,  0.5,  QUARTER_SQRT_2),
+    Vec3::new( QUARTER_SQRT_2,  0.5, -QUARTER_SQRT_2),
 ];
 const DEFAULT_PLANT_VERT_NORMALS: [Vec3; 8] = [
     Vec3::new(HALF_SQRT_2, 0.0, -HALF_SQRT_2),

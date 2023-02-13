@@ -74,7 +74,7 @@ impl CameraController {
     }
 
     pub fn tick(&mut self, input: &InputHandler) {
-        const MOVEMENT_SPEED: f32 = 0.75;
+        const MOVEMENT_SPEED: f32 = 0.1;
 
         // represents movement on the xz plane
         let mut movement = Vec2::zero();
