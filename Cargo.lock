@@ -1686,6 +1686,7 @@ dependencies = [
  "mimalloc",
  "ndarray",
  "noise",
+ "once_cell",
  "png",
  "rand 0.8.5",
  "rayon",

@@ -4,7 +4,7 @@ use ndarray::{s, Axis};
 use rayon::prelude::{ParallelIterator, IntoParallelRefMutIterator, IndexedParallelIterator, IntoParallelIterator};
 use ultraviolet::{IVec2, UVec3, IVec3};
 
-use crate::{render::{mesh::{renderable::Renderable, chunk_render::{ChunkRender, BlockQuad}}, texture::TextureAtlas, vertex::VertexRaw}, util::util::{Facing, Sign}};
+use crate::{render::{mesh::{renderable::Renderable, chunk_render::ChunkRender, quad::BlockQuad}, texture::TextureAtlas, vertex::VertexRaw}, util::util::{Facing, Sign}};
 
 use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData}, terrain::TerrainGenerator};
 
@@ -130,7 +130,7 @@ impl Chunk {
 }
 
 impl ChunkRender for &Chunk {
-    fn get_block_quads(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> Vec<BlockQuad> {
-        self.sections.get_block_quads(atlas, block_data)
+    fn get_render_section(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> crate::render::mesh::chunk_render::RenderSection {
+        self.sections.get_render_section(atlas, block_data)
     }
 }

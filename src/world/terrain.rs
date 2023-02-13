@@ -10,7 +10,7 @@ pub struct TerrainGenerator {
     pub planar_noise: ScaleNoise,
     pub world_noise: ScaleNoise,
     pub overall_height: ScaleNoise,
-    cache: [BlockHandle; 4]
+    cache: [BlockHandle; 5]
 }
 
 impl TerrainGenerator {
@@ -34,6 +34,7 @@ impl TerrainGenerator {
 
         let cache = [
             block_data.get_handle("air").unwrap(),
+            block_data.get_handle("grass").unwrap(),
             block_data.get_handle("grass_block").unwrap(),
             block_data.get_handle("dirt").unwrap(),
             block_data.get_handle("stone").unwrap(),
@@ -54,10 +55,12 @@ impl TerrainGenerator {
     pub fn gen_at(&self, pos: Vec3) -> BlockHandle {
         let m = self.world_noise.get_3d(pos) as f32;
         if m >= 0.9 {
-            return self.cache[3]
+            return self.cache[4]
         } else if m >= 0.30 {
-            return self.cache[2]
+            return self.cache[3]
         } else if m >= 0.15 {
+            return self.cache[2]
+        } else if m >= 0.10 {
             return self.cache[1]
         } else {
             return self.cache[0]
@@ -82,10 +85,12 @@ impl TerrainGenerator {
 
                 *block = {
                     if m >= 1.0 || m4 >= 0.15 {
-                        self.cache[3]
+                        self.cache[4]
                     } else if m >= 0.30 {
-                        self.cache[2]
+                        self.cache[3]
                     } else if m >= 0.15 {
+                        self.cache[2]
+                    } else if m >= 0.10 {
                         self.cache[1]
                     } else {
                         self.cache[0]

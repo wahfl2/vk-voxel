@@ -1,7 +1,7 @@
 use std::{path::Path, ffi::OsStr, fs, sync::Arc};
 
 use shaderc::ShaderKind;
-use vulkano::{device::Device, shader::ShaderModule};
+use vulkano::{device::Device, shader::ShaderModule, pipeline::graphics::GraphicsPipelineBuilder};
 
 pub trait LoadFromPath {
     fn load(device: Arc<Device>, path: &str) -> Arc<Self>;

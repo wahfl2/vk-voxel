@@ -3,27 +3,33 @@ use std::{sync::Arc, collections::hash_map::Iter};
 use rustc_data_structures::stable_map::FxHashMap;
 
 use ultraviolet::IVec2;
-use vulkano::{buffer::CpuAccessibleBuffer, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::DrawIndirectCommand};
+use vulkano::{buffer::{CpuAccessibleBuffer, BufferContents, BufferUsage, BufferAccess, TypedBufferAccess}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::DrawIndirectCommand};
 
-use crate::{render::{vertex::VertexRaw, mesh::{renderable::Renderable, chunk_render::{BlockQuad, ChunkRender}}, texture::TextureAtlas}, world::block_data::StaticBlockData};
+use crate::{render::{vertex::VertexRaw, mesh::{renderable::Renderable, chunk_render::ChunkRender}, texture::TextureAtlas}, world::block_data::StaticBlockData};
 
 use super::swap_buffer::SwappingBuffer;
 
-pub struct VertexChunkBuffer {
-    buffer: SwappingBuffer<BlockQuad>,
+pub struct HeapBuffer<T> 
+where [T]: BufferContents,
+{
+    buffer: SwappingBuffer<T>,
     chunk_allocator: ChunkBufferAllocator,
-    allocations: FxHashMap<(i32, i32), ChunkBufferAllocation>,
+    pub allocations: FxHashMap<(i32, i32), ChunkBufferAllocation>,
     pub highest: usize,
 }
 
-impl VertexChunkBuffer {
+impl<T> HeapBuffer<T> 
+where 
+    T: Copy + Clone,
+    [T]: BufferContents,
+{
     const INITIAL_SIZE: usize = 50_000_000;
 
-    pub fn new(device: Arc<Device>) -> Self {
+    pub fn new(device: Arc<Device>, usage: BufferUsage) -> Self {
         let allocator = StandardMemoryAllocator::new_default(device.clone());
 
-        VertexChunkBuffer {
-            buffer: SwappingBuffer::new(Self::INITIAL_SIZE, &allocator),
+        HeapBuffer {
+            buffer: SwappingBuffer::new(Self::INITIAL_SIZE, usage, &allocator),
             chunk_allocator: ChunkBufferAllocator::new(),
             allocations: FxHashMap::default(),
             highest: 0
@@ -34,25 +40,24 @@ impl VertexChunkBuffer {
         self.buffer.update()
     }
 
-    pub fn push_chunk(
+    pub fn insert(
         &mut self, 
         chunk_pos: IVec2, 
-        chunk: impl ChunkRender, 
+        data: &[T], 
         atlas: &TextureAtlas, 
         block_data: &StaticBlockData
     ) {
-        let quads: Vec<BlockQuad> = chunk.get_block_quads(atlas, block_data);
-        let size = quads.len() as u32;
+        let size = data.len() as u32;
         let allocation = self.chunk_allocator.allocate(size);
         if allocation.back as usize > self.highest {
             self.highest = allocation.back as usize;
         }
 
         self.allocations.insert(chunk_pos.into(), allocation);
-        self.buffer.write(allocation.front.try_into().unwrap(), &quads);
+        self.buffer.write(allocation.front.try_into().unwrap(), data);
     }
 
-    pub fn remove_chunk(&mut self, chunk_pos: IVec2) {
+    pub fn remove(&mut self, chunk_pos: IVec2) {
         if let Some(allocation) = self.allocations.remove(&chunk_pos.into()) {
             self.chunk_allocator.deallocate(&allocation);
             // No need to push to queue, corresponding memory will not be read
@@ -61,30 +66,19 @@ impl VertexChunkBuffer {
         }
     }
 
-    pub fn readd_chunk(
+    pub fn reinsert(
         &mut self, 
         chunk_pos: IVec2, 
-        chunk: impl ChunkRender, 
+        data: &[T], 
         atlas: &TextureAtlas, 
         block_data: &StaticBlockData
     ) {
-        self.remove_chunk(chunk_pos);
-        self.push_chunk(chunk_pos, chunk, atlas, block_data);
+        self.remove(chunk_pos);
+        self.insert(chunk_pos, data, atlas, block_data);
     }
 
-    pub fn get_buffer(&self) -> Arc<CpuAccessibleBuffer<[BlockQuad]>> {
+    pub fn get_buffer(&self) -> Arc<CpuAccessibleBuffer<[T]>> {
         self.buffer.get_current_buffer()
-    }
-
-    pub fn get_indirect_commands(&self) -> Vec<DrawIndirectCommand> {
-        self.allocations.values().map(|alloc| {
-            DrawIndirectCommand {
-                vertex_count: (alloc.back - alloc.front) * 6,
-                instance_count: 1,
-                first_vertex: alloc.front * 6,
-                first_instance: 0,
-            }
-        }).collect()
     }
 }
 

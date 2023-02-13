@@ -1,5 +1,6 @@
 #![feature(array_zip)]
 #![feature(slice_as_chunks)]
+#![feature(slice_flatten)]
 
 use std::time::{Instant, Duration};
 
@@ -98,4 +99,14 @@ fn main() {
             _ => ()
         }
     });
+}
+
+#[test]
+fn test() {
+    let a = vec![1, 2, 3, 4];
+    let b = vec![1, 2, 4, 5, 6];
+    let c = vec![1, 2, 3, 4, 7, 8];
+
+    let oisjdf = [a, b, c].into_iter().flatten().collect::<Vec<_>>();
+    dbg!(oisjdf);
 }

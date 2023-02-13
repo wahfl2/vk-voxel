@@ -1,6 +1,6 @@
 use rustc_data_structures::stable_map::FxHashMap;
 
-use crate::render::{texture::TextureAtlas, mesh::cube::UnitCube};
+use crate::render::{texture::{TextureAtlas, TextureHandle}, mesh::{cube::UnitCube, quad::QuadUV, model::Model}, vertex::VertexRaw};
 
 /// Static block data, should be initialized at startup and probably left alone.
 pub struct StaticBlockData {
@@ -17,22 +17,22 @@ impl StaticBlockData {
     }
 
     pub fn init(&mut self, atlas: &TextureAtlas) {
-        self.add(InitBlockData::new("air", None, BlockType::None));
-        self.add(InitBlockData::new(
+        self.add(InitBlockData::air());
+        self.add(InitBlockData::new_block(
             "stone", 
             Some(UnitCube::from_textures([
                 atlas.get_handle("stone").unwrap(),
             ].to_vec())),
             BlockType::Full,
         ));
-        self.add(InitBlockData::new(
+        self.add(InitBlockData::new_block(
             "dirt", 
             Some(UnitCube::from_textures([
                 atlas.get_handle("dirt").unwrap(),
             ].to_vec())),
             BlockType::Full,
         ));
-        self.add(InitBlockData::new(
+        self.add(InitBlockData::new_block(
             "grass_block", 
             Some(UnitCube::from_textures([
                 atlas.get_handle("grass_block_top").unwrap(),
@@ -41,14 +41,14 @@ impl StaticBlockData {
             ].to_vec())),
             BlockType::Full,
         ));
-        self.add(InitBlockData::new(
+        self.add(InitBlockData::new_block(
             "leaves", 
             Some(UnitCube::from_textures([
                 atlas.get_handle("leaves").unwrap(),
             ].to_vec())),
             BlockType::Transparent,
         ));
-        self.add(InitBlockData::new(
+        self.add(InitBlockData::new_block(
             "log", 
             Some(UnitCube::from_textures([
                 atlas.get_handle("log_top").unwrap(),
@@ -57,6 +57,8 @@ impl StaticBlockData {
             ].to_vec())),
             BlockType::Full,
         ));
+
+        self.add(InitBlockData::new_plant("grass", atlas.get_uv(atlas.get_handle("grass").unwrap())));
     }
 
     pub fn add(&mut self, data: InitBlockData) -> BlockHandle {
@@ -80,21 +82,41 @@ impl StaticBlockData {
 #[derive(Debug, Clone)]
 pub struct InitBlockData {
     pub id: String,
-    pub model: Option<UnitCube>,
+    pub model: ModelType,
     pub block_type: BlockType,
 }
 
 impl InitBlockData {
-    pub fn new(id: &str, model: Option<UnitCube>, block_type: BlockType) -> Self {
-        Self { id: id.to_string(), model, block_type }
+    pub fn air() -> Self {
+        Self {
+            id: "air".to_string(),
+            model: ModelType::None,
+            block_type: BlockType::None
+        }
+    }
+
+    pub fn new_block(id: &str, model: Option<UnitCube>, block_type: BlockType) -> Self {
+        Self { id: id.to_string(), model: model.into(), block_type }
+    }
+
+    pub fn new_plant(id: &str, uv: QuadUV) -> Self {
+        let plant_model = Model::create_plant_model(uv);
+        Self { id: id.to_string(), model: ModelType::Plant(plant_model), block_type: BlockType::Transparent }
     }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum BlockType {
-    None,
-    Transparent,
     Full,
+    Transparent,
+    None,
+}
+
+#[derive(Clone, Debug)]
+pub enum ModelType {
+    FullBlock(UnitCube),
+    Plant(Model),
+    None,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -110,6 +132,15 @@ impl BlockHandle {
     #[deprecated = "Should be replaced and unused ASAP"]
     pub fn new_unsafe(inner: u32) -> Self {
         Self { inner }
+    }
+}
+
+impl From<Option<UnitCube>> for ModelType {
+    fn from(value: Option<UnitCube>) -> Self {
+        match value {
+            Some(m) => Self::FullBlock(m),
+            None => Self::None,
+        }
     }
 }
 

@@ -3,14 +3,14 @@ use std::array;
 use ndarray::{Array3, arr3, Axis, Array2};
 use ultraviolet::{UVec3, Vec3, IVec3};
 
-use crate::{render::{mesh::chunk_render::{BlockQuad, ChunkRender}, texture::TextureAtlas, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
+use crate::{render::{mesh::{chunk_render::{ChunkRender, RenderSection}, quad::BlockQuad}, texture::TextureAtlas, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
 
-use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType}, terrain::TerrainGenerator};
+use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType, ModelType}, terrain::TerrainGenerator};
 
 pub struct Section {
     pub blocks: Array3<BlockHandle>,
     pub cull: Array3<BlockCull>,
-    pub mesh: Vec<BlockQuad>,
+    pub render: RenderSection,
 }
 
 impl BlockAccess for Section {
@@ -28,7 +28,7 @@ impl Section {
         Self {
             blocks: arr3(&[[[BlockHandle::default(); 16]; 16]; 16]),
             cull: arr3(&[[[BlockCull::none(); 16]; 16]; 16]),
-            mesh: Vec::new(),
+            render: RenderSection::empty(),
         }
     }
 
@@ -118,19 +118,31 @@ impl Section {
         block_data: &StaticBlockData,
     ) {
         let blocks = self.blocks.indexed_iter().map(|(p, b)| { (UsizeVec3::from(p), b) }).collect::<Vec<_>>();
-        let mesh_iter = blocks.iter().filter_map(|(pos, block)| {
+
+        self.render.block_quads.clear();
+        self.render.deco_vertices.clear();
+
+        blocks.into_iter().for_each(|(pos, block)| {
             let data = block_data.get(block);
-            if data.block_type == BlockType::None { return None }
-            let mut model = data.model.clone().unwrap();
-            model.center = offset + Vec3::new(pos.x as f32, pos.y as f32, pos.z as f32);
-            let faces = model.get_faces();
-            let cull = self.cull.get((pos.x, pos.y, pos.z)).unwrap();
+            if data.block_type == BlockType::None { return; }
 
-            Some(cull.get_unculled().map(move |(i, _)| { faces[i].into_block_quad(atlas) }))
-        }).flatten();
+            match data.model.clone() {
+                ModelType::FullBlock(mut m) => {
+                    m.center = offset + Vec3::new(pos.x as f32, pos.y as f32, pos.z as f32);
+                    let faces = m.get_faces();
+                    let cull = self.cull.get((pos.x, pos.y, pos.z)).unwrap();
 
-        self.mesh.clear();
-        self.mesh.extend(mesh_iter);
+                    self.render.block_quads.extend(
+                        cull.get_unculled().map(move |(i, _)| { faces[i].into_block_quad(atlas) })
+                    );
+                },
+
+                ModelType::Plant(m) => {
+
+                },
+                _ => (),
+            }
+        });
     }
 
     fn get_neighbors(&self, pos: UsizeVec3) -> [Neighbor; 6] {
@@ -222,7 +234,7 @@ impl BlockCull {
 }
 
 impl ChunkRender for Section {
-    fn get_block_quads(&self, _atlas: &TextureAtlas, _block_data: &StaticBlockData) -> Vec<BlockQuad> {
-        self.mesh.clone()
+    fn get_render_section(&self, _atlas: &TextureAtlas, _block_data: &StaticBlockData) -> RenderSection {
+        self.render.clone()
     }
 }

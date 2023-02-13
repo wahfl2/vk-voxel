@@ -41,24 +41,18 @@ where
     T: Clone + Copy,
     [T]: BufferContents
 {
-    pub fn new(size: usize, allocator: &StandardMemoryAllocator) -> Self {
+    pub fn new(size: usize, usage: BufferUsage, allocator: &StandardMemoryAllocator) -> Self {
         Self {
             current: 1,
             queue: Vec::new(),
             after_free: Vec::new(),
-            buffer_1: Self::create_buffer(size, allocator),
-            buffer_2: Self::create_buffer(size, allocator),
+            buffer_1: Self::create_buffer(size, usage, allocator),
+            buffer_2: Self::create_buffer(size, usage, allocator),
             dirty: SwapDirtyPhase::Clean,
         }
     }
 
-    fn create_buffer(size: usize, allocator: &StandardMemoryAllocator) -> Arc<CpuAccessibleBuffer<[T]>> {
-        let usage = BufferUsage {
-            storage_buffer: true,
-            storage_texel_buffer: true,
-            ..Default::default()
-        };
-
+    fn create_buffer(size: usize, usage: BufferUsage, allocator: &StandardMemoryAllocator) -> Arc<CpuAccessibleBuffer<[T]>> {
         unsafe {
             CpuAccessibleBuffer::uninitialized_array(
                 allocator, 

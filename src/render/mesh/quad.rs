@@ -3,11 +3,26 @@ use ultraviolet::{Vec3, Vec2};
 
 use crate::{util::util::{Axis, Sign, Facing}, render::{vertex::VertexRaw, texture::{TextureAtlas, TextureHandle}}, world::block_data::StaticBlockData};
 
-use super::{renderable::Renderable, chunk_render::{ChunkRender, BlockQuad}};
+use super::renderable::Renderable;
 
 // Unused
 pub struct RawQuad {
     pub points: [Vec3; 4],
+}
+
+/// A textured square of width 1 to be used with the shader storage buffer
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct BlockQuad {
+    pub position: [f32; 3],
+    pub face: u32,
+    pub tex: [f32; 4],
+}
+
+impl BlockQuad {
+    pub fn new(position: [f32; 3], tex: [f32; 4], face: u32) -> Self {
+        Self { position, tex, face }
+    }
 }
 
 pub struct AxisAlignedQuad {
@@ -31,9 +46,21 @@ impl AxisAlignedQuad {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct QuadUV {
     pub min: Vec2,
     pub max: Vec2,
+}
+
+impl QuadUV {
+    pub const fn tex_coords(&self) -> [Vec2; 4] {
+        [
+            self.max,
+            Vec2::new(self.min.x, self.min.y),
+            self.min,
+            Vec2::new(self.max.x, self.min.y),
+        ]
+    }
 }
 
 /// A textured quad with a width and length of 1.0
@@ -85,36 +112,36 @@ impl TexturedSquare {
 }
 
 // Unused
-impl Renderable for TexturedSquare {
-    fn get_vertices(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> Vec<VertexRaw> {
-        const INDICES: [usize; 6] = [
-            0, 1, 2,
-            0, 2, 3,
-        ];
+// impl Renderable for TexturedSquare {
+//     fn get_vertices(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> Vec<VertexRaw> {
+//         const INDICES: [usize; 6] = [
+//             0, 1, 2,
+//             0, 2, 3,
+//         ];
 
-        let mut corners = match self.facing.axis {
-            Axis::X => Self::CORNER_OFFSETS_X,
-            Axis::Y => Self::CORNER_OFFSETS_Y,
-            Axis::Z => Self::CORNER_OFFSETS_Z,
-        }.map(|offset| { (self.center + offset).as_array().to_owned() });
+//         let mut corners = match self.facing.axis {
+//             Axis::X => Self::CORNER_OFFSETS_X,
+//             Axis::Y => Self::CORNER_OFFSETS_Y,
+//             Axis::Z => Self::CORNER_OFFSETS_Z,
+//         }.map(|offset| { (self.center + offset).as_array().to_owned() });
 
-        if self.facing.sign == Sign::Negative {
-            corners.reverse();
-        }
+//         if self.facing.sign == Sign::Negative {
+//             corners.reverse();
+//         }
 
-        let uv = atlas.get_uv(self.texture_handle);
-        let tex_coords = [
-            [uv.max.x, uv.max.y],
-            [uv.max.x, uv.min.y],
-            [uv.min.x, uv.min.y],
-            [uv.min.x, uv.max.y],
-        ];
+//         let uv = atlas.get_uv(self.texture_handle);
+//         let tex_coords = [
+//             [uv.max.x, uv.max.y],
+//             [uv.max.x, uv.min.y],
+//             [uv.min.x, uv.min.y],
+//             [uv.min.x, uv.max.y],
+//         ];
 
-        INDICES.iter().map(|i| { 
-            VertexRaw {
-                position: corners[*i],
-                tex_coords: tex_coords[*i],
-            }
-         }).collect()
-    }
-}
+//         INDICES.iter().map(|i| { 
+//             VertexRaw {
+//                 position: corners[*i],
+//                 tex_coord: tex_coords[*i],
+//             }
+//          }).collect()
+//     }
+// }

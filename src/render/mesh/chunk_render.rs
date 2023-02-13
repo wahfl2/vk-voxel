@@ -1,31 +1,50 @@
-use bytemuck::{Zeroable, Pod};
+use crate::{render::{texture::TextureAtlas, vertex::VertexRaw}, world::block_data::StaticBlockData};
 
-use crate::{render::texture::TextureAtlas, world::block_data::StaticBlockData};
-
-/// A textured square of width 1 to be used with the shader storage buffer
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct BlockQuad {
-    pub position: [f32; 3],
-    pub face: u32,
-    pub tex: [f32; 4],
-}
-
-impl BlockQuad {
-    pub fn new(position: [f32; 3], tex: [f32; 4], face: u32) -> Self {
-        Self { position, tex, face }
-    }
-}
+use super::quad::BlockQuad;
 
 pub trait ChunkRender {
-    fn get_block_quads(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> Vec<BlockQuad>;
+    fn get_render_section(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> RenderSection;
 }
 
 impl<T> ChunkRender for [T]
 where 
     T: ChunkRender
 {
-    fn get_block_quads(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> Vec<BlockQuad> {
-        self.iter().flat_map(|s| { s.get_block_quads(atlas, block_data) }).collect()
+    fn get_render_section(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> RenderSection {
+        let sections_iter = self.into_iter().map(|r| { 
+            r.get_render_section(atlas, block_data) 
+        });
+
+        let (mut len1, mut len2) = (0, 0);
+        sections_iter.clone().for_each(|s| { 
+            len1 += s.block_quads.len();
+            len2 += s.deco_vertices.len();
+        });
+
+        let (mut q, mut v) = (Vec::with_capacity(len1), Vec::with_capacity(len2));
+        sections_iter.for_each(|mut s| {
+            q.append(&mut s.block_quads);
+            v.append(&mut s.deco_vertices);
+        });
+
+        RenderSection {
+            block_quads: q,
+            deco_vertices: v,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct RenderSection {
+    pub block_quads: Vec<BlockQuad>,
+    pub deco_vertices: Vec<VertexRaw>,
+}
+
+impl RenderSection {
+    pub fn empty() -> Self {
+        Self {
+            block_quads: Vec::new(),
+            deco_vertices: Vec::new(),
+        }
     }
 }

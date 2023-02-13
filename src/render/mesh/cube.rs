@@ -62,8 +62,8 @@ impl UnitCube {
     }
 }
 
-impl Renderable for UnitCube {
-    fn get_vertices(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> Vec<VertexRaw> {
-        self.get_faces().get_vertices(atlas, block_data)
-    }
-}
+// impl Renderable for UnitCube {
+//     fn get_vertices(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> Vec<VertexRaw> {
+//         self.get_faces().get_vertices(atlas, block_data)
+//     }
+// }

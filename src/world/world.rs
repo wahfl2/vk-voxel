@@ -1,7 +1,7 @@
 use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::{IVec2, Vec2};
 
-use crate::{render::renderer::Renderer, util::util::Facing};
+use crate::{render::{renderer::Renderer, mesh::chunk_render::ChunkRender}, util::util::Facing};
 
 use super::{chunk::Chunk, terrain::TerrainGenerator, block_data::StaticBlockData};
 
@@ -13,7 +13,7 @@ pub struct World {
 
 impl World {
     const CHUNK_UPDATES_PER_FRAME: u32 = 2;
-    const RENDER_DISTANCE: u32 = 32;
+    const RENDER_DISTANCE: u32 = 1;
 
     const ADJ_CHUNK_OFFSETS: [IVec2; 4] = [
         IVec2::new(1, 0),
@@ -41,7 +41,7 @@ impl World {
                 new_chunk.cull_adjacent(*dir, adj_chunk, .., block_data);
                 adj_chunk.cull_adjacent(dir.opposite(), &new_chunk, .., block_data);
                 adj_chunk.rebuild_mesh(&renderer.texture_atlas, block_data);
-                renderer.vertex_chunk_buffer.readd_chunk(
+                renderer.vertex_buffer.reinsert_chunk(
                     adj_chunk.pos,
                     &*adj_chunk,
                     &renderer.texture_atlas,
@@ -51,7 +51,7 @@ impl World {
         }
 
         new_chunk.rebuild_mesh(&renderer.texture_atlas, block_data);
-        renderer.vertex_chunk_buffer.push_chunk(chunk_pos, &new_chunk, &renderer.texture_atlas, block_data);
+        renderer.vertex_buffer.insert_chunk(chunk_pos, &new_chunk, &renderer.texture_atlas, block_data);
         self.loaded_chunks.insert(chunk_pos, new_chunk);
     }
 
@@ -63,7 +63,7 @@ impl World {
 
         // TODO: Unloading chunks could use a better method based on movement
         for pos in self.get_chunks_to_unload() {
-            renderer.vertex_chunk_buffer.remove_chunk(pos);
+            renderer.vertex_buffer.remove_chunk(pos);
             self.loaded_chunks.remove(&pos);
         }
     }
