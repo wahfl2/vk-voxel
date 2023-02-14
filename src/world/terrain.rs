@@ -2,8 +2,6 @@ use ndarray::{arr3, Array3, Axis};
 use noise::{SuperSimplex, NoiseFn};
 use ultraviolet::{IVec2, Vec2, Vec3, IVec3};
 
-use crate::util::util::AdditionalSwizzles;
-
 use super::{block_data::{BlockHandle, StaticBlockData}, section::Section};
 
 pub struct TerrainGenerator {
