@@ -6,7 +6,7 @@ use ultraviolet::{IVec2, UVec3, IVec3};
 
 use crate::{render::{mesh::{renderable::Renderable, chunk_render::ChunkRender, quad::BlockQuad}, texture::TextureAtlas, vertex::VertexRaw}, util::util::{Facing, Sign}};
 
-use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData}, terrain::TerrainGenerator};
+use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData}, generation::terrain::TerrainGenerator};
 
 pub struct Chunk {
     pub pos: IVec2,

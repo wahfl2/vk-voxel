@@ -3,7 +3,7 @@ use ultraviolet::{IVec2, Vec2};
 
 use crate::{render::{renderer::Renderer, mesh::chunk_render::ChunkRender}, util::util::Facing};
 
-use super::{chunk::Chunk, terrain::TerrainGenerator, block_data::StaticBlockData};
+use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::TerrainGenerator};
 
 pub struct World {
     pub loaded_chunks: FxHashMap<IVec2, Chunk>,
