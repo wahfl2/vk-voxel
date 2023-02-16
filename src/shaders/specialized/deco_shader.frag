@@ -29,5 +29,5 @@ void main() {
 
     float shading;
     normal_shading(normal_out, shading);
-    f_color = vec4(tex_color.rgb * shading, tex_color.a);
+    f_color = vec4(tex_color.rgb * shading, 1.0);
 }

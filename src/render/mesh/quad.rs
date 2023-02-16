@@ -56,7 +56,7 @@ impl QuadUV {
     pub const fn tex_coords(&self) -> [Vec2; 4] {
         [
             self.max,
-            Vec2::new(self.min.x, self.min.y),
+            Vec2::new(self.min.x, self.max.y),
             self.min,
             Vec2::new(self.max.x, self.min.y),
         ]
