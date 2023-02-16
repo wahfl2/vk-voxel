@@ -34,12 +34,7 @@ impl Chunk {
     }
 
     pub fn generate(pos: IVec2, generator: &TerrainGenerator) -> Self {
-        let mut collect = Vec::with_capacity(16);
-        (0..16).into_par_iter().map(|section_y| {
-            let offset = IVec3::new(pos.x * 16, section_y * 16, pos.y * 16);
-            generator.gen_section(offset)
-        }).collect_into_vec(&mut collect);
-        Self { pos, sections: collect }
+        generator.gen_chunk(pos)
     }
 
     pub fn cull_inner(&mut self, section_range: impl RangeBounds<usize>, block_data: &StaticBlockData) {

@@ -32,6 +32,13 @@ impl Section {
         }
     }
 
+    pub fn full(block: BlockHandle) -> Self {
+        Self {
+            blocks: arr3(&[[[block; 16]; 16]; 16]),
+            ..Self::empty()
+        }
+    }
+
     pub fn generate(offset: IVec3, terrain_gen: &TerrainGenerator) -> Self {
         let arr: [[[BlockHandle; 16]; 16]; 16] = 
             array::from_fn(|x_off| {

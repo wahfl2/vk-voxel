@@ -1,9 +1,13 @@
 use std::{array, num::NonZeroUsize};
 
+use ndarray::{Array, arr1};
 use ndarray::{arr3, Array3, Axis, Array2, arr2};
 use noise::{SuperSimplex, NoiseFn};
+use smallvec::SmallVec;
+use smallvec::smallvec;
 use ultraviolet::{IVec2, Vec2, Vec3, IVec3};
 
+use crate::world::chunk::Chunk;
 use crate::world::{block_data::{StaticBlockData, BlockHandle}, section::Section};
 
 use super::noise::{ScaleNoise2D, ScaleNoise3D};
@@ -69,8 +73,80 @@ impl TerrainGenerator {
         }
     }
 
-    pub fn gen_chunk(&self, chunk_pos: IVec2) {
-        
+    pub fn gen_chunk(&self, chunk_pos: IVec2) -> Chunk {
+        let height_sampler = ChunkHeightSampler::new(
+            (chunk_pos * 16).into(), 
+            NonZeroUsize::new(8).unwrap(), 
+            &self.planar_noise, 
+            4
+        );
+
+        let off = Vec2::new(0.5, 0.5);
+        let mut lowest = 999;
+        let mut highest = 0;
+        let height_array = Array2::from_shape_fn((16, 16), |(x_step, y_step)| {
+            let pos = off + Vec2::new(x_step as f32, y_step as f32);
+            let height = (height_sampler.sample(pos) * 50.0 + 50.0).round() as u32;
+            let low_gen = height.saturating_sub(4);
+            if low_gen < lowest { lowest = low_gen; }
+            if height > highest { highest = height; }
+
+            height
+        });
+
+        let section_low = lowest / 16;
+        let section_high = highest / 16;
+        let mut sections = Vec::with_capacity(16);
+        for _ in 0..section_low {
+            sections.push(Section::full(self.cache[4]));
+        }
+        for i in section_low..=section_high {
+            sections.push(self.section_from_height(&height_array, i));
+        }
+        for _ in (section_high+1)..16 {
+            sections.push(Section::full(self.cache[0]));
+        }
+        if sections.len() > 16 { panic!("TOO MANY SECTIONS EPIC FAIL!"); }
+        if sections.len() < 16 { panic!("NOT ENOUGH SECTIONS EPIC FAIL!"); }
+
+        Chunk {
+            pos: chunk_pos,
+            sections,
+        }
+    }
+
+    fn section_from_height(&self, height_array: &Array2<u32>, section_num: u32) -> Section {
+        let height_offset = section_num * 16;
+        let mut ret = Section::empty();
+        for (i, mut column) in ret.blocks.lanes_mut(Axis(1)).into_iter().enumerate() {
+            let (x, y) = ((i / 16), (i % 16));
+            let height = height_array[(x, y)];
+            let relative_height = height.saturating_sub(height_offset);
+
+            // All air
+            if height < height_offset { continue; }
+
+            // All stone
+            if height > height_offset + 20 {
+                column.fill(self.cache[4]);
+                continue;
+            }
+
+            let can_gen_grass = height >= height_offset.saturating_sub(1) && relative_height < 15;
+            let stone_end = relative_height.saturating_sub(3).min(15) as usize;
+            let dirt_end = relative_height.min(15) as usize;
+            let mut c = [self.cache[0]; 16];
+
+            c[0..stone_end].fill(self.cache[4]);
+            c[stone_end..dirt_end].fill(self.cache[3]);
+            c[relative_height.min(15) as usize] = self.cache[2];
+            if can_gen_grass && rand::random::<bool>() {
+                c[relative_height as usize + 1] = self.cache[1];
+            }
+
+            column.assign(&arr1(&c));
+        }
+        ret
     }
 
     // ((height as f32 - pos.y) / 20.0).clamp(-1.0, 1.0)
@@ -126,7 +202,7 @@ struct ChunkHeightSampler {
 }
 
 impl ChunkHeightSampler {
-    pub fn new(offset: Vec2, res: NonZeroUsize, noise: ScaleNoise2D, octaves: u32) -> Self {
+    pub fn new(offset: Vec2, res: NonZeroUsize, noise: &ScaleNoise2D, octaves: u32) -> Self {
         let res = res.get();
         let step_size = 16.0 / res as f32;
         let arr = Array2::from_shape_fn((res + 1, res + 1), 
@@ -142,23 +218,25 @@ impl ChunkHeightSampler {
         }
     }
 
+    /// Bi-linear interpolation of the input data
     pub fn sample(&self, relative_pos: Vec2) -> f32 {
         if relative_pos.component_max() > 16.0 || relative_pos.component_min() < 0.0 {
             panic!("Invalid sample position: {:?}", relative_pos);
         }
 
-        let res = self.height_data.len_of(Axis(0));
-        let mul = res as f32 / 16.0;
+        let res = (self.height_data.len_of(Axis(0)) - 1) as f32;
+        let mul = res / 16.0;
 
         let rounded_x = (relative_pos.x * mul).floor();
         let rounded_y = (relative_pos.y * mul).floor();
         let data_x = rounded_x as usize;
         let data_y = rounded_y as usize;
 
-        let x0 = rounded_x * res as f32;
-        let y0 = rounded_y * res as f32;
-        let x1 = (rounded_x + 1.0) * res as f32;
-        let y1 = (rounded_y + 1.0) * res as f32;
+        let recip = mul.recip();
+        let x0 = rounded_x * recip;
+        let y0 = rounded_y * recip;
+        let x1 = (rounded_x + 1.0) * recip;
+        let y1 = (rounded_y + 1.0) * recip;
 
         let p00 = self.height_data[(data_x, data_y)];
         let p10 = self.height_data[(data_x + 1, data_y)];
@@ -173,6 +251,15 @@ impl ChunkHeightSampler {
         p00 + 
             ((p10 - p00) * precomp.0) +
             ((p01 - p00) * precomp.1) + 
-            ((p11 - p01 - p10 + p00) * precomp.0 * precomp.1)
+            ((p11 + p00 - p01 - p10) * precomp.0 * precomp.1)
     }
+}
+
+#[test]
+fn height_sampler_test() {
+    let sampler = ChunkHeightSampler {
+        height_data: arr2(&[[0.0, 0.0], [1.0, 1.0]])
+    };
+
+    assert_eq!(sampler.sample(Vec2::new(8.0, 4.9743)), 0.5);
 }

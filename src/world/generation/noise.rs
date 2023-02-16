@@ -35,21 +35,23 @@ impl ScaleNoise2D {
 
     pub fn get(&self, pos: Vec2) -> f64 {
         let scaled = pos * self.scale;
-        self.noise.get([scaled.x as f64, scaled.y as f64])
+        self.noise.get([scaled.x as f64, scaled.y as f64]) * 0.5 + 0.5
     }
 
     pub fn sample(&self, pos: Vec2, octaves: u32) -> f64 {
         let mut ret = 0.0;
         let persistence = 0.5;
         let mut amp = 1.0;
-        let mut scaled = pos * self.scale;
+        let mut max_amp = 0.0;
+        let mut scaled = pos;
 
         for _ in 0..octaves {
             ret += self.get(scaled) * amp;
+            max_amp += amp;
             amp *= persistence;
             scaled *= 2.0;
         }
 
-        ret
+        ret / max_amp
     }
 }
