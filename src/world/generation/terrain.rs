@@ -1,10 +1,7 @@
-use std::{array, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 
-use ndarray::{Array, arr1};
-use ndarray::{arr3, Array3, Axis, Array2, arr2};
-use noise::{SuperSimplex, NoiseFn};
-use smallvec::SmallVec;
-use smallvec::smallvec;
+use ndarray::{arr1, arr2};
+use ndarray::{Array3, Axis, Array2};
 use ultraviolet::{IVec2, Vec2, Vec3, IVec3};
 
 use crate::world::chunk::Chunk;

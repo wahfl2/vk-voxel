@@ -3,9 +3,7 @@ use std::{sync::Arc, collections::hash_map::Iter};
 use rustc_data_structures::stable_map::FxHashMap;
 
 use ultraviolet::IVec2;
-use vulkano::{buffer::{CpuAccessibleBuffer, BufferContents, BufferUsage, BufferAccess, TypedBufferAccess, DeviceLocalBuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::{DrawIndirectCommand, AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
-
-use crate::{render::{vertex::VertexRaw, mesh::{renderable::Renderable, chunk_render::ChunkRender}, texture::TextureAtlas}, world::block_data::StaticBlockData};
+use vulkano::{buffer::{CpuAccessibleBuffer, BufferContents, BufferUsage, DeviceLocalBuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::{DrawIndirectCommand, AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
 
 use super::swap_buffer::SwappingBuffer;
 

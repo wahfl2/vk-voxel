@@ -1,6 +1,5 @@
-use std::f32::consts::{FRAC_1_SQRT_2, SQRT_2};
+use std::f32::consts::SQRT_2;
 
-use once_cell::sync::Lazy;
 use ultraviolet::Vec3;
 
 use crate::render::vertex::{Vertex, VertexRaw};

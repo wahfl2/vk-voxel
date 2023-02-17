@@ -3,7 +3,7 @@ use std::sync::Arc;
 use ultraviolet::IVec2;
 use vulkano::{buffer::BufferUsage, device::Device, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, DrawIndirectCommand}, memory::allocator::StandardMemoryAllocator};
 
-use crate::{render::{vertex::VertexRaw, mesh::{quad::BlockQuad, chunk_render::{RenderSection, ChunkRender}}, texture::TextureAtlas}, world::{block_data::StaticBlockData, chunk::Chunk}};
+use crate::{render::{vertex::VertexRaw, mesh::{quad::BlockQuad, chunk_render::ChunkRender}, texture::TextureAtlas}, world::{block_data::StaticBlockData, chunk::Chunk}};
 
 use super::allocator::HeapBuffer;
 

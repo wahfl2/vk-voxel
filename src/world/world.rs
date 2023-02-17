@@ -1,7 +1,7 @@
 use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::{IVec2, Vec2};
 
-use crate::{render::{renderer::Renderer, mesh::chunk_render::ChunkRender}, util::util::Facing};
+use crate::{render::renderer::Renderer, util::util::Facing};
 
 use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::TerrainGenerator};
 

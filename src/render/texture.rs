@@ -2,7 +2,7 @@ use std::{fs::File, sync::Arc, ffi::OsString, path::PathBuf};
 
 use glob::glob;
 use guillotiere::{SimpleAtlasAllocator, euclid::{Box2D, UnknownUnit}};
-use png::{Transformations, ColorType, BitDepth};
+use png::{Transformations, ColorType};
 use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::UVec2;
 use vulkano::{memory::allocator::StandardMemoryAllocator, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::ImageView}, format::Format};
@@ -21,9 +21,7 @@ impl TextureAtlas {
     pub fn from_folder(folder_path: &str) -> Self {
         let mut paths = Vec::new();
         let glob = glob(format!("{}/**/*.png", folder_path).as_str()).unwrap();
-        let mut num_images = 0;
         for path in glob {
-            num_images += 1;
             paths.push(path.unwrap());
         }
         Self::from_images(paths)

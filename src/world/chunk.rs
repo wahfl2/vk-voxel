@@ -1,10 +1,10 @@
 use std::ops::{RangeBounds, RangeInclusive};
 
-use ndarray::{s, Axis};
-use rayon::prelude::{ParallelIterator, IntoParallelRefMutIterator, IndexedParallelIterator, IntoParallelIterator};
+use ndarray::Axis;
+use rayon::prelude::{ParallelIterator, IntoParallelRefMutIterator, IndexedParallelIterator};
 use ultraviolet::{IVec2, UVec3, IVec3};
 
-use crate::{render::{mesh::{renderable::Renderable, chunk_render::ChunkRender, quad::BlockQuad}, texture::TextureAtlas, vertex::VertexRaw}, util::util::{Facing, Sign}};
+use crate::{render::{mesh::chunk_render::ChunkRender, texture::TextureAtlas}, util::util::{Facing, Sign}};
 
 use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData}, generation::terrain::TerrainGenerator};
 
@@ -110,17 +110,6 @@ impl Chunk {
                 block_data
             );
         });
-    }
-
-    fn fill_column(&mut self, x: usize, z: usize, height: u32, fill_block: BlockHandle) {
-        let column_iter = self.sections.iter_mut().flat_map(
-            |s| { s.blocks.slice_mut(s![x, .., z]) }
-        );
-
-        for (i, block) in column_iter.enumerate() {
-            if i > height as usize { break }
-            *block = fill_block;
-        }
     }
 }
 

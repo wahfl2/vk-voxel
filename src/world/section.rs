@@ -3,7 +3,7 @@ use std::array;
 use ndarray::{Array3, arr3, Axis, Array2};
 use ultraviolet::{UVec3, Vec3, IVec3};
 
-use crate::{render::{mesh::{chunk_render::{ChunkRender, RenderSection}, quad::BlockQuad}, texture::TextureAtlas, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
+use crate::{render::{mesh::chunk_render::{ChunkRender, RenderSection}, texture::TextureAtlas, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
 
 use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType, ModelType}, generation::terrain::TerrainGenerator};
 
@@ -163,10 +163,6 @@ impl Section {
         if pos.z > 0  { n[5] = Neighbor::Block(*self.blocks.get((pos.x, pos.y, pos.z - 1)).unwrap()) }
 
         n
-    }
-
-    fn neighbor_block(&self, pos: UsizeVec3) -> Neighbor {
-        Neighbor::Block(*self.blocks.get((pos.x, pos.y, pos.z)).unwrap())
     }
 }
 

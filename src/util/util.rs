@@ -1,4 +1,3 @@
-use rayon::{iter::FlattenIter, prelude::ParallelIterator};
 use ultraviolet::{Vec2, Vec3};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]

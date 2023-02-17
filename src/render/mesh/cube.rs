@@ -1,8 +1,8 @@
 use ultraviolet::Vec3;
 
-use crate::{render::{texture::{TextureAtlas, TextureHandle}, vertex::VertexRaw}, util::util::Facing, world::block_data::StaticBlockData};
+use crate::{render::texture::TextureHandle, util::util::Facing};
 
-use super::{renderable::Renderable, quad::TexturedSquare};
+use super::quad::TexturedSquare;
 
 #[derive(Debug, Clone)]
 pub struct UnitCube {

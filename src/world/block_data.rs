@@ -1,6 +1,6 @@
 use rustc_data_structures::stable_map::FxHashMap;
 
-use crate::render::{texture::{TextureAtlas, TextureHandle}, mesh::{cube::UnitCube, quad::QuadUV, model::Model}, vertex::VertexRaw};
+use crate::render::{texture::TextureAtlas, mesh::{cube::UnitCube, quad::QuadUV, model::Model}};
 
 /// Static block data, should be initialized at startup and probably left alone.
 pub struct StaticBlockData {
