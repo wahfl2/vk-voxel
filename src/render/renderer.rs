@@ -554,9 +554,16 @@ impl Renderer {
         let (quad_swapped, deco_swapped) = self.vertex_buffer.update(&self.vk_memory_allocator, &mut builder);
         if quad_swapped { self.vertex_descriptor_set = None; }
 
-        const FACE_LIGHTING: FaceLighting = FaceLighting {
+        const BLOCK_FACE_LIGHTING: FaceLighting = FaceLighting {
             positive: [0.6, 1.0, 0.8],
             negative: [0.6, 0.4, 0.8],
+            _pad1: 0,
+            _pad2: 0,
+        };
+
+        const DECO_FACE_LIGHTING: FaceLighting = FaceLighting {
+            positive: [1.0, 1.0, 1.0],
+            negative: [1.0, 1.0, 1.0],
             _pad1: 0,
             _pad2: 0,
         };
@@ -613,10 +620,9 @@ impl Renderer {
         if let Some(mat) = self.cam_uniform.take() {
             let pc = PushConstants {
                 camera: mat.into(),
-                face_lighting: FACE_LIGHTING,
+                face_lighting: BLOCK_FACE_LIGHTING,
             };
             builder.push_constants(self.pipelines.block_quads.layout().clone(), 0, pc);
-            builder.push_constants(self.pipelines.decorations.layout().clone(), 0, pc);
         }
 
         if let None = self.fullscreen_quad {

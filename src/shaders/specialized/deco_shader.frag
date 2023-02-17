@@ -27,7 +27,7 @@ void main() {
     vec4 tex_color = texture(tex, tex_out);
     if (tex_color.a <= 0.0) discard;
 
-    float shading;
-    normal_shading(normal_out, shading);
-    f_color = vec4(tex_color.rgb * shading, 1.0);
+    // float shading;
+    // normal_shading(normal_out, shading);
+    f_color = vec4(tex_color.rgb, 1.0);
 }
