@@ -39,23 +39,6 @@ impl Section {
         }
     }
 
-    pub fn generate(offset: IVec3, terrain_gen: &TerrainGenerator) -> Self {
-        let arr: [[[BlockHandle; 16]; 16]; 16] = 
-            array::from_fn(|x_off| {
-                array::from_fn(|y_off| {
-                    array::from_fn(|z_off| {
-                        let pos = offset + (x_off as i32, y_off as i32, z_off as i32).into();
-                        terrain_gen.gen_at(pos.into())
-                    })
-                })
-            });
-
-        Self {
-            blocks: arr3(&arr),
-            ..Self::empty()
-        }
-    }
-
     pub fn flat_iter(&self) -> impl Iterator<Item = (UVec3, &BlockHandle)> {
         self.blocks.indexed_iter()
             .map(|((x, y, z), b)| { ((x as u32, y as u32, z as u32).into(), b) })
@@ -140,7 +123,7 @@ impl Section {
                     let cull = self.cull.get((pos.x, pos.y, pos.z)).unwrap();
 
                     self.render.block_quads.extend(
-                        cull.get_unculled().map(move |(i, _)| { faces[i].into_block_quad(atlas) })
+                        cull.get_unculled().into_iter().map(move |i| { faces[i].into_block_quad(atlas) })
                     );
                 },
 
@@ -224,8 +207,13 @@ impl BlockCull {
         })
     }
 
-    pub fn get_unculled(&self) -> impl Iterator<Item = (usize, bool)> + '_ {
-        (0..6).map(|f| { (f, self.is_culled_num(f)) }).filter(|(_, c)| { !c })
+    pub fn get_unculled(&self) -> Vec<usize> {
+        (0..6).filter_map(|f| { 
+            match self.is_culled_num(f) {
+                true => None,
+                false => Some(f),
+            }
+        }).collect()
     }
     
     fn to_u8(b: &bool) -> u8 {

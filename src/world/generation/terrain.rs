@@ -2,6 +2,8 @@ use std::num::NonZeroUsize;
 
 use ndarray::{arr1, arr2};
 use ndarray::{Array3, Axis, Array2};
+use turborand::TurboRand;
+use turborand::rng::Rng;
 use ultraviolet::{IVec2, Vec2, Vec3, IVec3};
 
 use crate::world::chunk::Chunk;
@@ -13,6 +15,7 @@ pub struct TerrainGenerator {
     pub planar_noise: ScaleNoise2D,
     pub world_noise: ScaleNoise3D,
     pub overall_height: ScaleNoise2D,
+    rng: Rng,
     cache: [BlockHandle; 5]
 }
 
@@ -35,6 +38,8 @@ impl TerrainGenerator {
             seed
         );
 
+        let rng = Rng::new();
+
         let cache = [
             block_data.get_handle("air").unwrap(),
             block_data.get_handle("grass").unwrap(),
@@ -43,31 +48,12 @@ impl TerrainGenerator {
             block_data.get_handle("stone").unwrap(),
         ];
 
-        Self { planar_noise, world_noise, overall_height, cache }
+        Self { planar_noise, world_noise, overall_height, rng, cache }
     }
 
     pub fn new_random(block_data: &StaticBlockData) -> Self {
-        let seed = rand::random::<u32>();
+        let seed = Rng::new().u32(..);
         Self::new(seed, block_data)
-    }
-
-    pub fn get_height(&self, pos: IVec2) -> u32 {
-        ((self.planar_noise.get(pos.into()) + 1.0) * 20.0) as u32
-    }
-
-    pub fn gen_at(&self, pos: Vec3) -> BlockHandle {
-        let m = self.world_noise.get(pos) as f32;
-        if m >= 0.9 {
-            return self.cache[4]
-        } else if m >= 0.30 {
-            return self.cache[3]
-        } else if m >= 0.15 {
-            return self.cache[2]
-        } else if m >= 0.10 {
-            return self.cache[1]
-        } else {
-            return self.cache[0]
-        }
     }
 
     pub fn gen_chunk(&self, chunk_pos: IVec2) -> Chunk {
@@ -137,7 +123,7 @@ impl TerrainGenerator {
             c[0..stone_end].fill(self.cache[4]);
             c[stone_end..dirt_end].fill(self.cache[3]);
             c[relative_height.min(15) as usize] = self.cache[2];
-            if can_gen_grass && rand::random::<bool>() {
+            if can_gen_grass && self.rng.bool() {
                 c[relative_height as usize + 1] = self.cache[1];
             }
 
