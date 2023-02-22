@@ -17,6 +17,7 @@ pub mod render;
 pub mod util;
 pub mod world;
 pub mod event_handler;
+pub mod server;
 
 pub const FRAME_TIME: f64 = 1.0 / 240.0;
 
