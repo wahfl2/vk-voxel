@@ -96,3 +96,74 @@ impl AdditionalSwizzles for Vec3 {
         Self::Out::new(self.x, self.z)
     }
 }
+
+pub trait MoreCmp {
+    fn all_greater_than(&self, rhs: &Self) -> bool;
+    fn all_less_than(&self, rhs: &Self) -> bool;
+}
+
+impl MoreCmp for Vec3 {
+    fn all_greater_than(&self, rhs: &Self) -> bool {
+        self.x > rhs.x && self.y > rhs.y && self.z > rhs.z
+    }
+
+    fn all_less_than(&self, rhs: &Self) -> bool {
+        self.x < rhs.x && self.y < rhs.y && self.z < rhs.z
+    }
+}
+
+pub trait VecRounding {
+    fn round(self) -> Self;
+    fn floor(self) -> Self;
+    fn ceil(self) -> Self;
+}
+
+impl VecRounding for Vec3 {
+    fn round(self) -> Self {
+        Self::new(self.x.round(), self.y.round(), self.z.round())
+    }
+
+    fn floor(self) -> Self {
+        Self::new(self.x.floor(), self.y.floor(), self.z.floor())
+    }
+
+    fn ceil(self) -> Self {
+        Self::new(self.x.ceil(), self.y.ceil(), self.z.ceil())
+    }
+}
+
+pub trait VecAxisIndex {
+    fn get(&self, axis: ndarray::Axis) -> f32;
+    fn get_mut(&mut self, axis: ndarray::Axis) -> &mut f32;
+
+    fn set(&mut self, axis: ndarray::Axis, value: f32);
+}
+
+impl VecAxisIndex for Vec3 {
+    fn get(&self, axis: ndarray::Axis) -> f32 {
+        match axis.0 {
+            0 => self.x,
+            1 => self.y,
+            2 => self.z,
+            d => panic!("Tried to get {d} axis of Vec3")
+        }
+    }
+
+    fn get_mut(&mut self, axis: ndarray::Axis) -> &mut f32 {
+        match axis.0 {
+            0 => &mut self.x,
+            1 => &mut self.y,
+            2 => &mut self.z,
+            d => panic!("Tried to get {d} axis of Vec3")
+        }
+    }
+
+    fn set(&mut self, axis: ndarray::Axis, value: f32) {
+        match axis.0 {
+            0 => self.x = value,
+            1 => self.y = value,
+            2 => self.z = value,
+            d => panic!("Tried to set {d} axis of Vec3")
+        }
+    }
+}
