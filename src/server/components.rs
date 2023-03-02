@@ -22,3 +22,10 @@ pub struct Translation(pub Vec3);
 
 #[derive(Deref, DerefMut)]
 pub struct Velocity(pub Vec3);
+
+#[derive(Clone, Copy)]
+pub struct Hitbox {
+    pub half_extents: Vec3,
+}
+
+pub struct PhysicsEntity;
