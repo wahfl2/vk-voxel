@@ -17,10 +17,10 @@ impl Player {
     }
 }
 
-#[derive(Deref, DerefMut)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct Translation(pub Vec3);
 
-#[derive(Deref, DerefMut)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct Velocity(pub Vec3);
 
 #[derive(Clone, Copy)]

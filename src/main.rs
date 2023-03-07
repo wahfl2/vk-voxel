@@ -6,8 +6,9 @@ use std::time::{Instant, Duration};
 
 use event_handler::{InputHandler, UserEvent};
 use mimalloc::MiMalloc;
-use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog, camera::camera::CameraController};
+use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog};
 
+use server::server::Server;
 use ultraviolet::Vec2;
 use crate::util::util::AdditionalSwizzles;
 use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent, DeviceEvent}};
@@ -34,9 +35,10 @@ fn main() {
     let mut static_block_data = StaticBlockData::empty();
     static_block_data.init(&renderer.texture_atlas);
     let mut world = World::new(&static_block_data);
+    let mut server = Server::new();
+    server.init_single_player();
 
     let mut input_handler = InputHandler::new();
-    let mut camera_controller = CameraController::default();
     let mut fps_log = FpsLog::new();
 
     let mut window_resized = false;
@@ -57,10 +59,13 @@ fn main() {
                     }
                 }
 
-                camera_controller.tick(&input_handler);
-                world.player_pos = camera_controller.camera.pos.xz();
+                let camera = server.get_camera();
+                world.player_pos = camera.pos.xz();
                 world.frame_update(&mut renderer, &static_block_data);
-                renderer.cam_uniform = Some(camera_controller.camera.calculate_matrix(&renderer.viewport));
+                server.tick(&input_handler);
+                renderer.cam_uniform = Some(camera.calculate_matrix(&renderer.viewport));
+
+                input_handler.mouse_delta = Vec2::zero();
 
                 match renderer.render() {
                     RenderState::OutOfDate | RenderState::Suboptimal => recreate_swapchain = true,
@@ -71,10 +76,6 @@ fn main() {
             Event::RedrawEventsCleared => {
                 let next_render = last_frame_start + Duration::from_secs_f64(FRAME_TIME);
                 proxy.send_event(UserEvent::RedrawAt(next_render)).unwrap();
-            }
-
-            Event::DeviceEvent { event: DeviceEvent::MouseMotion { delta }, .. } => {
-                camera_controller.turn(Vec2::new(delta.0 as f32, delta.1 as f32));
             }
 
             Event::DeviceEvent { event, .. } => {

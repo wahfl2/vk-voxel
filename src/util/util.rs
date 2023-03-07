@@ -1,4 +1,6 @@
-use ultraviolet::{Vec2, Vec3};
+use std::ops::{Add, AddAssign};
+
+use ultraviolet::{Vec2, Vec3, Rotor3};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Axis {
@@ -80,6 +82,44 @@ impl Facing {
                 Sign::Negative => Sign::Positive,
             }
         }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct EulerRot2 {
+    pub yaw: f32,
+    pub pitch: f32,
+}
+
+impl EulerRot2 {
+    pub fn new(yaw: f32, pitch: f32) -> Self {
+        Self { yaw, pitch }
+    }
+
+    pub fn get_rotor(&self) -> Rotor3 {
+        Rotor3::from_rotation_xz(self.yaw).rotated_by(
+            Rotor3::from_rotation_yz(self.pitch)
+        )
+    }
+}
+
+impl From<Vec2> for EulerRot2 {
+    fn from(value: Vec2) -> Self {
+        Self::new(value.x, value.y)
+    }
+}
+
+impl Add<EulerRot2> for EulerRot2 {
+    type Output = EulerRot2;
+
+    fn add(self, rhs: EulerRot2) -> Self::Output {
+        Self::new(self.yaw + rhs.yaw, self.pitch + rhs.pitch)
+    }
+}
+
+impl AddAssign<EulerRot2> for EulerRot2 {
+    fn add_assign(&mut self, rhs: EulerRot2) {
+        *self = *self + rhs;
     }
 }
 

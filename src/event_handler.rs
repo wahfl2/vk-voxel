@@ -18,24 +18,43 @@ pub enum InputHandlerEvent {
 
 pub struct InputHandler {
     pub key_press_map: FxHashMap<VirtualKeyCode, bool>,
+    pub mouse_delta: Vec2,
 }
 
 impl InputHandler {
     pub fn new() -> Self {
-        Self { key_press_map: FxHashMap::default() }
+        Self { 
+            key_press_map: FxHashMap::default(),
+            mouse_delta: Vec2::zero(),
+        }
+    }
+
+    pub fn update(&mut self) {
+        
     }
 
     pub fn handle_event(&mut self, event: DeviceEvent, proxy: &mut EventLoopProxy<UserEvent>) {
-        if let DeviceEvent::Key(
-            KeyboardInput { virtual_keycode: Some(key), state, .. }
-        ) = event {
-            self.key_press_map.insert(
-                key, 
-                match state {
-                    ElementState::Pressed => true,
-                    ElementState::Released => false,
-                }
-            );
+        match event {
+            // Mouse movement
+            DeviceEvent::MouseMotion { delta } => {
+                let (dx, dy) = delta;
+                self.mouse_delta += Vec2::new(dx as f32, dy as f32);
+            }, 
+
+            // Key press/release
+            DeviceEvent::Key(
+                KeyboardInput { virtual_keycode: Some(key), state, .. }
+            ) => {
+                self.key_press_map.insert(
+                    key, 
+                    match state {
+                        ElementState::Pressed => true,
+                        ElementState::Released => false,
+                    }
+                );
+            }
+
+            _ => ()
         }
 
         // if let DeviceEvent::MouseMotion { delta } = event {
