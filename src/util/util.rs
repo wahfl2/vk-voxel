@@ -1,6 +1,6 @@
 use std::ops::{Add, AddAssign};
 
-use ultraviolet::{Vec2, Vec3, Rotor3};
+use ultraviolet::{Vec2, Vec3, Rotor3, IVec3, IVec2};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Axis {
@@ -137,6 +137,14 @@ impl AdditionalSwizzles for Vec3 {
     }
 }
 
+impl AdditionalSwizzles for IVec3 {
+    type Out = IVec2;
+
+    fn xz(&self) -> Self::Out {
+        Self::Out::new(self.x, self.z)
+    }
+}
+
 pub trait MoreCmp {
     fn all_greater_than(&self, rhs: &Self) -> bool;
     fn all_less_than(&self, rhs: &Self) -> bool;
@@ -169,6 +177,16 @@ impl VecRounding for Vec3 {
 
     fn ceil(self) -> Self {
         Self::new(self.x.ceil(), self.y.ceil(), self.z.ceil())
+    }
+}
+
+pub trait Vec3Trunc {
+    fn into_i(self) -> IVec3;
+}
+
+impl Vec3Trunc for Vec3 {
+    fn into_i(self) -> IVec3 {
+        IVec3::new(self.x as i32, self.y as i32, self.z as i32)
     }
 }
 

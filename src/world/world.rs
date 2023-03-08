@@ -5,13 +5,13 @@ use crate::{render::renderer::Renderer, util::util::Facing};
 
 use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::TerrainGenerator};
 
-pub struct World {
+pub struct WorldBlocks {
     pub loaded_chunks: FxHashMap<IVec2, Chunk>,
     pub terrain_generator: TerrainGenerator,
     pub player_pos: Vec2,
 }
 
-impl World {
+impl WorldBlocks {
     const CHUNK_UPDATES_PER_FRAME: u32 = 2;
     const RENDER_DISTANCE: u32 = 10;
 

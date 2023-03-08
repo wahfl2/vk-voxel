@@ -1,6 +1,8 @@
+use std::f32::consts::PI;
+
 use ultraviolet::Vec3;
 
-use crate::{physics::solver::PhysicsSolver, render::camera::camera::Camera, event_handler::InputHandler};
+use crate::{physics::solver::PhysicsSolver, render::camera::camera::Camera, event_handler::InputHandler, world::{world::WorldBlocks, block_data::StaticBlockData}};
 
 use super::{components::{Player, Translation, Velocity, PhysicsEntity, Hitbox}, hierarchy::{Hierarchy, Parent}};
 
@@ -38,7 +40,7 @@ impl Server {
         self.world.set_parent(camera_entity, player_entity);
     }
 
-    pub fn tick(&mut self, input_handler: &InputHandler) {
+    pub fn tick(&mut self, input_handler: &InputHandler, world_blocks: &WorldBlocks, block_data: &StaticBlockData) {
         let binding = self.world.query_mut::<&mut Camera>();
         let (_, cam) = binding.into_iter().next().unwrap();
 
@@ -46,8 +48,11 @@ impl Server {
         rot_delta.x *= -1.0;
 
         cam.rotation += rot_delta.into();
+
+        const HALF_PI: f32 = PI / 2.0;
+        cam.rotation.pitch = cam.rotation.pitch.clamp(-HALF_PI, HALF_PI);
         
-        self.physics_solver.tick(&mut self.world);
+        self.physics_solver.tick(&mut self.world, world_blocks, block_data);
     }
 
     pub fn get_camera(&self) -> Camera {
@@ -56,7 +61,6 @@ impl Server {
 
         let mut binding = self.world.query_one::<&Translation>(**player).unwrap();
         let player_translation = binding.get().unwrap();
-        dbg!(player_translation);
 
         cam.with_pos(**player_translation + **cam_translation)
     }

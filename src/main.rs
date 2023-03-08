@@ -12,7 +12,7 @@ use server::server::Server;
 use ultraviolet::Vec2;
 use crate::util::util::AdditionalSwizzles;
 use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent, DeviceEvent}};
-use world::{block_data::StaticBlockData, world::World};
+use world::{block_data::StaticBlockData, world::WorldBlocks};
 
 pub mod render;
 pub mod util;
@@ -34,7 +34,7 @@ fn main() {
     let mut renderer = Renderer::new(&event_loop);
     let mut static_block_data = StaticBlockData::empty();
     static_block_data.init(&renderer.texture_atlas);
-    let mut world = World::new(&static_block_data);
+    let mut world_blocks = WorldBlocks::new(&static_block_data);
     let mut server = Server::new();
     server.init_single_player();
 
@@ -60,9 +60,9 @@ fn main() {
                 }
 
                 let camera = server.get_camera();
-                world.player_pos = camera.pos.xz();
-                world.frame_update(&mut renderer, &static_block_data);
-                server.tick(&input_handler);
+                world_blocks.player_pos = camera.pos.xz();
+                world_blocks.frame_update(&mut renderer, &static_block_data);
+                server.tick(&input_handler, &world_blocks, &static_block_data);
                 renderer.cam_uniform = Some(camera.calculate_matrix(&renderer.viewport));
 
                 input_handler.mouse_delta = Vec2::zero();
