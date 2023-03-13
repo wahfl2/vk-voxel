@@ -1,5 +1,6 @@
 use std::ops::{Add, AddAssign};
 
+use hecs::{Query, Entity, Fetch};
 use ultraviolet::{Vec2, Vec3, Rotor3, IVec3, IVec2};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -223,5 +224,20 @@ impl VecAxisIndex for Vec3 {
             2 => self.z = value,
             d => panic!("Tried to set {d} axis of Vec3")
         }
+    }
+}
+
+pub trait MoreVecOps {
+    fn powf(self, n: f32) -> Self;
+    fn powi(self, n: i32) -> Self;
+}
+
+impl MoreVecOps for Vec3 {
+    fn powf(self, n: f32) -> Self {
+        Self::new(self.x.powf(n), self.y.powf(n), self.z.powf(n))
+    }
+
+    fn powi(self, n: i32) -> Self {
+        Self::new(self.x.powi(n), self.y.powi(n), self.z.powi(n))
     }
 }

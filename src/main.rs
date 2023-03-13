@@ -21,7 +21,7 @@ pub mod event_handler;
 pub mod server;
 pub mod physics;
 
-pub const FRAME_TIME: f64 = 1.0 / 240.0;
+pub const FRAME_TIME: f64 = 1.0 / 120.0;
 
 #[global_allocator]
 pub static GLOBAL: MiMalloc = MiMalloc;
@@ -48,7 +48,7 @@ fn main() {
     event_loop.run(move |event, _, control_flow| {
         match event {
             Event::RedrawRequested(_) => {
-                fps_log.update();
+                let delta_time = fps_log.update();
                 if window_resized || recreate_swapchain {
                     recreate_swapchain = false;
                     renderer.recreate_swapchain();
@@ -60,9 +60,9 @@ fn main() {
                 }
 
                 let camera = server.get_camera();
-                world_blocks.player_pos = camera.pos.xz();
+                world_blocks.player_pos = -camera.pos.xz();
                 world_blocks.frame_update(&mut renderer, &static_block_data);
-                server.tick(&input_handler, &world_blocks, &static_block_data);
+                server.tick(delta_time, &input_handler, &world_blocks, &static_block_data);
                 renderer.cam_uniform = Some(camera.calculate_matrix(&renderer.viewport));
 
                 input_handler.mouse_delta = Vec2::zero();

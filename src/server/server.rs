@@ -1,6 +1,7 @@
 use std::f32::consts::PI;
 
-use ultraviolet::Vec3;
+use ultraviolet::{Vec3, Vec2, Rotor2};
+use winit::event::VirtualKeyCode;
 
 use crate::{physics::solver::PhysicsSolver, render::camera::camera::Camera, event_handler::InputHandler, world::{world::WorldBlocks, block_data::StaticBlockData}};
 
@@ -17,7 +18,7 @@ impl Server {
             world: hecs::World::new(),
             physics_solver: PhysicsSolver {
                 sub_steps: 4,
-                gravity: 0.1,
+                gravity: -1.0,
                 ..Default::default()
             }
         }
@@ -25,7 +26,7 @@ impl Server {
 
     pub fn init_single_player(&mut self) {
         let player = Player::new("player");
-        let translation = Translation(Vec3::new(0.0, -100.0, 0.0));
+        let translation = Translation(Vec3::new(0.0, 200.0, 0.0));
         let velocity = Velocity(Vec3::zero());
         let hitbox = Hitbox {
             half_extents: Vec3::new(0.9, 1.8, 0.9),
@@ -33,14 +34,14 @@ impl Server {
 
         let player_entity = self.world.spawn((player, PhysicsEntity, translation, velocity, hitbox));
 
-        let cam_offset = Translation(Vec3::new(0.0, 0.75, 0.0));
+        let cam_offset = Translation(Vec3::new(0.0, 0.5, 0.0));
         let camera_entity = self.world.spawn((Camera::default(), cam_offset));
         
         self.world.add_child(player_entity, camera_entity);
         self.world.set_parent(camera_entity, player_entity);
     }
 
-    pub fn tick(&mut self, input_handler: &InputHandler, world_blocks: &WorldBlocks, block_data: &StaticBlockData) {
+    pub fn tick(&mut self, delta_time: f32, input_handler: &InputHandler, world_blocks: &WorldBlocks, block_data: &StaticBlockData) {
         let binding = self.world.query_mut::<&mut Camera>();
         let (_, cam) = binding.into_iter().next().unwrap();
 
@@ -51,8 +52,40 @@ impl Server {
 
         const HALF_PI: f32 = PI / 2.0;
         cam.rotation.pitch = cam.rotation.pitch.clamp(-HALF_PI, HALF_PI);
+        let cam_yaw = cam.rotation.yaw;
+
+        let binding = self.world.query_mut::<(&Player, &mut Velocity)>();
+        let (_, (_, vel)) = binding.into_iter().next().unwrap();
+
+        const MOVEMENT_SPEED: f32 = 0.1;
+
+        // represents movement on the xz plane
+        let mut movement = Vec2::zero();
+        if input_handler.is_pressed(VirtualKeyCode::W) {
+            movement.y -= 1.0;
+        }
+        if input_handler.is_pressed(VirtualKeyCode::A) {
+            movement.x -= 1.0;
+        }
+        if input_handler.is_pressed(VirtualKeyCode::S) {
+            movement.y += 1.0;
+        }
+        if input_handler.is_pressed(VirtualKeyCode::D) {
+            movement.x += 1.0;
+        }
+
+        if movement != Vec2::zero() {
+            movement = movement.normalized() * MOVEMENT_SPEED;
+            movement.rotate_by(Rotor2::from_angle(-cam_yaw));
+        }
+
+        if input_handler.is_pressed(VirtualKeyCode::Space) {
+            vel.y = 6.0;
+        }
+
+        **vel += Vec3::new(movement.x, 0.0, movement.y);
         
-        self.physics_solver.tick(&mut self.world, world_blocks, block_data);
+        self.physics_solver.tick(delta_time, &mut self.world, world_blocks, block_data);
     }
 
     pub fn get_camera(&self) -> Camera {

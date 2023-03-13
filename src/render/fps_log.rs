@@ -17,7 +17,7 @@ impl FpsLog {
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> f32 {
         let frame_time = Instant::now() - self.prev_frame;
         self.frame_times.push(frame_time.as_secs_f64());
         self.prev_frame = Instant::now();
@@ -29,5 +29,7 @@ impl FpsLog {
             self.last_log = Instant::now();
             self.frame_times.clear();
         }
+
+        frame_time.as_secs_f32()
     }
 }

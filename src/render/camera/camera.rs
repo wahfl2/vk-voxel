@@ -38,7 +38,8 @@ impl Camera {
         let yaw_rot = Rotor3::from_rotation_xz(self.rotation.yaw);
         let pitch_rot = Rotor3::from_rotation_yz(self.rotation.pitch);
 
-        let mut transform = Isometry3::new(self.pos, Rotor3::identity());
+        let real_pos = -self.pos;
+        let mut transform = Isometry3::new(real_pos, Rotor3::identity());
         transform.append_rotation(yaw_rot);
         transform.append_rotation(pitch_rot);
 

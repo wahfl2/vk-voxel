@@ -13,7 +13,7 @@ pub struct WorldBlocks {
 
 impl WorldBlocks {
     const CHUNK_UPDATES_PER_FRAME: u32 = 2;
-    const RENDER_DISTANCE: u32 = 10;
+    const RENDER_DISTANCE: u32 = 12;
 
     const ADJ_CHUNK_OFFSETS: [IVec2; 4] = [
         IVec2::new(1, 0),
