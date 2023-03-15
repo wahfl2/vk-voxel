@@ -29,12 +29,12 @@ impl Server {
         let translation = Translation(Vec3::new(0.0, 200.0, 0.0));
         let velocity = Velocity(Vec3::zero());
         let hitbox = Hitbox {
-            half_extents: Vec3::new(0.9, 1.8, 0.9),
+            half_extents: Vec3::new(0.45, 0.9, 0.45),
         };
 
         let player_entity = self.world.spawn((player, PhysicsEntity, translation, velocity, hitbox));
 
-        let cam_offset = Translation(Vec3::new(0.0, 0.5, 0.0));
+        let cam_offset = Translation(Vec3::new(0.0, 1.17, 0.0));
         let camera_entity = self.world.spawn((Camera::default(), cam_offset));
         
         self.world.add_child(player_entity, camera_entity);

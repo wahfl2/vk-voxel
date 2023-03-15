@@ -1,5 +1,5 @@
 use hecs::World;
-use ndarray::{Array3, Axis, s};
+use ndarray::{Array3, Axis, s, AssignElem};
 use ultraviolet::{Vec3, IVec2, IVec3};
 
 use crate::{util::{more_vec::UsizeVec3, util::{MoreCmp, VecRounding, VecAxisIndex, Vec3Trunc, AdditionalSwizzles, MoreVecOps}}, server::components::{PhysicsEntity, Translation, Velocity, Hitbox}, world::{world::WorldBlocks, block_data::{StaticBlockData, BlockType, BlockHandle}}};
@@ -38,18 +38,23 @@ impl PhysicsBlocks {
         for ((x, y, z), b) in self.blocks.indexed_iter() {
             if !b { continue; }
 
-            let block_min = UsizeVec3::new(x, y, z).into_vec3();
+            let block_min = UsizeVec3::new(x, y, z).into_vec3() - (Vec3::one() * 0.5);
             let block_max = block_min + Vec3::one();
 
             let grtr = rel_max.all_greater_than(&block_min);
             let less = rel_min.all_less_than(&block_max);
 
             if grtr && less {
-                if grtr && rel_max.get(axis) < block_max.get(axis) {
-                    return Some(block_min.get(axis) - rel_max.get(axis))
-                } else {
-                    return Some(block_max.get(axis) - rel_min.get(axis))
-                }
+                let dist_down = block_min.get(axis) - rel_max.get(axis);
+                let dist_up   = block_max.get(axis) - rel_min.get(axis);
+
+                return Some(
+                    if dist_down.abs() > dist_up.abs() {
+                        dist_up
+                    } else {
+                        dist_down
+                    }
+                )
             }
         }
 
@@ -101,6 +106,11 @@ impl PhysicsSolver {
                     true
                 );
 
+                let mut check_visit_arr = Array3::from_elem(
+                    (s.x as usize, s.y as usize, s.z as usize), 
+                    0
+                );
+
                 const SIXTEENTH: f32 = 1.0 / 16.0;
 
                 let min_section = ((Vec3::from(min) * SIXTEENTH).floor().into_i()).clamped(
@@ -148,9 +158,15 @@ impl PhysicsSolver {
                                         min_sec_index.y..max_sec_index.y,
                                         min_sec_index.z..max_sec_index.z,
                                     ]).map(|b| {
-                                        block_data.get(b).block_type != BlockType::None
+                                        block_data.get(b).block_type == BlockType::Full
                                     })
                                 );
+
+                                check_visit_arr.slice_mut(s![
+                                    min_arr_index.x..max_arr_index.x,
+                                    min_arr_index.y..max_arr_index.y,
+                                    min_arr_index.z..max_arr_index.z,
+                                ]).mapv_inplace(|i| { i+1 });
                             }
                         }
                     }
@@ -160,6 +176,17 @@ impl PhysicsSolver {
                     offset: min.into(),
                     blocks: arr,
                 };
+
+                // This check can probably be removed
+                for i in check_visit_arr.into_iter() {
+                    if i == 0 {
+                        println!("Not all blocks visited!\nMin: {:?}, Max: {:?}", min, max);
+                        break;
+                    } else if i > 1 {
+                        println!("Block(s) visited twice!\nMin: {:?}, Max: {:?}", min, max);
+                        break;
+                    }
+                }
 
                 fn collide_axis(time_multiplier: f32, pos: &mut Vec3, velocity: &mut Vec3, hitbox: &Hitbox, blocks: &PhysicsBlocks, axis: Axis) {
                     // Move the entity in the specified direction
