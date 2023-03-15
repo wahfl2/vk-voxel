@@ -13,13 +13,15 @@ pub struct RawQuad {
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct BlockQuad {
     pub position: [f32; 3],
-    pub face: u32,
-    pub tex: [f32; 4],
+    pub face_tex: u32,
 }
 
 impl BlockQuad {
-    pub fn new(position: [f32; 3], tex: [f32; 4], face: u32) -> Self {
-        Self { position, tex, face }
+    pub fn new(position: [f32; 3], tex_index: u32, face: u32) -> Self {
+        assert!(tex_index <= 0x1FFFFFF);
+        assert!(face < 6);
+        let face_tex = (face << 29) | tex_index;
+        Self { position, face_tex }
     }
 }
 
@@ -57,6 +59,15 @@ impl QuadUV {
             Vec2::new(self.min.x, self.max.y),
             self.min,
             Vec2::new(self.max.x, self.min.y),
+        ]
+    }
+
+    pub const fn to_raw(&self) -> [f32; 4] {
+        [
+            self.min.x,
+            self.min.y,
+            self.max.x,
+            self.max.y,
         ]
     }
 }
@@ -99,11 +110,10 @@ impl TexturedSquare {
         Self { center, facing, texture_handle }
     }
 
-    pub fn into_block_quad(&self, atlas: &TextureAtlas) -> BlockQuad {
-        let uv = atlas.get_uv(self.texture_handle);
+    pub fn into_block_quad(&self) -> BlockQuad {
         BlockQuad::new(
             self.center.into(),
-            [uv.min.x, uv.min.y, uv.max.x, uv.max.y],
+            self.texture_handle.get_index(),
             self.facing.to_num() as u32,
         )
     }

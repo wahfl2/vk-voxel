@@ -35,6 +35,7 @@ pub struct Renderer {
     pub texture_atlas: TextureAtlas,
     pub texture_sampler: Arc<Sampler>,
     pub atlas_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
+    pub atlas_map_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
     pub vertex_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
     pub attachment_images: [Arc<ImageView<AttachmentImage>>; 4],
     pub attachment_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
@@ -204,6 +205,7 @@ impl Renderer {
             texture_atlas,
             texture_sampler,
             atlas_descriptor_set: None,
+            atlas_map_descriptor_set: None,
             vertex_descriptor_set: None,
             attachment_images,
             attachment_descriptor_set: None,
@@ -540,6 +542,27 @@ impl Renderer {
         ).unwrap();
         self.atlas_descriptor_set = Some(set);
 
+        let layout = self.pipelines.block_quads.layout().set_layouts()[2].to_owned();
+        let set = PersistentDescriptorSet::new(
+            &self.vk_descriptor_set_allocator,
+            layout,
+            [WriteDescriptorSet::buffer(
+                0, 
+                DeviceLocalBuffer::from_iter(
+                    &self.vk_memory_allocator, 
+                    self.texture_atlas.uvs.iter().map(|uv| {
+                        uv.to_raw()
+                    }),
+                    BufferUsage {
+                        storage_buffer: true,
+                        ..Default::default()
+                    }, 
+                    &mut builder,
+                ).unwrap()
+            )]
+        ).unwrap();
+        self.atlas_map_descriptor_set = Some(set);
+
         builder.build().unwrap().into()
     }
 
@@ -557,13 +580,6 @@ impl Renderer {
         const BLOCK_FACE_LIGHTING: FaceLighting = FaceLighting {
             positive: [0.6, 1.0, 0.8],
             negative: [0.6, 0.4, 0.8],
-            _pad1: 0,
-            _pad2: 0,
-        };
-
-        const DECO_FACE_LIGHTING: FaceLighting = FaceLighting {
-            positive: [1.0, 1.0, 1.0],
-            negative: [1.0, 1.0, 1.0],
             _pad1: 0,
             _pad2: 0,
         };
@@ -606,15 +622,12 @@ impl Renderer {
         builder.bind_descriptor_sets(
             PipelineBindPoint::Graphics, 
             self.pipelines.block_quads.layout().to_owned(), 
-            1, 
-            vertex_desc_set
-        );
-
-        builder.bind_descriptor_sets(
-            PipelineBindPoint::Graphics, 
-            self.pipelines.block_quads.layout().to_owned(), 
             0, 
-            self.atlas_descriptor_set.clone().unwrap()
+            vec![
+                self.atlas_descriptor_set.clone().unwrap(),
+                vertex_desc_set,
+                self.atlas_map_descriptor_set.clone().unwrap(),
+            ]
         );
         
         if let Some(mat) = self.cam_uniform.take() {

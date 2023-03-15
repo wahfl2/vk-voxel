@@ -82,7 +82,7 @@ impl TextureAtlas {
 
     pub fn get_handle(&self, file_name: &str) -> Option<TextureHandle> {
         if let Some(idx) = self.name_index_map.get(file_name) {
-            return Some(TextureHandle { inner_index: *idx })
+            return Some(TextureHandle { inner_index: *idx as u32 })
         }
         None
     }
@@ -105,14 +105,20 @@ impl TextureAtlas {
     }
 
     pub fn get_uv(&self, handle: TextureHandle) -> QuadUV {
-        let alloc = self.allocations[handle.inner_index];
+        let alloc = self.allocations[handle.inner_index as usize];
         alloc.to_quad_uv(self.data.dimensions)
     }
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct TextureHandle {
-    inner_index: usize,
+    inner_index: u32,
+}
+
+impl TextureHandle {
+    pub fn get_index(&self) -> u32 {
+        self.inner_index
+    }
 }
 
 pub struct ImageData {

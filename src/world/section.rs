@@ -104,7 +104,6 @@ impl Section {
     pub fn rebuild_mesh(
         &mut self, 
         offset: Vec3, 
-        atlas: &TextureAtlas, 
         block_data: &StaticBlockData,
     ) {
         let blocks = self.blocks.indexed_iter().map(|(p, b)| { (UsizeVec3::from(p), b) }).collect::<Vec<_>>();
@@ -123,7 +122,7 @@ impl Section {
                     let cull = self.cull.get((pos.x, pos.y, pos.z)).unwrap();
 
                     self.render.block_quads.extend(
-                        cull.get_unculled().into_iter().map(move |i| { faces[i].into_block_quad(atlas) })
+                        cull.get_unculled().into_iter().map(move |i| { faces[i].into_block_quad() })
                     );
                 },
 

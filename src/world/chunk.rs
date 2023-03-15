@@ -101,12 +101,11 @@ impl Chunk {
         self.cull_inner(.., block_data);
     }
 
-    pub fn rebuild_mesh(&mut self, atlas: &TextureAtlas, block_data: &StaticBlockData) {
+    pub fn rebuild_mesh(&mut self, block_data: &StaticBlockData) {
         self.sections.par_iter_mut().enumerate().for_each(|(i, section)| {
             let offset = IVec3::new(self.pos.x * 16, i as i32 * 16, self.pos.y * 16);
             section.rebuild_mesh(
                 offset.into(), 
-                atlas, 
                 block_data
             );
         });

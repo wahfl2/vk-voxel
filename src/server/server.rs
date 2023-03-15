@@ -18,7 +18,7 @@ impl Server {
             world: hecs::World::new(),
             physics_solver: PhysicsSolver {
                 sub_steps: 4,
-                gravity: -1.0,
+                gravity: -1.5,
                 ..Default::default()
             }
         }
@@ -26,10 +26,10 @@ impl Server {
 
     pub fn init_single_player(&mut self) {
         let player = Player::new("player");
-        let translation = Translation(Vec3::new(0.0, 200.0, 0.0));
+        let translation = Translation(Vec3::new(0.0, 100.0, 0.0));
         let velocity = Velocity(Vec3::zero());
         let hitbox = Hitbox {
-            half_extents: Vec3::new(0.45, 0.9, 0.45),
+            half_extents: Vec3::new(0.3, 0.9, 0.3),
         };
 
         let player_entity = self.world.spawn((player, PhysicsEntity, translation, velocity, hitbox));

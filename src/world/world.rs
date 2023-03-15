@@ -40,7 +40,7 @@ impl WorldBlocks {
             if let Some(adj_chunk) = self.loaded_chunks.get_mut(&(chunk_pos + *offset)) {
                 new_chunk.cull_adjacent(*dir, adj_chunk, .., block_data);
                 adj_chunk.cull_adjacent(dir.opposite(), &new_chunk, .., block_data);
-                adj_chunk.rebuild_mesh(&renderer.texture_atlas, block_data);
+                adj_chunk.rebuild_mesh(block_data);
                 renderer.vertex_buffer.reinsert_chunk(
                     adj_chunk.pos,
                     &*adj_chunk,
@@ -50,7 +50,7 @@ impl WorldBlocks {
             }
         }
 
-        new_chunk.rebuild_mesh(&renderer.texture_atlas, block_data);
+        new_chunk.rebuild_mesh(block_data);
         renderer.vertex_buffer.insert_chunk(chunk_pos, &new_chunk, &renderer.texture_atlas, block_data);
         self.loaded_chunks.insert(chunk_pos, new_chunk);
     }
