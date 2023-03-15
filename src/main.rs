@@ -11,7 +11,7 @@ use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog
 use server::server::Server;
 use ultraviolet::Vec2;
 use crate::util::util::AdditionalSwizzles;
-use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent, DeviceEvent}};
+use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent}};
 use world::{block_data::StaticBlockData, world::WorldBlocks};
 
 pub mod render;

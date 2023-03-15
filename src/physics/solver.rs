@@ -1,8 +1,8 @@
 use hecs::World;
-use ndarray::{Array3, Axis, s, AssignElem};
+use ndarray::{Array3, Axis, s};
 use ultraviolet::{Vec3, IVec2, IVec3};
 
-use crate::{util::{more_vec::UsizeVec3, util::{MoreCmp, VecRounding, VecAxisIndex, Vec3Trunc, AdditionalSwizzles, MoreVecOps}}, server::components::{PhysicsEntity, Translation, Velocity, Hitbox}, world::{world::WorldBlocks, block_data::{StaticBlockData, BlockType, BlockHandle}}};
+use crate::{util::{more_vec::UsizeVec3, util::{MoreCmp, VecRounding, VecAxisIndex, Vec3Trunc, MoreVecOps}}, server::components::{PhysicsEntity, Translation, Velocity, Hitbox}, world::{world::WorldBlocks, block_data::{StaticBlockData, BlockType}}};
 
 pub struct PhysicsSolver {
     pub sub_steps: u32,
