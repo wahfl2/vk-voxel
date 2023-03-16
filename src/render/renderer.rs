@@ -335,13 +335,13 @@ impl Renderer {
                 depth_blocks: {
                     load: Clear,
                     store: Store,
-                    format: Format::D16_UNORM,
+                    format: Format::D32_SFLOAT,
                     samples: 1,
                 },
                 depth_decorations: {
                     load: Clear,
                     store: Store,
-                    format: Format::D16_UNORM,
+                    format: Format::D32_SFLOAT,
                     samples: 1,
                 }
             },
@@ -384,13 +384,13 @@ impl Renderer {
         allocator: &StandardMemoryAllocator,
         dimensions: PhysicalSize<u32>,
     ) -> Arc<ImageView<AttachmentImage>> {
-        let image_fmt = Format::D16_UNORM;
+        let image_fmt = Format::D32_SFLOAT;
         let range = ImageSubresourceRange::from_parameters(image_fmt, 1, 1);
         ImageView::new(
             AttachmentImage::with_usage(
                 allocator, 
                 dimensions.into(),
-                Format::D16_UNORM,
+                Format::D32_SFLOAT,
                 ImageUsage {
                     transient_attachment: true,
                     input_attachment: true,
