@@ -55,3 +55,4 @@ impl ScaleNoise2D {
         ret / max_amp
     }
 }
+

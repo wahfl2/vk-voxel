@@ -2,7 +2,9 @@ use std::num::NonZeroUsize;
 
 use ndarray::{arr1, arr2};
 use ndarray::{Array3, Axis, Array2};
-use turborand::TurboRand;
+use rand_xoshiro::Xoshiro128StarStar;
+use rand_xoshiro::rand_core::{SeedableRng, RngCore};
+use turborand::{TurboRand, SeededCore};
 use turborand::rng::Rng;
 use ultraviolet::{IVec2, Vec2, Vec3, IVec3};
 
@@ -15,7 +17,8 @@ pub struct TerrainGenerator {
     pub planar_noise: ScaleNoise2D,
     pub world_noise: ScaleNoise3D,
     pub overall_height: ScaleNoise2D,
-    rng: Rng,
+    pub seed: u32,
+    rng: Xoshiro128StarStar,
     cache: [BlockHandle; 5]
 }
 
@@ -38,7 +41,7 @@ impl TerrainGenerator {
             seed
         );
 
-        let rng = Rng::new();
+        let rng = Xoshiro128StarStar::seed_from_u64(seed as u64);
 
         let cache = [
             block_data.get_handle("air").unwrap(),
@@ -48,7 +51,7 @@ impl TerrainGenerator {
             block_data.get_handle("stone").unwrap(),
         ];
 
-        Self { planar_noise, world_noise, overall_height, rng, cache }
+        Self { planar_noise, world_noise, overall_height, rng, seed, cache }
     }
 
     pub fn new_random(block_data: &StaticBlockData) -> Self {
@@ -56,7 +59,7 @@ impl TerrainGenerator {
         Self::new(seed, block_data)
     }
 
-    pub fn gen_chunk(&self, chunk_pos: IVec2) -> Chunk {
+    pub fn gen_chunk(&mut self, chunk_pos: IVec2) -> Chunk {
         let height_sampler = ChunkHeightSampler::new(
             (chunk_pos * 16).into(), 
             NonZeroUsize::new(8).unwrap(), 
@@ -84,7 +87,7 @@ impl TerrainGenerator {
             sections.push(Section::full(self.cache[4]));
         }
         for i in section_low..=section_high {
-            sections.push(self.section_from_height(&height_array, i));
+            sections.push(self.section_from_height(&height_array, i, chunk_pos));
         }
         for _ in (section_high+1)..16 {
             sections.push(Section::full(self.cache[0]));
@@ -98,11 +101,12 @@ impl TerrainGenerator {
         }
     }
 
-    fn section_from_height(&self, height_array: &Array2<u32>, section_num: u32) -> Section {
+    fn section_from_height(&mut self, height_array: &Array2<u32>, section_num: u32, chunk_pos: IVec2) -> Section {
         let height_offset = section_num * 16;
         let mut ret = Section::empty();
         for (i, mut column) in ret.blocks.lanes_mut(Axis(1)).into_iter().enumerate() {
             let (x, y) = ((i / 16), (i % 16));
+            let column_pos = (chunk_pos * 16) + IVec2::new(x as i32, y as i32);
             let height = height_array[(x, y)];
             let relative_height = height.saturating_sub(height_offset);
 
@@ -123,13 +127,24 @@ impl TerrainGenerator {
             c[0..stone_end].fill(self.cache[4]);
             c[stone_end..dirt_end].fill(self.cache[3]);
             c[relative_height.min(15) as usize] = self.cache[2];
-            if can_gen_grass && self.rng.bool() {
+
+            let grass_pos = IVec3::new(
+                column_pos.x, 
+                ((section_num * 16) + relative_height + 1) as i32, 
+                column_pos.y
+            );
+
+            if can_gen_grass && self.gen_grass_at(grass_pos) {
                 c[relative_height as usize + 1] = self.cache[1];
             }
 
             column.assign(&arr1(&c));
         }
         ret
+    }
+
+    fn gen_grass_at(&mut self, pos: IVec3) -> bool {
+        self.rng.next_u32() & 1 == 0
     }
 
     // ((height as f32 - pos.y) / 20.0).clamp(-1.0, 1.0)

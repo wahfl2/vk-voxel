@@ -32,7 +32,7 @@ impl WorldBlocks {
 
     pub fn load_chunk(&mut self, chunk_pos: IVec2, renderer: &mut Renderer, block_data: &StaticBlockData) {
         // TODO: Load from storage
-        let mut new_chunk = Chunk::generate(chunk_pos, &self.terrain_generator);
+        let mut new_chunk = Chunk::generate(chunk_pos, &mut self.terrain_generator);
         new_chunk.init_mesh(block_data);
 
         const DIRS: [Facing; 4] = [Facing::RIGHT, Facing::LEFT, Facing::FORWARD, Facing::BACK];

@@ -33,7 +33,7 @@ impl Chunk {
         Self { pos, sections }
     }
 
-    pub fn generate(pos: IVec2, generator: &TerrainGenerator) -> Self {
+    pub fn generate(pos: IVec2, generator: &mut TerrainGenerator) -> Self {
         generator.gen_chunk(pos)
     }
 
