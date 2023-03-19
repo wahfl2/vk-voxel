@@ -2,14 +2,17 @@ use std::sync::Arc;
 
 use vulkano::{command_buffer::{allocator::CommandBufferAllocator, AutoCommandBufferBuilder}, descriptor_set::{PersistentDescriptorSet, allocator::StandardDescriptorSetAllocator, layout::DescriptorSetLayout, WriteDescriptorSet}, memory::allocator::StandardMemoryAllocator, buffer::{DeviceLocalBuffer, BufferUsage, BufferContents}, pipeline::{PipelineBindPoint, PipelineLayout}};
 
+#[derive(Clone)]
 pub struct StorageBuffer {
+    pub set: u32,
     pub layout: Arc<DescriptorSetLayout>,
     pub descriptor_set: Option<Arc<PersistentDescriptorSet>>,
 }
 
 impl StorageBuffer {
-    pub fn new(layout: Arc<DescriptorSetLayout>) -> Self {
+    pub fn new(set: u32, layout: Arc<DescriptorSetLayout>) -> Self {
         Self { 
+            set,
             layout,
             descriptor_set: None,
         }
@@ -47,19 +50,27 @@ impl StorageBuffer {
 }
 
 pub trait BindStorageBuffer {
-    fn bind_storage_buffer(&mut self, pipeline_layout: Arc<PipelineLayout>, set_num: u32, storage_buffer: StorageBuffer) -> &mut Self;
+    fn bind_storage_buffer(&mut self, pipeline_layout: Arc<PipelineLayout>, storage_buffer: &StorageBuffer) -> &mut Self;
 }
 
 impl<L, A> BindStorageBuffer for AutoCommandBufferBuilder<L, A>
 where
     A: CommandBufferAllocator,
 {
-    fn bind_storage_buffer(&mut self, pipeline_layout: Arc<PipelineLayout>, set_num: u32, storage_buffer: StorageBuffer) -> &mut Self {
+    fn bind_storage_buffer(
+        &mut self, 
+        pipeline_layout: Arc<PipelineLayout>, 
+        storage_buffer: &StorageBuffer
+    ) -> &mut Self {
+        if storage_buffer.descriptor_set.is_none() {
+            panic!("Tried to bind an empty storage buffer, set = {:?}", storage_buffer.set);
+        }
+
         self.bind_descriptor_sets(
             PipelineBindPoint::Graphics, 
             pipeline_layout, 
-            set_num, 
-            storage_buffer.descriptor_set.unwrap().clone(),
+            storage_buffer.set, 
+            storage_buffer.descriptor_set.clone().unwrap(),
         )
     }
 }

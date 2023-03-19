@@ -5,20 +5,20 @@ struct BlockQuad {
     uint face_tex;
 };
 
-layout(std140, set = 1, binding = 0) readonly buffer BlockBuffer {
+layout(std140, set = 3, binding = 0) readonly buffer BlockBuffer {
     BlockQuad quads[];
 } block_buffer;
 
-layout(std140, set = 2, binding = 0) readonly buffer AtlasMap {
+layout(std140, set = 4, binding = 0) readonly buffer AtlasMap {
     vec4 textures[];
 } atlas_map;
 
+layout(set = 1, binding = 0) uniform View {
+    mat4 camera;
+} view;
+
 layout(location = 0) out vec2 tex_out;
 layout(location = 1) out vec3 normal;
-
-layout(push_constant) uniform PushConstantData {
-    mat4 camera;
-} pc;
 
 const uint BIT_MASK_29 = 536870911;
 const float HALF = 0.5;
@@ -88,7 +88,7 @@ void main() {
     const uint vert_idx = VERT_INDICES[gl_VertexIndex % 6];
     const vec3 vert_pos = VERT_OFFSETS[face][vert_idx] + quad.position;
 
-    gl_Position = pc.camera * vec4(vert_pos, 1.0);
+    gl_Position = view.camera * vec4(vert_pos, 1.0);
     tex_out = tex_max_min[vert_idx];
     normal = NORMALS[face];
 }

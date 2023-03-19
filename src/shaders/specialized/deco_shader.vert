@@ -7,14 +7,12 @@ layout(location = 2) in vec2 tex_coord;
 layout(location = 0) out vec2 tex_out;
 layout(location = 1) out vec3 normal_out;
 
-layout(set = 0, binding = 0) uniform sampler2D tex;
-layout(push_constant) uniform PushConstantData {
+layout(set = 1, binding = 0) uniform View {
     mat4 camera;
-    // Face lighting unneeded
-} pc;
+} view;
 
 void main() {
-    gl_Position = pc.camera * vec4(position, 1.0);
+    gl_Position = view.camera * vec4(position, 1.0);
     tex_out = tex_coord;
     normal_out = normal;
 }

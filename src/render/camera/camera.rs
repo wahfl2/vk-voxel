@@ -1,10 +1,9 @@
-use std::f32::consts::{FRAC_PI_2, PI};
+use std::f32::consts::PI;
 
-use ultraviolet::{Mat4, projection, Isometry3, Vec3, Rotor3, Vec2, Rotor2};
+use ultraviolet::{Mat4, projection, Isometry3, Vec3, Rotor3};
 use vulkano::pipeline::graphics::viewport::Viewport;
-use winit::event::VirtualKeyCode;
 
-use crate::{event_handler::InputHandler, util::util::EulerRot2};
+use crate::util::util::EulerRot2;
 
 const RADIANS: f32 = PI / 180.0;
 

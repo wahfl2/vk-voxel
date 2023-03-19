@@ -6,9 +6,9 @@ use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapcha
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
 
-use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk}};
+use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk}, render::shader_resources::BindResources};
 
-use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{VertexRaw, Vertex2D}};
+use super::{buffer::{vertex_buffer::ChunkVertexBuffer, uniform_buffer::UniformBuffer}, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{VertexRaw, Vertex2D}, shader_resources::ShaderResources};
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
@@ -37,6 +37,7 @@ pub struct Renderer {
     pub atlas_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
     pub atlas_map_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
     pub vertex_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
+    pub shader_resources: ShaderResources,
     pub attachment_images: [Arc<ImageView<AttachmentImage>>; 4],
     pub attachment_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
 
@@ -178,6 +179,11 @@ impl Renderer {
             },
         ).unwrap();
 
+        let layouts = pipelines.block_quads.layout().set_layouts();
+        let view = UniformBuffer::new(1, layouts[1].clone());
+        let face_lighting = UniformBuffer::new(2, layouts[2].clone());
+        let shader_resources = ShaderResources::new(view, face_lighting);
+
         let fences = vec![None; vk_swapchain_images.len()];
 
         Self {
@@ -207,6 +213,7 @@ impl Renderer {
             atlas_descriptor_set: None,
             atlas_map_descriptor_set: None,
             vertex_descriptor_set: None,
+            shader_resources,
             attachment_images,
             attachment_descriptor_set: None,
 
@@ -542,7 +549,7 @@ impl Renderer {
         ).unwrap();
         self.atlas_descriptor_set = Some(set);
 
-        let layout = self.pipelines.block_quads.layout().set_layouts()[2].to_owned();
+        let layout = self.pipelines.block_quads.layout().set_layouts()[4].to_owned();
         let set = PersistentDescriptorSet::new(
             &self.vk_descriptor_set_allocator,
             layout,
@@ -555,6 +562,7 @@ impl Renderer {
                     }),
                     BufferUsage {
                         storage_buffer: true,
+                        uniform_buffer: true,
                         ..Default::default()
                     }, 
                     &mut builder,
@@ -587,7 +595,7 @@ impl Renderer {
         let vertex_desc_set = match &self.vertex_descriptor_set {
             Some(ds) => ds.to_owned(),
             None => {
-                let layout = &self.pipelines.block_quads.layout().set_layouts()[1];
+                let layout = &self.pipelines.block_quads.layout().set_layouts()[3];
                 let vertex_set = PersistentDescriptorSet::new(
                     &self.vk_descriptor_set_allocator, 
                     layout.clone(), 
@@ -623,20 +631,42 @@ impl Renderer {
             PipelineBindPoint::Graphics, 
             self.pipelines.block_quads.layout().to_owned(), 
             0, 
+            self.atlas_descriptor_set.clone().unwrap(),
+        );
+
+        builder.bind_descriptor_sets(
+            PipelineBindPoint::Graphics, 
+            self.pipelines.block_quads.layout().to_owned(), 
+            3,
             vec![
-                self.atlas_descriptor_set.clone().unwrap(),
                 vertex_desc_set,
                 self.atlas_map_descriptor_set.clone().unwrap(),
-            ]
+            ],
         );
         
         if let Some(mat) = self.cam_uniform.take() {
-            let pc = PushConstants {
+            let view = View {
                 camera: mat.into(),
-                face_lighting: BLOCK_FACE_LIGHTING,
             };
-            builder.push_constants(self.pipelines.block_quads.layout().clone(), 0, pc);
+
+            self.shader_resources.view.update_data(
+                &self.vk_memory_allocator, 
+                &self.vk_descriptor_set_allocator, 
+                &mut builder, 
+                view
+            );
         }
+
+        if let None = self.shader_resources.face_lighting.descriptor_set {
+            self.shader_resources.face_lighting.update_data(
+                &self.vk_memory_allocator, 
+                &self.vk_descriptor_set_allocator, 
+                &mut builder,
+                BLOCK_FACE_LIGHTING,
+            );
+        }
+
+        builder.bind_resources(self.pipelines.block_quads.layout(), &self.shader_resources);
 
         if let None = self.fullscreen_quad {
             self.fullscreen_quad = Some(DeviceLocalBuffer::from_data(
@@ -685,9 +715,10 @@ impl Renderer {
                 // Render decorations
                 .next_subpass(SubpassContents::Inline).unwrap()
                 .bind_pipeline_graphics(self.pipelines.decorations.clone())
+                .bind_resources(self.pipelines.decorations.layout(), &self.shader_resources)
                 .bind_descriptor_sets(
                     PipelineBindPoint::Graphics, 
-                    self.pipelines.block_quads.layout().to_owned(), 
+                    self.pipelines.decorations.layout().to_owned(), 
                     0, 
                     self.atlas_descriptor_set.clone().unwrap()
                 )
@@ -789,9 +820,8 @@ impl Renderer {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Zeroable, Pod)]
-pub struct PushConstants {
+pub struct View {
     camera: [[f32; 4]; 4],
-    face_lighting: FaceLighting,
 }
 
 #[repr(C)]
