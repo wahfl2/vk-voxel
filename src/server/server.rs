@@ -34,7 +34,7 @@ impl Server {
 
         let player_entity = self.world.spawn((player, PhysicsEntity, translation, velocity, hitbox));
 
-        let cam_offset = Translation(Vec3::new(0.0, 1.17, 0.0));
+        let cam_offset = Translation(Vec3::new(0.0, 0.72, 0.0));
         let camera_entity = self.world.spawn((Camera::default(), cam_offset));
         
         self.world.add_child(player_entity, camera_entity);
