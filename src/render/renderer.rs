@@ -6,7 +6,7 @@ use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapcha
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
 
-use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk}, render::shader_resources::BindResources};
+use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk, world_blocks::WorldBlocks}, render::shader_resources::BindResources};
 
 use super::{buffer::{vertex_buffer::ChunkVertexBuffer, uniform_buffer::UniformBuffer}, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{VertexRaw, Vertex2D}, shader_resources::ShaderResources};
 
@@ -745,6 +745,16 @@ impl Renderer {
         Arc::new(builder.build().unwrap())
     }
 
+    fn update_vertex_buffers(&mut self, world_blocks: &mut WorldBlocks, block_data: &StaticBlockData) {
+        for chunk_pos in world_blocks.updated_chunks.drain(..) {
+            if let Some(chunk) = world_blocks.loaded_chunks.get(&chunk_pos) {
+                self.vertex_buffer.insert_chunk(chunk_pos, chunk, &self.texture_atlas, block_data);
+            } else {
+                self.vertex_buffer.remove_chunk(chunk_pos);
+            }
+        }
+    }
+
     /// Get the command buffers to be executed on the GPU this frame.
     fn get_command_buffers(&mut self, image_index: usize) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
         let mut ret = Vec::new();
@@ -757,7 +767,9 @@ impl Renderer {
     }
 
     /// Renders the scene
-    pub fn render(&mut self) -> RenderState {
+    pub fn render(&mut self, world_blocks: &mut WorldBlocks, block_data: &StaticBlockData) -> RenderState {
+        self.update_vertex_buffers(world_blocks, block_data);
+
         let mut state = RenderState::Ok;
 
         let (image_i, suboptimal, acquire_future) =

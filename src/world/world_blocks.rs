@@ -7,6 +7,8 @@ use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::Terr
 
 pub struct WorldBlocks {
     pub loaded_chunks: FxHashMap<IVec2, Chunk>,
+    // This should probably be a sender or something for async
+    pub updated_chunks: Vec<IVec2>,
     pub terrain_generator: TerrainGenerator,
     pub player_pos: Vec2,
 }
@@ -25,12 +27,13 @@ impl WorldBlocks {
     pub fn new(block_data: &StaticBlockData) -> Self {
         Self {
             loaded_chunks: FxHashMap::default(),
+            updated_chunks: Vec::new(),
             terrain_generator: TerrainGenerator::new_random(block_data),
             player_pos: Vec2::zero(),
         }
     }
 
-    pub fn load_chunk(&mut self, chunk_pos: IVec2, renderer: &mut Renderer, block_data: &StaticBlockData) {
+    pub fn load_chunk(&mut self, chunk_pos: IVec2, block_data: &StaticBlockData) {
         // TODO: Load from storage
         let mut new_chunk = Chunk::generate(chunk_pos, &mut self.terrain_generator);
         new_chunk.init_mesh(block_data);
@@ -41,30 +44,25 @@ impl WorldBlocks {
                 new_chunk.cull_adjacent(*dir, adj_chunk, .., block_data);
                 adj_chunk.cull_adjacent(dir.opposite(), &new_chunk, .., block_data);
                 adj_chunk.rebuild_mesh(block_data);
-                renderer.vertex_buffer.reinsert_chunk(
-                    adj_chunk.pos,
-                    &*adj_chunk,
-                    &renderer.texture_atlas,
-                    block_data,
-                );
+                self.updated_chunks.push(adj_chunk.pos);
             }
         }
 
         new_chunk.rebuild_mesh(block_data);
-        renderer.vertex_buffer.insert_chunk(chunk_pos, &new_chunk, &renderer.texture_atlas, block_data);
         self.loaded_chunks.insert(chunk_pos, new_chunk);
+        self.updated_chunks.push(chunk_pos);
     }
 
-    pub fn frame_update(&mut self, renderer: &mut Renderer, block_data: &StaticBlockData) {
+    pub fn frame_update(&mut self, block_data: &StaticBlockData) {
         let to_load = self.get_closest_unloaded_chunks(Self::CHUNK_UPDATES_PER_FRAME.try_into().unwrap());
         for pos in to_load.into_iter() {
-            self.load_chunk(pos, renderer, block_data);
+            self.load_chunk(pos, block_data);
         }
 
         // TODO: Unloading chunks could use a better method based on movement
         for pos in self.get_chunks_to_unload() {
-            renderer.vertex_buffer.remove_chunk(pos);
             self.loaded_chunks.remove(&pos);
+            self.updated_chunks.push(pos);
         }
     }
 

@@ -1,10 +1,11 @@
+use std::array;
 use std::num::NonZeroUsize;
 
 use ndarray::{arr1, arr2};
 use ndarray::{Array3, Axis, Array2};
 use rand_xoshiro::Xoshiro128StarStar;
 use rand_xoshiro::rand_core::{SeedableRng, RngCore};
-use turborand::{TurboRand, SeededCore};
+use turborand::TurboRand;
 use turborand::rng::Rng;
 use ultraviolet::{IVec2, Vec2, Vec3, IVec3};
 
@@ -82,18 +83,18 @@ impl TerrainGenerator {
 
         let section_low = lowest / 16;
         let section_high = highest / 16;
-        let mut sections = Vec::with_capacity(16);
-        for _ in 0..section_low {
-            sections.push(Section::full(self.cache[4]));
-        }
-        for i in section_low..=section_high {
-            sections.push(self.section_from_height(&height_array, i, chunk_pos));
-        }
-        for _ in (section_high+1)..16 {
-            sections.push(Section::full(self.cache[0]));
-        }
-        if sections.len() > 16 { panic!("TOO MANY SECTIONS EPIC FAIL!"); }
-        if sections.len() < 16 { panic!("NOT ENOUGH SECTIONS EPIC FAIL!"); }
+
+        let sections = Box::new(array::from_fn(|i| {
+            let idx = i as u32;
+
+            if idx < section_low {
+                Section::full(self.cache[4])
+            } else if idx <= section_high {
+                self.section_from_height(&height_array, i as u32, chunk_pos)
+            } else {
+                Section::full(self.cache[0])
+            }            
+        }));
 
         Chunk {
             pos: chunk_pos,

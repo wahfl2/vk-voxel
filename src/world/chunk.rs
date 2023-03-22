@@ -1,4 +1,4 @@
-use std::ops::{RangeBounds, RangeInclusive};
+use std::{ops::{RangeBounds, RangeInclusive}, array};
 
 use ndarray::Axis;
 use rayon::prelude::{ParallelIterator, IntoParallelRefMutIterator, IndexedParallelIterator};
@@ -10,7 +10,7 @@ use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandl
 
 pub struct Chunk {
     pub pos: IVec2,
-    pub sections: Vec<Section>,
+    pub sections: Box<[Section; 16]>,
 }
 
 impl BlockAccess for Chunk {
@@ -29,7 +29,7 @@ impl BlockAccess for Chunk {
 
 impl Chunk {
     pub fn empty(pos: IVec2) -> Self {
-        let sections = Vec::from_iter((0..16).into_iter().map(|_| { Section::empty() }));
+        let sections = Box::new(array::from_fn(|_| { Section::empty() }));
         Self { pos, sections }
     }
 

@@ -1,6 +1,7 @@
 #![feature(array_zip)]
 #![feature(slice_as_chunks)]
 #![feature(slice_flatten)]
+#![feature(exclusive_range_pattern)]
 
 use std::time::{Instant, Duration};
 
@@ -12,7 +13,7 @@ use server::server::Server;
 use ultraviolet::Vec2;
 use crate::util::util::AdditionalSwizzles;
 use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent}};
-use world::{block_data::StaticBlockData, world::WorldBlocks};
+use world::{block_data::StaticBlockData, world_blocks::WorldBlocks};
 
 pub mod render;
 pub mod util;
@@ -61,13 +62,13 @@ fn main() {
 
                 let camera = server.get_camera();
                 world_blocks.player_pos = -camera.pos.xz();
-                world_blocks.frame_update(&mut renderer, &static_block_data);
+                world_blocks.frame_update(&static_block_data);
                 server.tick(delta_time, &input_handler, &world_blocks, &static_block_data);
                 renderer.cam_uniform = Some(camera.calculate_matrix(&renderer.viewport));
 
                 input_handler.mouse_delta = Vec2::zero();
 
-                match renderer.render() {
+                match renderer.render(&mut world_blocks, &static_block_data) {
                     RenderState::OutOfDate | RenderState::Suboptimal => recreate_swapchain = true,
                     _ => ()
                 }

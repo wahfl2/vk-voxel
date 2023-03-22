@@ -45,6 +45,10 @@ impl ChunkVertexBuffer {
         atlas: &TextureAtlas, 
         block_data: &StaticBlockData
     ) {
+        if self.has_chunk(chunk_pos) {
+            self.remove_chunk(chunk_pos);
+        }
+
         let render_chunk = chunk.get_render_section(atlas, block_data);
 
         if render_chunk.deco_vertices.len() % 3 != 0 {
@@ -60,15 +64,8 @@ impl ChunkVertexBuffer {
         self.deco_buffer.remove(chunk_pos);
     }
 
-    pub fn reinsert_chunk(
-        &mut self, 
-        chunk_pos: IVec2, 
-        chunk: &Chunk, 
-        atlas: &TextureAtlas, 
-        block_data: &StaticBlockData
-    ) {
-        self.remove_chunk(chunk_pos);
-        self.insert_chunk(chunk_pos, chunk, atlas, block_data);
+    pub fn has_chunk(&self, chunk_pos: IVec2) -> bool {
+        self.block_quad_buffer.allocations.get(&chunk_pos.into()).is_some()
     }
 
     pub fn get_block_quad_indirect_commands(&self) -> Vec<DrawIndirectCommand> {

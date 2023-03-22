@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use ultraviolet::{Vec3, Vec2, Rotor2};
 use winit::event::VirtualKeyCode;
 
-use crate::{physics::solver::PhysicsSolver, render::camera::camera::Camera, event_handler::InputHandler, world::{world::WorldBlocks, block_data::StaticBlockData}};
+use crate::{physics::solver::PhysicsSolver, render::camera::camera::Camera, event_handler::InputHandler, world::{world_blocks::WorldBlocks, block_data::StaticBlockData}};
 
 use super::{components::{Player, Translation, Velocity, PhysicsEntity, Hitbox}, hierarchy::{Hierarchy, Parent}};
 

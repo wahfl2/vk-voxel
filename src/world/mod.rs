@@ -1,4 +1,4 @@
-pub mod world;
+pub mod world_blocks;
 pub mod block_data;
 pub mod chunk;
 pub mod section;
