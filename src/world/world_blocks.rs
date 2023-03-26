@@ -1,4 +1,4 @@
-use rustc_data_structures::stable_map::FxHashMap;
+use ahash::HashMap;
 use ultraviolet::{IVec2, Vec2};
 
 use crate::{render::renderer::Renderer, util::util::Facing};
@@ -6,7 +6,7 @@ use crate::{render::renderer::Renderer, util::util::Facing};
 use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::TerrainGenerator};
 
 pub struct WorldBlocks {
-    pub loaded_chunks: FxHashMap<IVec2, Chunk>,
+    pub loaded_chunks: HashMap<IVec2, Chunk>,
     // This should probably be a sender or something for async
     pub updated_chunks: Vec<IVec2>,
     pub terrain_generator: TerrainGenerator,
@@ -26,7 +26,7 @@ impl WorldBlocks {
 
     pub fn new(block_data: &StaticBlockData) -> Self {
         Self {
-            loaded_chunks: FxHashMap::default(),
+            loaded_chunks: HashMap::default(),
             updated_chunks: Vec::new(),
             terrain_generator: TerrainGenerator::new_random(block_data),
             player_pos: Vec2::zero(),

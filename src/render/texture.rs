@@ -1,9 +1,9 @@
 use std::{fs::File, sync::Arc, ffi::OsString, path::PathBuf};
 
+use ahash::HashMap;
 use glob::glob;
 use guillotiere::{SimpleAtlasAllocator, euclid::{Box2D, UnknownUnit}};
 use png::{Transformations, ColorType};
-use rustc_data_structures::stable_map::FxHashMap;
 use ultraviolet::UVec2;
 use vulkano::{memory::allocator::StandardMemoryAllocator, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::ImageView}, format::Format};
 
@@ -11,7 +11,7 @@ use super::{util::{VecConvenience, BoxToUV}, mesh::quad::QuadUV};
 
 pub struct TextureAtlas {
     /// Map that matches file names to the index of the texture
-    pub name_index_map: FxHashMap<String, usize>,
+    pub name_index_map: HashMap<String, usize>,
     pub data: ImageData,
     allocations: Vec<Box2D<i32, UnknownUnit>>,
     pub uvs: Vec<QuadUV>,
@@ -29,7 +29,7 @@ impl TextureAtlas {
 
     pub fn from_images(paths: Vec<PathBuf>) -> Self {
         let mut images = Vec::new();
-        let mut name_index_map = FxHashMap::default();
+        let mut name_index_map = HashMap::default();
         let mut total_image_area = 0;
         for (index, path) in paths.into_iter().enumerate() {
             let file_name = path.file_stem().unwrap().to_str().unwrap().to_owned();

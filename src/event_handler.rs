@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use rustc_data_structures::stable_map::FxHashMap;
+use ahash::HashMap;
 use ultraviolet::{Vec3, Vec2};
 use winit::{event::{VirtualKeyCode, DeviceEvent, KeyboardInput, ElementState}, event_loop::EventLoopProxy};
 
@@ -17,14 +17,14 @@ pub enum InputHandlerEvent {
 }
 
 pub struct InputHandler {
-    pub key_press_map: FxHashMap<VirtualKeyCode, bool>,
+    pub key_press_map: HashMap<VirtualKeyCode, bool>,
     pub mouse_delta: Vec2,
 }
 
 impl InputHandler {
     pub fn new() -> Self {
         Self { 
-            key_press_map: FxHashMap::default(),
+            key_press_map: HashMap::default(),
             mouse_delta: Vec2::zero(),
         }
     }

@@ -1,7 +1,6 @@
 use std::{sync::Arc, collections::hash_map::Iter};
 
-use rustc_data_structures::stable_map::FxHashMap;
-
+use ahash::HashMap;
 use ultraviolet::IVec2;
 use vulkano::{buffer::{CpuAccessibleBuffer, BufferContents, BufferUsage, DeviceLocalBuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::{DrawIndirectCommand, AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
 
@@ -12,7 +11,7 @@ where [T]: BufferContents,
 {
     buffer: SwappingBuffer<T>,
     chunk_allocator: ChunkBufferAllocator,
-    pub allocations: FxHashMap<(i32, i32), ChunkBufferAllocation>,
+    pub allocations: HashMap<(i32, i32), ChunkBufferAllocation>,
     pub indirect_buffer: Option<Arc<DeviceLocalBuffer<[DrawIndirectCommand]>>>,
     pub vertex_count_multiplier: u32,
     pub highest: usize,
@@ -31,7 +30,7 @@ where
         HeapBuffer {
             buffer: SwappingBuffer::new(Self::INITIAL_SIZE, usage, &allocator),
             chunk_allocator: ChunkBufferAllocator::new(),
-            allocations: FxHashMap::default(),
+            allocations: HashMap::default(),
             indirect_buffer: None,
             vertex_count_multiplier,
             highest: 0
@@ -96,14 +95,9 @@ where
         self.buffer.get_current_buffer()
     }
 
-    fn get_ind_commands(&self, multiplier: u32) -> Vec<DrawIndirectCommand> {
+    pub fn get_ind_commands(&self, multiplier: u32) -> Vec<DrawIndirectCommand> {
         self.allocations.values().map(|alloc| {
-            DrawIndirectCommand {
-                vertex_count: (alloc.back - alloc.front) * multiplier,
-                instance_count: 1,
-                first_vertex: alloc.front * multiplier,
-                first_instance: 0,
-            }
+            alloc.to_draw_command(self.vertex_count_multiplier)
         }).collect()
     }
 }
@@ -116,6 +110,15 @@ pub struct ChunkBufferAllocation {
 }
 
 impl ChunkBufferAllocation {
+    pub fn to_draw_command(&self, multiplier: u32) -> DrawIndirectCommand {
+        DrawIndirectCommand {
+            vertex_count: (self.back - self.front) * multiplier,
+            instance_count: 1,
+            first_vertex: self.front * multiplier,
+            first_instance: 0,
+        }
+    }
+
     fn new(front: u32, back: u32) -> Self {
         Self { front, back }
     }
@@ -179,8 +182,8 @@ impl ChunkBufferAllocator {
 }
 
 struct DualHashMap<T> {
-    front_back: FxHashMap<T, T>,
-    back_front: FxHashMap<T, T>,
+    front_back: HashMap<T, T>,
+    back_front: HashMap<T, T>,
 }
 
 impl<T> DualHashMap<T> 
@@ -189,8 +192,8 @@ where
 {
     fn new() -> Self {
         Self {
-            front_back: FxHashMap::default(),
-            back_front: FxHashMap::default(),
+            front_back: HashMap::default(),
+            back_front: HashMap::default(),
         }
     }
 

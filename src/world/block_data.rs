@@ -1,18 +1,18 @@
-use rustc_data_structures::stable_map::FxHashMap;
+use ahash::HashMap;
 
 use crate::render::{texture::TextureAtlas, mesh::{cube::UnitCube, quad::QuadUV, model::Model}};
 
 /// Static block data, should be initialized at startup and probably left alone.
 pub struct StaticBlockData {
     inner: Vec<InitBlockData>,
-    ids: FxHashMap<String, u32>,
+    ids: HashMap<String, u32>,
 }
 
 impl StaticBlockData {
     pub fn empty() -> Self {
         Self { 
             inner: Default::default(),
-            ids: FxHashMap::default(),
+            ids: HashMap::default(),
         }
     }
 
