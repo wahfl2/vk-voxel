@@ -32,10 +32,16 @@ impl ChunkVertexBuffer {
     }
 
     pub fn update(&mut self, allocator: &StandardMemoryAllocator, builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>) -> (bool, bool) {
-        (
+        let ret = (
             self.block_quad_buffer.update(allocator, builder),
             self.deco_buffer.update(allocator, builder),
-        )
+        );
+
+        if ret.0 != ret.1 {
+            println!("sad emoji");
+        }
+
+        ret
     }
 
     pub fn insert_chunk(
@@ -68,14 +74,5 @@ impl ChunkVertexBuffer {
         self.block_quad_buffer.allocations.get(&chunk_pos.into()).is_some()
     }
 
-    pub fn get_block_quad_indirect_commands(&self) -> Vec<DrawIndirectCommand> {
-        self.block_quad_buffer.allocations.values().map(|alloc| {
-            DrawIndirectCommand {
-                vertex_count: (alloc.back - alloc.front) * 6,
-                instance_count: 1,
-                first_vertex: alloc.front * 6,
-                first_instance: 0,
-            }
-        }).collect()
-    }
+    
 }

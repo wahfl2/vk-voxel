@@ -1,6 +1,9 @@
-use std::ops::{Add, AddAssign};
+use std::{ops::{Add, AddAssign}, time::Instant, hint::black_box};
 
+use ahash::{HashSet, HashSetExt};
 use hecs::{Query, Entity, Fetch};
+use rand_xoshiro::{Xoshiro128PlusPlus, Xoshiro128StarStar, rand_core::{SeedableRng, RngCore}};
+use turborand::{rng::Rng, GenCore};
 use ultraviolet::{Vec2, Vec3, Rotor3, IVec3, IVec2};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -124,6 +127,32 @@ impl AddAssign<EulerRot2> for EulerRot2 {
     }
 }
 
+pub struct Aabb {
+    pub min: Vec3,
+    pub max: Vec3,
+}
+
+impl Aabb {
+    pub fn new(min: Vec3, max: Vec3) -> Self {
+        Self { min, max }
+    }
+
+    pub fn get_points(&self) -> [Vec3; 8] {
+        let min = self.min;
+        let max = self.max;
+        [
+            min,
+            Vec3::new(max.x, min.y, min.z),
+            Vec3::new(max.x, max.y, min.z),
+            Vec3::new(min.x, max.y, min.z),
+            max,
+            Vec3::new(min.x, max.y, max.z),
+            Vec3::new(min.x, min.y, max.z),
+            Vec3::new(max.x, min.y, max.z),
+        ]
+    }
+}
+
 pub trait AdditionalSwizzles {
     type Out;
 
@@ -240,4 +269,35 @@ impl MoreVecOps for Vec3 {
     fn powi(self, n: i32) -> Self {
         Self::new(self.x.powi(n), self.y.powi(n), self.z.powi(n))
     }
+}
+
+#[test]
+fn set_speed_test() {
+    let mut rng = Xoshiro128StarStar::seed_from_u64(Rng::default().gen_u64());
+    let mut set = HashSet::new();
+    let mut vec = Vec::new();
+    const DATA_POINTS: usize = 50_000;
+
+    for _ in 0..DATA_POINTS {
+        let random = IVec2::new((rng.next_u32() as i64 + i32::MIN as i64) as i32, (rng.next_u32() as i64 + i32::MIN as i64) as i32);
+        set.insert(random);
+        vec.push(random)
+    }
+    
+    let mut reads = 0;
+    let get = IVec2::new((rng.next_u32() as i64 + i32::MIN as i64) as i32, (rng.next_u32() as i64 + i32::MIN as i64) as i32);
+    let start = Instant::now();
+    while Instant::now().duration_since(start).as_secs_f32() < 1.0 {
+        black_box(set.contains(&get));
+        reads += 1;
+    }
+    println!("SET: {reads} reads in 1 second, {:.2}ns per read.", 1_000_000_000.0 / reads as f32);
+
+    let mut reads = 0;
+    let start = Instant::now();
+    while Instant::now().duration_since(start).as_secs_f32() < 1.0 {
+        black_box(vec.contains(&get));
+        reads += 1;
+    }
+    println!("VEC: {reads} reads in 1 second, {:.2}ns per read.", 1_000_000_000.0 / reads as f32);
 }

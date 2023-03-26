@@ -1,7 +1,8 @@
 #![feature(array_zip)]
 #![feature(slice_as_chunks)]
 #![feature(slice_flatten)]
-#![feature(exclusive_range_pattern)]
+#![feature(iter_collect_into)]
+#![feature(portable_simd)]
 
 use std::time::{Instant, Duration};
 
