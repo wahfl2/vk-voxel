@@ -1,11 +1,10 @@
-use std::{f32::consts::PI, time::Instant, hint::black_box, simd::{Simd, f32x4, f32x8}};
+use std::{f32::consts::PI, time::Instant, hint::black_box};
 
 use rand_xoshiro::{Xoshiro128StarStar, rand_core::{SeedableRng, RngCore}};
-use rayon::prelude::IntoParallelIterator;
 use ultraviolet::{Mat4, projection, Isometry3, Vec3, Rotor3};
 use vulkano::pipeline::graphics::viewport::Viewport;
 
-use crate::{util::util::{EulerRot2, Aabb}, server::components::Hitbox};
+use crate::util::util::{EulerRot2, Aabb};
 
 const RADIANS: f32 = PI / 180.0;
 
@@ -47,38 +46,78 @@ impl Camera {
         proj * transform.into_homogeneous_matrix()
     }
 
+    fn calculate_frustrum(&self, aspect_ratio: f32) -> CalculatedFrustrum {
+        let up = Vec3::unit_y();
+        let forward = Vec3::unit_z().rotated_by(self.rotation.get_rotor());
+        let right = Vec3::unit_x().rotated_by(self.rotation.get_rotor());
+
+        let tan = f32::tan(self.fov * 0.5);
+        let h_near_height = self.near * tan;
+        let h_near_width = h_near_height * aspect_ratio;
+
+        let near_center = self.pos + (forward * self.near);
+        let far_center = self.pos + (forward * self.far);
+
+        let near_right = near_center + (right * h_near_width);
+        let near_left = near_center - (right * h_near_width);
+        let near_up = near_center + (up * h_near_height);
+        let near_down = near_center - (up * h_near_height);
+
+        CalculatedFrustrum { planes: [
+            Plane::new(near_center, forward),
+            Plane::new(far_center, -forward),
+            Plane::new(self.pos, (near_right - self.pos).normalized().cross(up)),
+            Plane::new(self.pos, (near_left  - self.pos).normalized().cross(up)),
+            Plane::new(self.pos, (near_up    - self.pos).normalized().cross(right)),
+            Plane::new(self.pos, (near_down  - self.pos).normalized().cross(right)),
+        ]}
+    }
+
     pub fn with_pos(&self, pos: Vec3) -> Self {
         Self {
             pos,
             ..self.clone()
         }
     }
+}
 
-    pub fn is_in_frustrum(&self, point: Vec3, aspect_ratio: f32) -> bool {
-        let forward = Vec3::unit_z().rotated_by(self.rotation.get_rotor());
-        let right = Vec3::unit_x().rotated_by(self.rotation.get_rotor());
+struct Plane {
+    origin: Vec3,
+    normal: Vec3,
+}
 
-        let v = point - self.pos;
-        let pcz = v.dot(forward);
+impl Plane {
+    fn new(origin: Vec3, normal: Vec3) -> Self {
+        Self { origin, normal }
+    }
 
-        if pcz < self.near || pcz > self.far {
-            return false;
-        }
+    fn distance(&self, point: Vec3) -> f32 {
+        self.normal.dot(point - self.origin)
+    }
+}
 
-        let pcx = v.dot(right);
-        let pcy = v.dot(Vec3::unit_y());
+struct CalculatedFrustrum {
+    planes: [Plane; 6]
+}
 
-        let frustrum_height = 2.0 * pcz * f32::tan(self.fov * 0.5);
-        let frustrum_width = frustrum_height * aspect_ratio;
-        let half_h = frustrum_height * 0.5;
-        let half_w = frustrum_width * 0.5;
+impl CalculatedFrustrum {
+    fn should_render(&self, aabb: Aabb) -> bool {
+        for plane in &self.planes {
+            let n = plane.normal;
 
-        if -half_w > pcx || pcx > half_w {
-            return false;
-        }
+            let mut positive = aabb.min;
+            if n.x >= 0.0 { positive.x = aabb.max.x }
+            if n.y >= 0.0 { positive.y = aabb.max.y }
+            if n.z >= 0.0 { positive.z = aabb.max.z }
 
-        if -half_h > pcy || pcy > half_h {
-            return false;
+            let mut negative = aabb.max;
+            if n.x <= 0.0 { negative.x = aabb.min.x }
+            if n.y <= 0.0 { negative.y = aabb.min.y }
+            if n.z <= 0.0 { negative.z = aabb.min.z }
+
+            if plane.distance(positive) < 0.0 {
+                return false
+            }
         }
 
         true
@@ -88,22 +127,22 @@ impl Camera {
 #[test]
 fn frustrum_speed_test() {
     let mut rng = Xoshiro128StarStar::seed_from_u64(39847);
-    const NUM_AABBS: u32 = 50_000;
-    const NUM_TEST_VALUES: u32 = NUM_AABBS * 8;
+    const NUM_TEST_VALUES: u32 = 500_000;
     const NORMALIZE: f32 = 5.0 / u64::MAX as f32;
 
     let test_values = (0..NUM_TEST_VALUES).into_iter().map(|_| {
         Vec3::new(rng.next_u64() as f32 * NORMALIZE, rng.next_u64() as f32 * NORMALIZE, rng.next_u64() as f32 * NORMALIZE)
-    }).collect::<Vec<_>>();
+    }).map(|v| { Aabb::new(v - (5.0 * Vec3::one()), v) }).collect::<Vec<_>>();
 
     let cam = Camera::default();
     let ratio = 16.0 / 9.0;
     let start = Instant::now();
+    let frustrum = cam.calculate_frustrum(ratio);
     for v in test_values.into_iter() {
-        black_box(cam.is_in_frustrum(v, ratio));
+        black_box(frustrum.should_render(v));
     }
     
     let duration = Instant::now().duration_since(start).as_secs_f64();
-    println!("{NUM_TEST_VALUES} frustrum point tests done in {}ms", duration * 1_000.0);
-    println!("{}ns per AABB", (duration / NUM_AABBS as f64) * 1_000_000_000.0);
+    println!("\n{NUM_TEST_VALUES} frustrum AABB tests done in {}ms", duration * 1_000.0);
+    println!("{}ns per AABB", (duration / NUM_TEST_VALUES as f64) * 1_000_000_000.0);
 }
