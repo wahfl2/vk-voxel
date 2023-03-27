@@ -12,6 +12,7 @@ where [T]: BufferContents,
     buffer: SwappingBuffer<T>,
     chunk_allocator: ChunkBufferAllocator,
     pub allocations: HashMap<(i32, i32), ChunkBufferAllocation>,
+    pub uploaded: Vec<(IVec2, ChunkBufferAllocation)>,
     pub indirect_buffer: Option<Arc<DeviceLocalBuffer<[DrawIndirectCommand]>>>,
     pub vertex_count_multiplier: u32,
     pub highest: usize,
@@ -31,29 +32,18 @@ where
             buffer: SwappingBuffer::new(Self::INITIAL_SIZE, usage, &allocator),
             chunk_allocator: ChunkBufferAllocator::new(),
             allocations: HashMap::default(),
+            uploaded: Vec::new(),
             indirect_buffer: None,
             vertex_count_multiplier,
             highest: 0
         }
     }
 
-    pub fn update(&mut self, allocator: &StandardMemoryAllocator, builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>) -> bool {
+    pub fn update(&mut self) -> bool {
         let swapped = self.buffer.update();
         if swapped {
-            let data = self.get_ind_commands(self.vertex_count_multiplier);
-            if data.len() > 0 {
-                self.indirect_buffer = Some(DeviceLocalBuffer::<[DrawIndirectCommand]>::from_iter(
-                    allocator, 
-                    data, 
-                    BufferUsage {
-                        indirect_buffer: true,
-                        ..Default::default()
-                    }, 
-                    builder
-                ).unwrap());
-            } else {
-                self.indirect_buffer = None;
-            }
+            self.uploaded = self.allocations.iter()
+                .map(|((x, y), alloc)| { (IVec2::new(*x, *y), alloc.clone()) }).collect();
         }
         swapped
     }

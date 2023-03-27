@@ -46,10 +46,11 @@ impl Camera {
         proj * transform.into_homogeneous_matrix()
     }
 
-    fn calculate_frustrum(&self, aspect_ratio: f32) -> CalculatedFrustrum {
-        let up = Vec3::unit_y();
-        let forward = Vec3::unit_z().rotated_by(self.rotation.get_rotor());
-        let right = Vec3::unit_x().rotated_by(self.rotation.get_rotor());
+    pub fn calculate_frustrum(&self, aspect_ratio: f32) -> CalculatedFrustrum {
+        let rotor = self.rotation.get_rotor();
+        let up = Vec3::unit_y().rotated_by(rotor);
+        let forward = Vec3::unit_z().rotated_by(rotor);
+        let right = Vec3::unit_x().rotated_by(rotor);
 
         let tan = f32::tan(self.fov * 0.5);
         let h_near_height = self.near * tan;
@@ -66,10 +67,10 @@ impl Camera {
         CalculatedFrustrum { planes: [
             Plane::new(near_center, forward),
             Plane::new(far_center, -forward),
-            Plane::new(self.pos, (near_right - self.pos).normalized().cross(up)),
-            Plane::new(self.pos, (near_left  - self.pos).normalized().cross(up)),
-            Plane::new(self.pos, (near_up    - self.pos).normalized().cross(right)),
-            Plane::new(self.pos, (near_down  - self.pos).normalized().cross(right)),
+            Plane::new(self.pos, (self.pos - near_right).normalized().cross(up)),
+            Plane::new(self.pos, (self.pos - near_left) .normalized().cross(up)),
+            Plane::new(self.pos, (self.pos - near_up)   .normalized().cross(right)),
+            Plane::new(self.pos, (self.pos - near_down) .normalized().cross(right)),
         ]}
     }
 
@@ -81,7 +82,7 @@ impl Camera {
     }
 }
 
-struct Plane {
+pub struct Plane {
     origin: Vec3,
     normal: Vec3,
 }
@@ -96,12 +97,12 @@ impl Plane {
     }
 }
 
-struct CalculatedFrustrum {
+pub struct CalculatedFrustrum {
     planes: [Plane; 6]
 }
 
 impl CalculatedFrustrum {
-    fn should_render(&self, aabb: Aabb) -> bool {
+    pub fn should_render(&self, aabb: Aabb) -> bool {
         for plane in &self.planes {
             let n = plane.normal;
 

@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
-use ultraviolet::{Mat4, IVec2};
+use ultraviolet::{Mat4, IVec2, Vec3};
 use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features}, image::{view::{ImageView, ImageViewCreateInfo}, ImageUsage, SwapchainImage, AttachmentImage, ImageSubresourceRange}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState, vertex_input::BuffersDefinition, color_blend::ColorBlendState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
 
-use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk, world_blocks::WorldBlocks}, render::shader_resources::BindResources};
+use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk, world_blocks::WorldBlocks}, render::shader_resources::BindResources, util::util::Aabb};
 
-use super::{buffer::{vertex_buffer::ChunkVertexBuffer, uniform_buffer::UniformBuffer}, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{VertexRaw, Vertex2D}, shader_resources::ShaderResources};
+use super::{buffer::{vertex_buffer::ChunkVertexBuffer, uniform_buffer::UniformBuffer}, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{VertexRaw, Vertex2D}, shader_resources::ShaderResources, camera::camera::Camera};
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
@@ -522,6 +522,48 @@ impl Renderer {
         self.vertex_buffer.insert_chunk(pos, chunk, &self.texture_atlas, block_data);
     }
 
+    fn get_indirect_commands(
+        &self, 
+        camera: &Camera,
+        buffer_type: VertexBufferType,
+        builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>
+    ) -> Option<Arc<DeviceLocalBuffer<[DrawIndirectCommand]>>> {
+        const CHUNK_SIZE: Vec3 = Vec3::new(16.0, 16.0 * 16.0, 16.0);
+        let ratio = self.viewport.dimensions[0] / self.viewport.dimensions[1];
+        let frustrum = camera.calculate_frustrum(ratio);
+        let mul = match buffer_type {
+            VertexBufferType::Block => 6,
+            VertexBufferType::Decorations => 1,
+        };
+
+        let data = match buffer_type {
+            VertexBufferType::Block => &self.vertex_buffer.block_quad_buffer.uploaded,
+            VertexBufferType::Decorations => &self.vertex_buffer.deco_buffer.uploaded,
+        }.iter().filter(|(chunk_pos, _)| {
+            let min = Vec3::new(chunk_pos.x as f32, 0.0, chunk_pos.y as f32);
+            let aabb = Aabb::new(min, min + CHUNK_SIZE);
+            frustrum.should_render(aabb)
+        }).map(|(_, alloc)| {
+            alloc.to_draw_command(mul)
+        }).collect::<Vec<_>>();
+
+        println!("culled {} chunks", self.vertex_buffer.block_quad_buffer.uploaded.len() - data.len());
+
+        if data.len() > 0 {
+            Some(DeviceLocalBuffer::<[DrawIndirectCommand]>::from_iter(
+                &self.vk_memory_allocator, 
+                data, 
+                BufferUsage {
+                    indirect_buffer: true,
+                    ..Default::default()
+                }, 
+                builder
+            ).unwrap())
+        } else {
+            None
+        }
+    }
+
     /// Get a command buffer that will upload `self`'s texture atlas to the GPU when executed.
     /// 
     /// The atlas is stored in `self`'s `PersistentDescriptorSet`
@@ -575,14 +617,14 @@ impl Renderer {
     }
 
     /// Get a command buffer that will render the scene.
-    pub fn get_render_command_buffer(&mut self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {        
+    pub fn get_render_command_buffer(&mut self, image_index: usize, camera: &Camera) -> Arc<PrimaryAutoCommandBuffer> {        
         let mut builder = AutoCommandBufferBuilder::primary(
             &self.vk_command_buffer_allocator,
             self.vk_graphics_queue.queue_family_index(),
             CommandBufferUsage::OneTimeSubmit,
         ).unwrap();
 
-        let (quad_swapped, deco_swapped) = self.vertex_buffer.update(&self.vk_memory_allocator, &mut builder);
+        let (quad_swapped, deco_swapped) = self.vertex_buffer.update();
         if quad_swapped { self.vertex_descriptor_set = None; }
 
         const BLOCK_FACE_LIGHTING: FaceLighting = FaceLighting {
@@ -688,6 +730,9 @@ impl Renderer {
             ).unwrap());
         }
 
+        let deco_indirect = self.get_indirect_commands(camera, VertexBufferType::Decorations, &mut builder).unwrap();
+        let blocks_indirect = self.get_indirect_commands(camera, VertexBufferType::Block, &mut builder).unwrap();
+
         builder
             .begin_render_pass(
                 RenderPassBeginInfo {
@@ -704,41 +749,41 @@ impl Renderer {
                 SubpassContents::Inline,
             ).unwrap();
 
-        if let Some(multi_buffer) = &self.vertex_buffer.block_quad_buffer.indirect_buffer {
-            let deco_buffer = self.vertex_buffer.deco_buffer.get_buffer();
+        
+        let deco_buffer = self.vertex_buffer.deco_buffer.get_buffer();
 
-            // Render blocks
-            builder.bind_pipeline_graphics(self.pipelines.block_quads.clone())
-                .draw_indirect(multi_buffer.clone())
-                .unwrap()
+        // Render blocks
+        builder.bind_pipeline_graphics(self.pipelines.block_quads.clone())
+            .draw_indirect(blocks_indirect)
+            .unwrap()
 
-                // Render decorations
-                .next_subpass(SubpassContents::Inline).unwrap()
-                .bind_pipeline_graphics(self.pipelines.decorations.clone())
-                .bind_resources(self.pipelines.decorations.layout(), &self.shader_resources)
-                .bind_descriptor_sets(
-                    PipelineBindPoint::Graphics, 
-                    self.pipelines.decorations.layout().to_owned(), 
-                    0, 
-                    self.atlas_descriptor_set.clone().unwrap()
-                )
-                .bind_vertex_buffers(0, deco_buffer.clone())
-                .draw_indirect(self.vertex_buffer.deco_buffer.indirect_buffer.clone().unwrap())
-                .unwrap()
+            // Render decorations
+            .next_subpass(SubpassContents::Inline).unwrap()
+            .bind_pipeline_graphics(self.pipelines.decorations.clone())
+            .bind_resources(self.pipelines.decorations.layout(), &self.shader_resources)
+            .bind_descriptor_sets(
+                PipelineBindPoint::Graphics, 
+                self.pipelines.decorations.layout().to_owned(), 
+                0, 
+                self.atlas_descriptor_set.clone().unwrap()
+            )
+            .bind_vertex_buffers(0, deco_buffer.clone())
+            .draw_indirect(deco_indirect)
+            .unwrap()
 
-                // Final pass, combine passes
-                .next_subpass(SubpassContents::Inline).unwrap()
-                .bind_pipeline_graphics(self.pipelines.fin.clone())
-                .bind_descriptor_sets(
-                    PipelineBindPoint::Graphics, 
-                    self.pipelines.fin.layout().to_owned(), 
-                    0, 
-                    attachment_desc_set
-                )
-                .bind_vertex_buffers(0, self.fullscreen_quad.clone().unwrap())
-                .draw(6, 1, 0, 0)
-                .unwrap();
-        }
+            // Final pass, combine passes
+            .next_subpass(SubpassContents::Inline).unwrap()
+            .bind_pipeline_graphics(self.pipelines.fin.clone())
+            .bind_descriptor_sets(
+                PipelineBindPoint::Graphics, 
+                self.pipelines.fin.layout().to_owned(), 
+                0, 
+                attachment_desc_set
+            )
+            .bind_vertex_buffers(0, self.fullscreen_quad.clone().unwrap())
+            .draw(6, 1, 0, 0)
+            .unwrap();
+        
             
         builder.end_render_pass().unwrap();
 
@@ -756,18 +801,18 @@ impl Renderer {
     }
 
     /// Get the command buffers to be executed on the GPU this frame.
-    fn get_command_buffers(&mut self, image_index: usize) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
+    fn get_command_buffers(&mut self, image_index: usize, camera: &Camera) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
         let mut ret = Vec::new();
         if self.upload_texture_atlas || self.atlas_descriptor_set.is_none() {
             self.upload_texture_atlas = false;
             ret.push(self.get_upload_command_buffer());
         }
-        ret.push(self.get_render_command_buffer(image_index));
+        ret.push(self.get_render_command_buffer(image_index, camera));
         ret
     }
 
     /// Renders the scene
-    pub fn render(&mut self, world_blocks: &mut WorldBlocks, block_data: &StaticBlockData) -> RenderState {
+    pub fn render(&mut self, world_blocks: &mut WorldBlocks, block_data: &StaticBlockData, camera: &Camera) -> RenderState {
         self.update_vertex_buffers(world_blocks, block_data);
 
         let mut state = RenderState::Ok;
@@ -782,7 +827,7 @@ impl Renderer {
             };
         if suboptimal { state = RenderState::Suboptimal; }
 
-        let command_buffers = self.get_command_buffers(image_i as usize);
+        let command_buffers = self.get_command_buffers(image_i as usize, camera);
 
         // Overwrite the oldest fence and take control for drawing
         if let Some(image_fence) = &mut self.fences[image_i as usize] {
@@ -843,6 +888,11 @@ pub struct FaceLighting {
     _pad1: u32,
     negative: [f32; 3],
     _pad2: u32,
+}
+
+enum VertexBufferType {
+    Block,
+    Decorations,
 }
 
 impl Default for FaceLighting {

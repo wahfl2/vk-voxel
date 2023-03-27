@@ -69,7 +69,7 @@ fn main() {
 
                 input_handler.mouse_delta = Vec2::zero();
 
-                match renderer.render(&mut world_blocks, &static_block_data) {
+                match renderer.render(&mut world_blocks, &static_block_data, &camera) {
                     RenderState::OutOfDate | RenderState::Suboptimal => recreate_swapchain = true,
                     _ => ()
                 }

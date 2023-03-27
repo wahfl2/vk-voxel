@@ -101,8 +101,8 @@ impl EulerRot2 {
     }
 
     pub fn get_rotor(&self) -> Rotor3 {
-        Rotor3::from_rotation_xz(self.yaw).rotated_by(
-            Rotor3::from_rotation_yz(self.pitch)
+        Rotor3::from_rotation_xz(self.yaw) *
+            Rotor3::from_rotation_yz(self.pitch
         )
     }
 }

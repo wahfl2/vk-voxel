@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
+use ahash::HashSet;
 use ultraviolet::IVec2;
 use vulkano::{buffer::BufferUsage, device::Device, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, DrawIndirectCommand}, memory::allocator::StandardMemoryAllocator};
 
 use crate::{render::{vertex::VertexRaw, mesh::{quad::BlockQuad, chunk_render::ChunkRender}, texture::TextureAtlas}, world::{block_data::StaticBlockData, chunk::Chunk}};
 
-use super::allocator::HeapBuffer;
+use super::allocator::{HeapBuffer, ChunkBufferAllocation};
 
 pub struct ChunkVertexBuffer {
     pub block_quad_buffer: HeapBuffer<BlockQuad>,
@@ -31,15 +32,11 @@ impl ChunkVertexBuffer {
         }
     }
 
-    pub fn update(&mut self, allocator: &StandardMemoryAllocator, builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>) -> (bool, bool) {
+    pub fn update(&mut self) -> (bool, bool) {
         let ret = (
-            self.block_quad_buffer.update(allocator, builder),
-            self.deco_buffer.update(allocator, builder),
+            self.block_quad_buffer.update(),
+            self.deco_buffer.update(),
         );
-
-        if ret.0 != ret.1 {
-            println!("sad emoji");
-        }
 
         ret
     }
