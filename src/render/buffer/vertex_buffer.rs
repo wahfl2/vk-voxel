@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
-use ahash::HashSet;
 use ultraviolet::IVec2;
-use vulkano::{buffer::BufferUsage, device::Device, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, DrawIndirectCommand}, memory::allocator::StandardMemoryAllocator};
+use vulkano::{buffer::BufferUsage, device::Device};
 
 use crate::{render::{vertex::VertexRaw, mesh::{quad::BlockQuad, chunk_render::ChunkRender}, texture::TextureAtlas}, world::{block_data::StaticBlockData, chunk::Chunk}};
 
-use super::allocator::{HeapBuffer, ChunkBufferAllocation};
+use super::allocator::HeapBuffer;
 
 pub struct ChunkVertexBuffer {
     pub block_quad_buffer: HeapBuffer<BlockQuad>,
@@ -70,6 +69,4 @@ impl ChunkVertexBuffer {
     pub fn has_chunk(&self, chunk_pos: IVec2) -> bool {
         self.block_quad_buffer.allocations.get(&chunk_pos.into()).is_some()
     }
-
-    
 }

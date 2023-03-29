@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
 use ultraviolet::{Mat4, IVec2, Vec3};
-use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features}, image::{view::{ImageView, ImageViewCreateInfo}, ImageUsage, SwapchainImage, AttachmentImage, ImageSubresourceRange}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState, vertex_input::BuffersDefinition, color_blend::ColorBlendState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
+use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features}, image::{view::{ImageView, ImageViewCreateInfo}, ImageUsage, SwapchainImage, AttachmentImage, ImageSubresourceRange}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState, vertex_input::BuffersDefinition, color_blend::ColorBlendState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage, CpuBufferPool}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
 
@@ -536,32 +536,30 @@ impl Renderer {
             VertexBufferType::Decorations => 1,
         };
 
-        let data = match buffer_type {
+        let mut data = match buffer_type {
             VertexBufferType::Block => &self.vertex_buffer.block_quad_buffer.uploaded,
             VertexBufferType::Decorations => &self.vertex_buffer.deco_buffer.uploaded,
         }.iter().filter(|(chunk_pos, _)| {
-            let min = Vec3::new(chunk_pos.x as f32, 0.0, chunk_pos.y as f32);
+            let min = Vec3::new((chunk_pos.x * 16) as f32, 0.0, (chunk_pos.y * 16) as f32);
             let aabb = Aabb::new(min, min + CHUNK_SIZE);
             frustrum.should_render(aabb)
         }).map(|(_, alloc)| {
             alloc.to_draw_command(mul)
         }).collect::<Vec<_>>();
 
-        println!("culled {} chunks", self.vertex_buffer.block_quad_buffer.uploaded.len() - data.len());
-
-        if data.len() > 0 {
-            Some(DeviceLocalBuffer::<[DrawIndirectCommand]>::from_iter(
-                &self.vk_memory_allocator, 
-                data, 
-                BufferUsage {
-                    indirect_buffer: true,
-                    ..Default::default()
-                }, 
-                builder
-            ).unwrap())
-        } else {
-            None
+        if data.is_empty() {
+            data.push(DrawIndirectCommand::zeroed())
         }
+
+        Some(DeviceLocalBuffer::<[DrawIndirectCommand]>::from_iter(
+            &self.vk_memory_allocator, 
+            data, 
+            BufferUsage {
+                indirect_buffer: true,
+                ..Default::default()
+            }, 
+            builder
+        ).unwrap())
     }
 
     /// Get a command buffer that will upload `self`'s texture atlas to the GPU when executed.

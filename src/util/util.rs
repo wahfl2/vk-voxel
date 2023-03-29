@@ -1,4 +1,4 @@
-use std::{ops::{Add, AddAssign}, time::Instant, hint::black_box};
+use std::{ops::{Add, AddAssign}, time::Instant, hint::black_box, f32::consts::PI};
 
 use ahash::{HashSet, HashSetExt};
 use hecs::{Query, Entity, Fetch};
@@ -104,6 +104,11 @@ impl EulerRot2 {
         Rotor3::from_rotation_xz(self.yaw) *
             Rotor3::from_rotation_yz(self.pitch
         )
+    }
+
+    pub fn get_reversed_rotor(&self) -> Rotor3 {
+        Rotor3::from_rotation_xz(PI - self.yaw) *
+            Rotor3::from_rotation_yz(-self.pitch)
     }
 }
 

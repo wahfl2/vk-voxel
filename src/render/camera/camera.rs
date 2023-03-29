@@ -47,30 +47,37 @@ impl Camera {
     }
 
     pub fn calculate_frustrum(&self, aspect_ratio: f32) -> CalculatedFrustrum {
-        let rotor = self.rotation.get_rotor();
+        let real_pos = self.pos;
+        let rotor = self.rotation.get_reversed_rotor();
+
+        let right = Vec3::unit_x().rotated_by(rotor);
         let up = Vec3::unit_y().rotated_by(rotor);
         let forward = Vec3::unit_z().rotated_by(rotor);
-        let right = Vec3::unit_x().rotated_by(rotor);
 
         let tan = f32::tan(self.fov * 0.5);
         let h_near_height = self.near * tan;
         let h_near_width = h_near_height * aspect_ratio;
 
-        let near_center = self.pos + (forward * self.near);
-        let far_center = self.pos + (forward * self.far);
+        let near_center = real_pos + (forward * self.near);
+        let far_center = real_pos + (forward * self.far);
 
         let near_right = near_center + (right * h_near_width);
         let near_left = near_center - (right * h_near_width);
         let near_up = near_center + (up * h_near_height);
         let near_down = near_center - (up * h_near_height);
 
+        let n_right = (near_right - real_pos).normalized().cross(up);
+        let n_left = (near_left - real_pos).normalized().cross(-up);
+        let n_up = (near_up - real_pos).normalized().cross(-right);
+        let n_down = (near_down - real_pos).normalized().cross(right);
+
         CalculatedFrustrum { planes: [
             Plane::new(near_center, forward),
             Plane::new(far_center, -forward),
-            Plane::new(self.pos, (self.pos - near_right).normalized().cross(up)),
-            Plane::new(self.pos, (self.pos - near_left) .normalized().cross(up)),
-            Plane::new(self.pos, (self.pos - near_up)   .normalized().cross(right)),
-            Plane::new(self.pos, (self.pos - near_down) .normalized().cross(right)),
+            Plane::new(real_pos, -n_right),
+            Plane::new(real_pos, -n_left),
+            Plane::new(real_pos, -n_up),
+            Plane::new(real_pos, -n_down),
         ]}
     }
 
@@ -82,6 +89,19 @@ impl Camera {
     }
 }
 
+#[test]
+fn frustrum_test() {
+    let frustrum = Camera {
+        fov: 90.0,
+        ..Default::default()
+    }.calculate_frustrum(1.0);
+
+    dbg!(frustrum);
+
+
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct Plane {
     origin: Vec3,
     normal: Vec3,
@@ -97,24 +117,32 @@ impl Plane {
     }
 }
 
+#[test]
+fn distance_test() {
+    assert_eq!(Plane::new(Vec3::new(0.0, 0.0, 0.0), Vec3::unit_y()).distance(Vec3::zero()), 0.0);
+    assert_eq!(Plane::new(Vec3::new(0.0, 0.0, 0.0), Vec3::unit_y()).distance(Vec3::unit_y()), 1.0);
+}
+
+#[derive(Debug)]
 pub struct CalculatedFrustrum {
     planes: [Plane; 6]
 }
 
 impl CalculatedFrustrum {
     pub fn should_render(&self, aabb: Aabb) -> bool {
-        for plane in &self.planes {
+        let planes = self.planes;
+        for (i, plane) in planes.iter().enumerate() {
             let n = plane.normal;
 
             let mut positive = aabb.min;
+            let mut negative = aabb.max;
             if n.x >= 0.0 { positive.x = aabb.max.x }
             if n.y >= 0.0 { positive.y = aabb.max.y }
             if n.z >= 0.0 { positive.z = aabb.max.z }
 
-            let mut negative = aabb.max;
-            if n.x <= 0.0 { negative.x = aabb.min.x }
-            if n.y <= 0.0 { negative.y = aabb.min.y }
-            if n.z <= 0.0 { negative.z = aabb.min.z }
+            if n.x >= 0.0 { negative.x = aabb.min.x }
+            if n.y >= 0.0 { negative.y = aabb.min.y }
+            if n.z >= 0.0 { negative.z = aabb.min.z }
 
             if plane.distance(positive) < 0.0 {
                 return false
