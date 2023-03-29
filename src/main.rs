@@ -7,6 +7,7 @@
 use std::time::{Instant, Duration};
 
 use event_handler::{InputHandler, UserEvent};
+use mimalloc::MiMalloc;
 use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog};
 
 use server::server::Server;
@@ -23,6 +24,9 @@ pub mod server;
 pub mod physics;
 
 pub const FRAME_TIME: f64 = 1.0 / 1000.0;
+
+#[global_allocator]
+pub static GLOBAL: MiMalloc = MiMalloc;
 
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
