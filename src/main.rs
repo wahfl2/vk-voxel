@@ -7,7 +7,6 @@
 use std::time::{Instant, Duration};
 
 use event_handler::{InputHandler, UserEvent};
-use mimalloc::MiMalloc;
 use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog};
 
 use server::server::Server;
