@@ -23,10 +23,7 @@ pub mod event_handler;
 pub mod server;
 pub mod physics;
 
-pub const FRAME_TIME: f64 = 1.0 / 120.0;
-
-#[global_allocator]
-pub static GLOBAL: MiMalloc = MiMalloc;
+pub const FRAME_TIME: f64 = 1.0 / 1000.0;
 
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
