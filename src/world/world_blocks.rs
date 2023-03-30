@@ -1,3 +1,5 @@
+use std::thread;
+
 use ahash::HashMap;
 use ultraviolet::{IVec2, Vec2};
 
@@ -55,6 +57,11 @@ impl WorldBlocks {
 
     pub fn frame_update(&mut self, block_data: &StaticBlockData) {
         let to_load = self.get_closest_unloaded_chunks(Self::CHUNK_UPDATES_PER_FRAME.try_into().unwrap());
+
+        // let handle = thread::spawn(|| {
+
+        // });
+
         for pos in to_load.into_iter() {
             self.load_chunk(pos, block_data);
         }
