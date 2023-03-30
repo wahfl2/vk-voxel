@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use ultraviolet::{Mat4, IVec2, Vec3};
 use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features}, image::{view::{ImageView, ImageViewCreateInfo}, ImageUsage, SwapchainImage, AttachmentImage, ImageSubresourceRange}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState, vertex_input::BuffersDefinition, color_blend::ColorBlendState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage, CpuBufferPool}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
 use vulkano_win::VkSurfaceBuild;
-use winit::{event_loop::EventLoop, window::WindowBuilder, dpi::PhysicalSize};
+use winit::{event_loop::EventLoop, window::{WindowBuilder, CursorGrabMode}, dpi::{PhysicalSize, Size}};
 
 use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk, world_blocks::WorldBlocks}, render::shader_resources::BindResources, util::util::Aabb};
 
@@ -68,8 +68,14 @@ impl Renderer {
         ).expect("failed to create instance");
 
         let vk_surface = WindowBuilder::new()
+            .with_inner_size(PhysicalSize::new(1600, 900))
+            .with_title("VK Voxel")
             .build_vk_surface(event_loop, vk_instance.clone())
             .unwrap();
+
+        let window = vk_surface.get_window().unwrap();
+        window.set_cursor_grab(CursorGrabMode::Confined).unwrap();
+        window.set_cursor_visible(false);
             
         let (vk_physical, queue_family_indices) = Self::select_physical_device(
             &vk_instance, 
