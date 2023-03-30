@@ -111,27 +111,35 @@ impl Section {
         self.render.block_quads.clear();
         self.render.deco_vertices.clear();
 
-        blocks.into_iter().for_each(|(pos, block)| {
+        let mut block_refs = Vec::new();
+        let mut deco_refs = Vec::new();
+
+        blocks.iter().for_each(|(pos, block)| {
             let data = block_data.get(block);
             if data.block_type == BlockType::None { return; }
 
-            match data.model.clone() {
-                ModelType::FullBlock(mut m) => {
-                    m.center = offset + pos.into_vec3();
-                    let faces = m.get_faces();
-                    let cull = self.cull.get((pos.x, pos.y, pos.z)).unwrap();
-
-                    self.render.block_quads.extend(
-                        cull.get_unculled().into_iter().map(move |i| { faces[i].into_block_quad() })
-                    );
+            match &data.model {
+                ModelType::FullBlock(m) => {
+                    block_refs.push((m, pos));
                 },
 
                 ModelType::Plant(m) => {
-                    self.render.deco_vertices.append(&mut m.with_translation(offset + pos.into_vec3()).get_raw_vertices());
+                    deco_refs.push((m, pos));
                 },
                 _ => (),
             }
         });
+
+        self.render.block_quads.extend(block_refs.into_iter().flat_map(|(m, pos)| {
+            let faces = m.get_faces(offset + pos.into_vec3());
+            let cull = self.cull.get((pos.x, pos.y, pos.z)).unwrap();
+
+            cull.get_unculled().into_iter().map(move |i| { faces[i].into_block_quad() })
+        }));
+
+        self.render.deco_vertices.extend(deco_refs.into_iter().flat_map(|(m, pos)| {
+            m.with_translation(offset + pos.into_vec3()).get_raw_vertices().collect::<Vec<_>>()
+        }))
     }
 
     fn get_neighbors(&self, pos: UsizeVec3) -> [Neighbor; 6] {

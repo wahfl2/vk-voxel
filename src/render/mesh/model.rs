@@ -66,8 +66,8 @@ impl Model {
         Self { vertices }
     }
 
-    pub fn get_raw_vertices(&self) -> Vec<VertexRaw> {
-        self.vertices.iter().map(|v| { VertexRaw::from(v.clone()) }).collect()
+    pub fn get_raw_vertices(&self) -> impl Iterator<Item = VertexRaw> + '_ {
+        self.vertices.iter().map(|v| { VertexRaw::from(v.clone()) })
     }
 
     pub fn create_plant_model(uv: QuadUV) -> Self {

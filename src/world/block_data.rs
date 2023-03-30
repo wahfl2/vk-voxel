@@ -20,41 +20,41 @@ impl StaticBlockData {
         self.add(InitBlockData::air());
         self.add(InitBlockData::new_block(
             "stone", 
-            Some(UnitCube::from_textures([
+            Some(UnitCube::new([
                 atlas.get_handle("stone").unwrap(),
-            ].to_vec())),
+            ].to_vec()).unwrap()),
             BlockType::Full,
         ));
         self.add(InitBlockData::new_block(
             "dirt", 
-            Some(UnitCube::from_textures([
+            Some(UnitCube::new([
                 atlas.get_handle("dirt").unwrap(),
-            ].to_vec())),
+            ].to_vec()).unwrap()),
             BlockType::Full,
         ));
         self.add(InitBlockData::new_block(
             "grass_block", 
-            Some(UnitCube::from_textures([
+            Some(UnitCube::new([
                 atlas.get_handle("grass_block_top").unwrap(),
                 atlas.get_handle("grass_block_side").unwrap(),
                 atlas.get_handle("dirt").unwrap(),
-            ].to_vec())),
+            ].to_vec()).unwrap()),
             BlockType::Full,
         ));
         self.add(InitBlockData::new_block(
             "leaves", 
-            Some(UnitCube::from_textures([
+            Some(UnitCube::new([
                 atlas.get_handle("leaves").unwrap(),
-            ].to_vec())),
+            ].to_vec()).unwrap()),
             BlockType::Transparent,
         ));
         self.add(InitBlockData::new_block(
             "log", 
-            Some(UnitCube::from_textures([
+            Some(UnitCube::new([
                 atlas.get_handle("log_top").unwrap(),
                 atlas.get_handle("log_side").unwrap(),
                 atlas.get_handle("log_top").unwrap(),
-            ].to_vec())),
+            ].to_vec()).unwrap()),
             BlockType::Full,
         ));
 
