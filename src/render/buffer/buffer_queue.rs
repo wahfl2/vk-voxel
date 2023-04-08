@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use vulkano::buffer::CpuAccessibleBuffer;
+use vulkano::buffer::Subbuffer;
 
 use crate::render::vertex::VertexRaw;
 
@@ -52,12 +52,12 @@ impl WriteTask {
 
 #[derive(Clone)]
 pub struct TransferTask {
-    pub src_buf: Arc<CpuAccessibleBuffer<[VertexRaw]>>,
-    pub dst_buf: Arc<CpuAccessibleBuffer<[VertexRaw]>>,
+    pub src_buf: Subbuffer<[VertexRaw]>,
+    pub dst_buf: Subbuffer<[VertexRaw]>,
 }
 
 impl TransferTask {
-    pub fn new(src_buf: Arc<CpuAccessibleBuffer<[VertexRaw]>>, dst_buf: Arc<CpuAccessibleBuffer<[VertexRaw]>>) -> Self {
+    pub fn new(src_buf: Subbuffer<[VertexRaw]>, dst_buf: Subbuffer<[VertexRaw]>) -> Self {
         Self {
             src_buf,
             dst_buf,

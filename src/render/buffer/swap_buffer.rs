@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use vulkano::{buffer::{CpuAccessibleBuffer, cpu_access::WriteLock, BufferUsage, BufferContents}, memory::allocator::StandardMemoryAllocator};
+use bytemuck::Pod;
+use vulkano::{buffer::{BufferUsage, BufferContents, Subbuffer, Buffer, BufferCreateInfo, subbuffer::BufferWriteGuard}, memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryUsage}};
 
 pub struct SwappingBuffer<T> 
     where [T]: BufferContents 
@@ -8,8 +9,8 @@ pub struct SwappingBuffer<T>
     current: u8,
     queue: Vec<SwapBufferQueueTask<T>>,
     after_free: Vec<SwapBufferQueueTask<T>>,
-    pub buffer_1: Arc<CpuAccessibleBuffer<[T]>>,
-    pub buffer_2: Arc<CpuAccessibleBuffer<[T]>>,
+    pub buffer_1: Subbuffer<[T]>,
+    pub buffer_2: Subbuffer<[T]>,
     pub dirty: SwapDirtyPhase,
 }
 
@@ -38,7 +39,7 @@ pub enum SwapDirtyPhase {
 
 impl<T> SwappingBuffer<T>
 where 
-    T: Clone + Copy,
+    T: Clone + Copy + Send + Sync + Pod,
     [T]: BufferContents
 {
     pub fn new(size: usize, usage: BufferUsage, allocator: &StandardMemoryAllocator) -> Self {
@@ -52,22 +53,26 @@ where
         }
     }
 
-    fn create_buffer(size: usize, usage: BufferUsage, allocator: &StandardMemoryAllocator) -> Arc<CpuAccessibleBuffer<[T]>> {
-        unsafe {
-            CpuAccessibleBuffer::uninitialized_array(
-                allocator, 
-                size as u64, 
-                usage, 
-                false
-            ).unwrap()
-        }
+    fn create_buffer(size: usize, usage: BufferUsage, allocator: &StandardMemoryAllocator) -> Subbuffer<[T]> {
+        Buffer::new_slice(
+            allocator, 
+            BufferCreateInfo {
+                usage,
+                ..Default::default()
+            }, 
+            AllocationCreateInfo {
+                usage: MemoryUsage::Upload,
+                ..Default::default()
+            },
+            size as u64
+        ).unwrap()
     }
 
     fn swap(&mut self) {
         self.current = 3 - self.current;
     }
 
-    pub fn get_current_buffer(&self) -> Arc<CpuAccessibleBuffer<[T]>> {
+    pub fn get_current_buffer(&self) -> Subbuffer<[T]> {
         match self.current {
             1 => self.buffer_1.clone(),
             2 => self.buffer_2.clone(),
@@ -75,7 +80,7 @@ where
         }
     }
 
-    fn get_free_buffer(&self) -> Arc<CpuAccessibleBuffer<[T]>> {
+    fn get_free_buffer(&self) -> Subbuffer<[T]> {
         match self.current {
             2 => self.buffer_1.clone(),
             1 => self.buffer_2.clone(),
@@ -139,7 +144,7 @@ where
     }
 
     /// Writes a queue to a write lock and clears the queue.
-    fn write_queue_buffer(queue: &mut Vec<SwapBufferQueueTask<T>>, write_lock: &mut WriteLock<[T]>) {
+    fn write_queue_buffer(queue: &mut Vec<SwapBufferQueueTask<T>>, write_lock: &mut BufferWriteGuard<[T]>) {
         queue.iter().for_each(|task| {
             let end = task.start_idx + task.data.len();
             write_lock[task.start_idx..end].copy_from_slice(&task.data);

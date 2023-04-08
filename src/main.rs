@@ -3,6 +3,7 @@
 #![feature(slice_flatten)]
 #![feature(iter_collect_into)]
 #![feature(portable_simd)]
+#![feature(associated_const_equality)]
 
 use std::time::{Instant, Duration};
 
@@ -25,8 +26,8 @@ pub mod physics;
 
 pub const FRAME_TIME: f64 = 1.0 / 1000.0;
 
-// #[global_allocator]
-// pub static GLOBAL: MiMalloc = MiMalloc;
+#[global_allocator]
+pub static GLOBAL: MiMalloc = MiMalloc;
 
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");

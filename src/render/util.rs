@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use bytemuck::Pod;
 use guillotiere::euclid::{Size2D, UnknownUnit, Box2D};
 use ultraviolet::{UVec2, Vec2};
-use vulkano::{swapchain::Surface, image::ImageDimensions};
+use vulkano::{swapchain::Surface, image::ImageDimensions, buffer::{Buffer, BufferUsage, Subbuffer, BufferContents, BufferCreateInfo}, memory::allocator::{DeviceLayout, StandardMemoryAllocator, MemoryUsage, AllocationCreateInfo}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, CopyBufferInfoTyped, CopyBufferInfo}};
 use winit::window::Window;
 
 use super::mesh::quad::QuadUV;
@@ -74,4 +75,88 @@ impl<T, const N: usize> Reversed for [T; N] {
         self.reverse();
         self
     }
+}
+
+pub trait CreateInfoConvenience {
+    type UsageType;
+    fn usage(usage: Self::UsageType) -> Self;
+}
+
+impl CreateInfoConvenience for BufferCreateInfo {
+    type UsageType = BufferUsage;
+
+    fn usage(usage: Self::UsageType) -> Self {
+        Self {
+            usage,
+            ..Default::default()
+        }
+    }
+}
+
+impl CreateInfoConvenience for AllocationCreateInfo {
+    type UsageType = MemoryUsage;
+
+    fn usage(usage: Self::UsageType) -> Self {
+        Self {
+            usage,
+            ..Default::default()
+        }
+    }
+}
+
+pub fn make_device_only_buffer_slice<T, I>(
+    allocator: &StandardMemoryAllocator,
+    cbb: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+    usage: BufferUsage,
+    data: I,
+) -> Subbuffer<[T]> 
+where
+    T: BufferContents + Clone,
+    I: IntoIterator<Item = T>,
+    I::IntoIter: ExactSizeIterator,
+{
+    let iter = data.into_iter();
+    let len = iter.len();
+    let staging = Buffer::from_iter(
+        allocator,
+        BufferCreateInfo::usage(BufferUsage::TRANSFER_SRC),
+        AllocationCreateInfo::usage(MemoryUsage::Upload),
+        iter
+    ).unwrap();
+
+    let ret = Buffer::new_slice(
+        allocator,
+        BufferCreateInfo::usage(usage.union(BufferUsage::TRANSFER_DST)),
+        AllocationCreateInfo::usage(MemoryUsage::DeviceOnly),
+        len as u64
+    ).unwrap();
+
+    cbb.copy_buffer(CopyBufferInfoTyped::buffers(staging, ret.clone())).unwrap();
+    ret
+}
+
+pub fn make_device_only_buffer_sized<T>(
+    allocator: &StandardMemoryAllocator,
+    cbb: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+    usage: BufferUsage,
+    data: T,
+) -> Subbuffer<T> 
+where
+    T: Send + Sync + Pod
+{
+    let staging = Buffer::from_data(
+        allocator,
+        BufferCreateInfo::usage(BufferUsage::TRANSFER_SRC),
+        AllocationCreateInfo::usage(MemoryUsage::Upload),
+        data
+    ).unwrap();
+
+    let ret = Buffer::new_sized(
+        allocator,
+        BufferCreateInfo::usage(usage.union(BufferUsage::TRANSFER_DST)),
+        AllocationCreateInfo::usage(MemoryUsage::DeviceOnly),
+    ).unwrap();
+
+    cbb.copy_buffer(CopyBufferInfo::buffers(staging, ret.clone())).unwrap();
+    ret
 }

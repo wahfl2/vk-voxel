@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
 use ultraviolet::{Mat4, IVec2, Vec3};
-use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features}, image::{view::{ImageView, ImageViewCreateInfo}, ImageUsage, SwapchainImage, AttachmentImage, ImageSubresourceRange}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState, vertex_input::BuffersDefinition, color_blend::ColorBlendState}, Pipeline, PipelineBindPoint, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, FenceSignalFuture}, buffer::{DeviceLocalBuffer, BufferUsage, CpuBufferPool}, descriptor_set::{allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
+use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features, QueueFlags}, image::{view::{ImageView, ImageViewCreateInfo}, ImageUsage, SwapchainImage, AttachmentImage, ImageSubresourceRange}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState, vertex_input::BuffersDefinition, color_blend::ColorBlendState}, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, future::FenceSignalFuture}, buffer::{BufferUsage, Subbuffer}, descriptor_set::allocator::StandardDescriptorSetAllocator, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
 use vulkano_win::VkSurfaceBuild;
-use winit::{event_loop::EventLoop, window::{WindowBuilder, CursorGrabMode}, dpi::{PhysicalSize, Size}};
+use winit::{event_loop::EventLoop, window::{WindowBuilder, CursorGrabMode}, dpi::PhysicalSize};
 
-use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk, world_blocks::WorldBlocks}, render::shader_resources::BindResources, util::util::Aabb};
+use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk, world_blocks::WorldBlocks}, util::util::Aabb};
 
-use super::{buffer::{vertex_buffer::ChunkVertexBuffer, uniform_buffer::UniformBuffer}, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{VertexRaw, Vertex2D}, shader_resources::ShaderResources, camera::camera::Camera};
+use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{VertexRaw, Vertex2D}, camera::camera::Camera, descriptor_sets::DescriptorSets};
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
@@ -28,18 +28,14 @@ pub struct Renderer {
 
     pub viewport: Viewport,
     pub vertex_buffer: ChunkVertexBuffer,
-    pub fullscreen_quad: Option<Arc<DeviceLocalBuffer<[Vertex2D; 6]>>>,
-    pub indirect_buffer: Option<Arc<DeviceLocalBuffer<[DrawIndirectCommand]>>>,
+    pub fullscreen_quad: Option<Subbuffer<[Vertex2D; 6]>>,
+    pub indirect_buffer: Option<Subbuffer<[DrawIndirectCommand]>>,
     pub num_vertices: u32,
     pub cam_uniform: Option<Mat4>,
     pub texture_atlas: TextureAtlas,
     pub texture_sampler: Arc<Sampler>,
-    pub atlas_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
-    pub atlas_map_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
-    pub vertex_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
-    pub shader_resources: ShaderResources,
     pub attachment_images: [Arc<ImageView<AttachmentImage>>; 4],
-    pub attachment_descriptor_set: Option<Arc<PersistentDescriptorSet>>,
+    pub descriptor_sets: DescriptorSets,
 
     pub upload_texture_atlas: bool,
 
@@ -120,7 +116,7 @@ impl Renderer {
         let window = vk_surface.get_window().unwrap();
         
         let dimensions = window.inner_size();
-        let composite_alpha = capabilities.supported_composite_alpha.iter().next().unwrap();
+        let composite_alpha = capabilities.supported_composite_alpha.into_iter().next().unwrap();
         let image_format = Some(
             vk_physical
                 .surface_formats(&vk_surface, Default::default())
@@ -135,10 +131,7 @@ impl Renderer {
                 min_image_count: capabilities.min_image_count + 1,
                 image_format,
                 image_extent: dimensions.into(),
-                image_usage: ImageUsage {
-                    color_attachment: true,
-                    ..Default::default()
-                },
+                image_usage: ImageUsage::COLOR_ATTACHMENT,
                 composite_alpha,
                 image_color_space: ColorSpace::SrgbNonLinear,
                 present_mode: PresentMode::Immediate,
@@ -185,10 +178,30 @@ impl Renderer {
             },
         ).unwrap();
 
-        let layouts = pipelines.block_quads.layout().set_layouts();
-        let view = UniformBuffer::new(1, layouts[1].clone());
-        let face_lighting = UniformBuffer::new(2, layouts[2].clone());
-        let shader_resources = ShaderResources::new(view, face_lighting);
+        let mut cbb = AutoCommandBufferBuilder::primary(
+            &vk_command_buffer_allocator, 
+            vk_graphics_queue.queue_family_index(), 
+            CommandBufferUsage::OneTimeSubmit,
+        ).unwrap();
+
+        let descriptor_sets = DescriptorSets::new(
+            &vk_memory_allocator,
+            &vk_descriptor_set_allocator,
+            &mut cbb,
+            &pipelines,
+            &texture_atlas,
+            texture_sampler.clone(),
+            attachment_images.clone(),
+            BLOCK_FACE_LIGHTING
+        );
+
+        let future = sync::now(vk_device.clone())
+            .then_execute(vk_graphics_queue.clone(), cbb.build().unwrap())
+            .unwrap()
+            .then_signal_fence_and_flush()
+            .unwrap();
+
+        future.wait(None).unwrap();
 
         let fences = vec![None; vk_swapchain_images.len()];
 
@@ -216,12 +229,8 @@ impl Renderer {
             cam_uniform: None,
             texture_atlas,
             texture_sampler,
-            atlas_descriptor_set: None,
-            atlas_map_descriptor_set: None,
-            vertex_descriptor_set: None,
-            shader_resources,
             attachment_images,
-            attachment_descriptor_set: None,
+            descriptor_sets,
 
             upload_texture_atlas: true,
 
@@ -248,7 +257,7 @@ impl Renderer {
             .filter_map(|p| {
                 let mut graphics = None;
                 for (i, q) in p.queue_family_properties().iter().enumerate() {
-                    if q.queue_flags.graphics && p.surface_support(i as u32, surface).unwrap() {
+                    if q.queue_flags.contains(QueueFlags::GRAPHICS) && p.surface_support(i as u32, surface).unwrap() {
                         graphics = Some(i);
                     }
                 }
@@ -398,28 +407,20 @@ impl Renderer {
         dimensions: PhysicalSize<u32>,
     ) -> Arc<ImageView<AttachmentImage>> {
         let image_fmt = Format::D32_SFLOAT;
+        let usage = ImageUsage::TRANSIENT_ATTACHMENT | ImageUsage::INPUT_ATTACHMENT | ImageUsage::DEPTH_STENCIL_ATTACHMENT;
         let range = ImageSubresourceRange::from_parameters(image_fmt, 1, 1);
+
         ImageView::new(
             AttachmentImage::with_usage(
                 allocator, 
                 dimensions.into(),
                 Format::D32_SFLOAT,
-                ImageUsage {
-                    transient_attachment: true,
-                    input_attachment: true,
-                    depth_stencil_attachment: true,
-                    ..Default::default()
-                }
+                usage,
             ).unwrap(),
             ImageViewCreateInfo {
                 format: Some(image_fmt),
                 subresource_range: range.clone(),
-                usage: ImageUsage {
-                    transient_attachment: true,
-                    input_attachment: true,
-                    depth_stencil_attachment: true,
-                    ..Default::default()
-                },
+                usage,
                 ..Default::default()
             }
         ).unwrap()
@@ -430,28 +431,20 @@ impl Renderer {
         dimensions: PhysicalSize<u32>,
     ) -> Arc<ImageView<AttachmentImage>> {
         let image_fmt = Format::B8G8R8A8_UNORM;
+        let usage = ImageUsage::TRANSIENT_ATTACHMENT | ImageUsage::INPUT_ATTACHMENT | ImageUsage::COLOR_ATTACHMENT;
         let range = ImageSubresourceRange::from_parameters(image_fmt, 1, 1);
+
         ImageView::new(
             AttachmentImage::with_usage(
                 allocator, 
                 dimensions.into(), 
                 image_fmt,
-                ImageUsage {
-                    transient_attachment: true,
-                    input_attachment: true,
-                    color_attachment: true,
-                    ..Default::default()
-                }
+                usage
             ).unwrap(),
             ImageViewCreateInfo {
                 format: Some(image_fmt),
                 subresource_range: range.clone(),
-                usage: ImageUsage {
-                    transient_attachment: true,
-                    input_attachment: true,
-                    color_attachment: true,
-                    ..Default::default()
-                },
+                usage,
                 ..Default::default()
             }
         ).unwrap()
@@ -505,6 +498,8 @@ impl Renderer {
         
         self.vk_swapchain = new_swapchain;
         self.attachment_images = Self::get_intermediate_attachment_images(&self.vk_memory_allocator, dimensions);
+        self.descriptor_sets.attachments.replace(&self.vk_descriptor_set_allocator, self.attachment_images.clone());
+
         self.vk_frame_buffers = Self::get_framebuffers(
             &new_images, 
             self.attachment_images.clone(),
@@ -521,7 +516,6 @@ impl Renderer {
             self.vk_render_pass.clone(),
             self.viewport.clone(),
         );
-        self.attachment_descriptor_set = None;
     }
 
     pub fn upload_chunk(&mut self, pos: IVec2, chunk: &Chunk, block_data: &StaticBlockData) {
@@ -533,7 +527,7 @@ impl Renderer {
         camera: &Camera,
         buffer_type: VertexBufferType,
         builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>
-    ) -> Option<Arc<DeviceLocalBuffer<[DrawIndirectCommand]>>> {
+    ) -> Option<Subbuffer<[DrawIndirectCommand]>> {
         const CHUNK_SIZE: Vec3 = Vec3::new(16.0, 16.0 * 16.0, 16.0);
         let ratio = self.viewport.dimensions[0] / self.viewport.dimensions[1];
         let frustrum = camera.calculate_frustrum(ratio);
@@ -557,15 +551,11 @@ impl Renderer {
             data.push(DrawIndirectCommand::zeroed())
         }
 
-        Some(DeviceLocalBuffer::<[DrawIndirectCommand]>::from_iter(
-            &self.vk_memory_allocator, 
-            data, 
-            BufferUsage {
-                indirect_buffer: true,
-                ..Default::default()
-            }, 
-            builder
-        ).unwrap())
+        Some(super::util::make_device_only_buffer_slice(
+            &self.vk_memory_allocator, builder, 
+            BufferUsage::INDIRECT_BUFFER, 
+            data
+        ))
     }
 
     /// Get a command buffer that will upload `self`'s texture atlas to the GPU when executed.
@@ -583,39 +573,19 @@ impl Renderer {
             &mut builder
         );
 
-        let layout = self.pipelines.block_quads.layout().set_layouts()[0].to_owned();
-        let set = PersistentDescriptorSet::new(
-            &self.vk_descriptor_set_allocator,
-            layout, 
-            [WriteDescriptorSet::image_view_sampler(
-                0, 
-                texture, 
-                self.texture_sampler.clone(),
-            )]
-        ).unwrap();
-        self.atlas_descriptor_set = Some(set);
+        self.descriptor_sets.atlas.replace(
+            &self.vk_descriptor_set_allocator, 
+            (texture, self.texture_sampler.clone())
+        );
 
-        let layout = self.pipelines.block_quads.layout().set_layouts()[4].to_owned();
-        let set = PersistentDescriptorSet::new(
-            &self.vk_descriptor_set_allocator,
-            layout,
-            [WriteDescriptorSet::buffer(
-                0, 
-                DeviceLocalBuffer::from_iter(
-                    &self.vk_memory_allocator, 
-                    self.texture_atlas.uvs.iter().map(|uv| {
-                        uv.to_raw()
-                    }),
-                    BufferUsage {
-                        storage_buffer: true,
-                        uniform_buffer: true,
-                        ..Default::default()
-                    }, 
-                    &mut builder,
-                ).unwrap()
-            )]
-        ).unwrap();
-        self.atlas_map_descriptor_set = Some(set);
+        self.descriptor_sets.atlas_map.replace(
+            &self.vk_descriptor_set_allocator, 
+            super::util::make_device_only_buffer_slice(
+                &self.vk_memory_allocator, &mut builder, 
+                BufferUsage::STORAGE_BUFFER, 
+                self.texture_atlas.uvs.iter().map(|uv| { uv.to_raw() })
+            )
+        );
 
         builder.build().unwrap().into()
     }
@@ -629,94 +599,33 @@ impl Renderer {
         ).unwrap();
 
         let (quad_swapped, deco_swapped) = self.vertex_buffer.update();
-        if quad_swapped { self.vertex_descriptor_set = None; }
-
-        const BLOCK_FACE_LIGHTING: FaceLighting = FaceLighting {
-            positive: [0.6, 1.0, 0.8],
-            negative: [0.6, 0.4, 0.8],
-            _pad1: 0,
-            _pad2: 0,
-        };
-
-        let vertex_desc_set = match &self.vertex_descriptor_set {
-            Some(ds) => ds.to_owned(),
-            None => {
-                let layout = &self.pipelines.block_quads.layout().set_layouts()[3];
-                let vertex_set = PersistentDescriptorSet::new(
-                    &self.vk_descriptor_set_allocator, 
-                    layout.clone(), 
-                    [
-                        WriteDescriptorSet::buffer(0, self.vertex_buffer.block_quad_buffer.get_buffer())
-                    ]
-                ).unwrap();
-                self.vertex_descriptor_set = Some(vertex_set.clone());
-                vertex_set
-            },
-        };
-
-        let attachment_desc_set = match &self.attachment_descriptor_set {
-            Some(ds) => ds.to_owned(),
-            None => {
-                let layout = &self.pipelines.fin.layout().set_layouts()[0];
-                let set = PersistentDescriptorSet::new(
-                    &self.vk_descriptor_set_allocator,
-                    layout.clone(),
-                    [
-                        WriteDescriptorSet::image_view(0, self.attachment_images[0].clone()),
-                        WriteDescriptorSet::image_view(1, self.attachment_images[1].clone()),
-                        WriteDescriptorSet::image_view(2, self.attachment_images[2].clone()),
-                        WriteDescriptorSet::image_view(3, self.attachment_images[3].clone()),
-                    ]
-                ).unwrap();
-                self.attachment_descriptor_set = Some(set.clone());
-                set
-            }
-        };
-
-        builder.bind_descriptor_sets(
-            PipelineBindPoint::Graphics, 
-            self.pipelines.block_quads.layout().to_owned(), 
-            0, 
-            self.atlas_descriptor_set.clone().unwrap(),
-        );
-
-        builder.bind_descriptor_sets(
-            PipelineBindPoint::Graphics, 
-            self.pipelines.block_quads.layout().to_owned(), 
-            3,
-            vec![
-                vertex_desc_set,
-                self.atlas_map_descriptor_set.clone().unwrap(),
-            ],
-        );
+        if quad_swapped {
+            self.descriptor_sets.block_quads.replace(
+                &self.vk_descriptor_set_allocator, 
+                self.vertex_buffer.block_quad_buffer.get_buffer()
+            );
+        }
         
         if let Some(mat) = self.cam_uniform.take() {
             let view = View {
                 camera: mat.into(),
             };
 
-            self.shader_resources.view.update_data(
-                &self.vk_memory_allocator, 
+            self.descriptor_sets.view.replace(
                 &self.vk_descriptor_set_allocator, 
-                &mut builder, 
-                view
+                super::util::make_device_only_buffer_sized(
+                    &self.vk_memory_allocator, &mut builder, 
+                    BufferUsage::STORAGE_BUFFER | BufferUsage::UNIFORM_BUFFER, 
+                    view
+                )
             );
         }
-
-        if let None = self.shader_resources.face_lighting.descriptor_set {
-            self.shader_resources.face_lighting.update_data(
-                &self.vk_memory_allocator, 
-                &self.vk_descriptor_set_allocator, 
-                &mut builder,
-                BLOCK_FACE_LIGHTING,
-            );
-        }
-
-        builder.bind_resources(self.pipelines.block_quads.layout(), &self.shader_resources);
 
         if let None = self.fullscreen_quad {
-            self.fullscreen_quad = Some(DeviceLocalBuffer::from_data(
+            self.fullscreen_quad = Some(super::util::make_device_only_buffer_sized(
                 &self.vk_memory_allocator, 
+                &mut builder,
+                BufferUsage::VERTEX_BUFFER, 
                 [
                     Vertex2D { position: [-1.0, -1.0] },
                     Vertex2D { position: [ 1.0, -1.0] },
@@ -726,12 +635,7 @@ impl Renderer {
                     Vertex2D { position: [ 1.0,  1.0] },
                     Vertex2D { position: [-1.0,  1.0] },
                 ], 
-                BufferUsage {
-                    vertex_buffer: true,
-                    ..Default::default()
-                }, 
-                &mut builder
-            ).unwrap());
+            ));
         }
 
         let deco_indirect = self.get_indirect_commands(camera, VertexBufferType::Decorations, &mut builder).unwrap();
@@ -753,6 +657,7 @@ impl Renderer {
                 SubpassContents::Inline,
             ).unwrap();
 
+        self.descriptor_sets.bind_block(&mut builder, self.pipelines.block_quads.clone());
         
         let deco_buffer = self.vertex_buffer.deco_buffer.get_buffer();
 
@@ -763,28 +668,19 @@ impl Renderer {
 
             // Render decorations
             .next_subpass(SubpassContents::Inline).unwrap()
-            .bind_pipeline_graphics(self.pipelines.decorations.clone())
-            .bind_resources(self.pipelines.decorations.layout(), &self.shader_resources)
-            .bind_descriptor_sets(
-                PipelineBindPoint::Graphics, 
-                self.pipelines.decorations.layout().to_owned(), 
-                0, 
-                self.atlas_descriptor_set.clone().unwrap()
-            )
-            .bind_vertex_buffers(0, deco_buffer.clone())
+            .bind_pipeline_graphics(self.pipelines.decorations.clone());
+
+        self.descriptor_sets.bind_deco(&mut builder, self.pipelines.decorations.clone());
+        builder.bind_vertex_buffers(0, deco_buffer.clone())
             .draw_indirect(deco_indirect)
             .unwrap()
 
             // Final pass, combine passes
             .next_subpass(SubpassContents::Inline).unwrap()
-            .bind_pipeline_graphics(self.pipelines.fin.clone())
-            .bind_descriptor_sets(
-                PipelineBindPoint::Graphics, 
-                self.pipelines.fin.layout().to_owned(), 
-                0, 
-                attachment_desc_set
-            )
-            .bind_vertex_buffers(0, self.fullscreen_quad.clone().unwrap())
+            .bind_pipeline_graphics(self.pipelines.fin.clone());
+
+        self.descriptor_sets.bind_final(&mut builder, self.pipelines.fin.clone());
+        builder.bind_vertex_buffers(0, self.fullscreen_quad.clone().unwrap())
             .draw(6, 1, 0, 0)
             .unwrap();
         
@@ -807,7 +703,7 @@ impl Renderer {
     /// Get the command buffers to be executed on the GPU this frame.
     fn get_command_buffers(&mut self, image_index: usize, camera: &Camera) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
         let mut ret = Vec::new();
-        if self.upload_texture_atlas || self.atlas_descriptor_set.is_none() {
+        if self.upload_texture_atlas {
             self.upload_texture_atlas = false;
             ret.push(self.get_upload_command_buffer());
         }
@@ -885,6 +781,14 @@ pub struct View {
     camera: [[f32; 4]; 4],
 }
 
+impl Default for View {
+    fn default() -> Self {
+        Self { 
+            camera: Mat4::identity().cols.map(|v| { v.as_array().to_owned() })
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Zeroable, Pod)]
 pub struct FaceLighting {
@@ -893,6 +797,13 @@ pub struct FaceLighting {
     negative: [f32; 3],
     _pad2: u32,
 }
+
+const BLOCK_FACE_LIGHTING: FaceLighting = FaceLighting {
+    positive: [0.6, 1.0, 0.8],
+    negative: [0.6, 0.4, 0.8],
+    _pad1: 0,
+    _pad2: 0,
+};
 
 enum VertexBufferType {
     Block,
@@ -915,7 +826,7 @@ struct QueueFamilyIndices {
 }
 
 pub struct Pipelines {
-    block_quads: Arc<GraphicsPipeline>,
-    decorations: Arc<GraphicsPipeline>,
-    fin: Arc<GraphicsPipeline>,
+    pub block_quads: Arc<GraphicsPipeline>,
+    pub decorations: Arc<GraphicsPipeline>,
+    pub fin: Arc<GraphicsPipeline>,
 }

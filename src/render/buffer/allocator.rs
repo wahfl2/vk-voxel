@@ -1,8 +1,9 @@
 use std::{sync::Arc, collections::hash_map::Iter};
 
 use ahash::HashMap;
+use bytemuck::Pod;
 use ultraviolet::IVec2;
-use vulkano::{buffer::{CpuAccessibleBuffer, BufferContents, BufferUsage, DeviceLocalBuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::{DrawIndirectCommand, AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
+use vulkano::{buffer::{BufferContents, BufferUsage, Subbuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::{DrawIndirectCommand, AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
 
 use super::swap_buffer::SwappingBuffer;
 
@@ -13,14 +14,14 @@ where [T]: BufferContents,
     chunk_allocator: ChunkBufferAllocator,
     pub allocations: HashMap<(i32, i32), ChunkBufferAllocation>,
     pub uploaded: Vec<(IVec2, ChunkBufferAllocation)>,
-    pub indirect_buffer: Option<Arc<DeviceLocalBuffer<[DrawIndirectCommand]>>>,
+    pub indirect_buffer: Option<Subbuffer<[DrawIndirectCommand]>>,
     pub vertex_count_multiplier: u32,
     pub highest: usize,
 }
 
 impl<U> HeapBuffer<U> 
 where 
-    U: Copy + Clone,
+    U: Copy + Clone + Send + Sync + Pod,
     [U]: BufferContents,
 {
     const INITIAL_SIZE: usize = 10_000_000;
@@ -81,7 +82,7 @@ where
         self.insert(chunk_pos, data);
     }
 
-    pub fn get_buffer(&self) -> Arc<CpuAccessibleBuffer<[U]>> {
+    pub fn get_buffer(&self) -> Subbuffer<[U]> {
         self.buffer.get_current_buffer()
     }
 

@@ -12,16 +12,8 @@ pub struct ChunkVertexBuffer {
     pub deco_buffer: HeapBuffer<VertexRaw>,
 }
 
-const BQ_BUFFER_USAGE: BufferUsage = BufferUsage {
-    storage_buffer: true,
-    storage_texel_buffer: true,
-    ..BufferUsage::empty()
-};
-
-const DECO_BUFFER_USAGE: BufferUsage = BufferUsage {
-    vertex_buffer: true,
-    ..BufferUsage::empty()
-};
+const BQ_BUFFER_USAGE: BufferUsage = BufferUsage::STORAGE_BUFFER.union(BufferUsage::STORAGE_TEXEL_BUFFER);
+const DECO_BUFFER_USAGE: BufferUsage = BufferUsage::VERTEX_BUFFER;
 
 impl ChunkVertexBuffer {
     pub fn new(device: Arc<Device>) -> Self {

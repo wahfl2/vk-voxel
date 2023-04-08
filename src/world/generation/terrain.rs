@@ -147,53 +147,11 @@ impl TerrainGenerator {
     fn gen_grass_at(&mut self, pos: IVec3) -> bool {
         self.rng.next_u32() & 1 == 0
     }
+}
 
-    // ((height as f32 - pos.y) / 20.0).clamp(-1.0, 1.0)
-    pub fn gen_section(&self, offset: IVec3) -> Section {
-        let mut arr = Array3::from_elem((16, 16, 16), BlockHandle::default());
-        for (i, mut column) in arr.lanes_mut(Axis(1)).into_iter().enumerate() {
-            let xz_off = IVec2::new((i / 16) as i32, (i % 16) as i32);
-            let xz = IVec2::new(offset.x + xz_off.x, offset.z + xz_off.y);
-            let height = self.height_modifier(xz.into());
-            let flatness = self.flatness_modifier(xz.into());
-            for (y_usize, block) in column.iter_mut().enumerate().rev() {
-                let y_off = y_usize as i32;
-                let section_offset = IVec3::new(xz_off.x, y_off, xz_off.y);
-                let pos = Vec3::from(offset + section_offset);
-                let m = self.world_noise.get(pos) as f32 + ((height - pos.y) / (flatness * 10.0)).clamp(-1.0, 1.0);
-
-                let pos = pos + (Vec3::unit_y() * 4.0);
-                let m4 = self.world_noise.get(pos) as f32 + ((height - pos.y) / (flatness * 10.0)).clamp(-1.0, 1.0);
-
-                *block = {
-                    if m >= 1.0 || m4 >= 0.15 {
-                        self.cache[4]
-                    } else if m >= 0.30 {
-                        self.cache[3]
-                    } else if m >= 0.15 {
-                        self.cache[2]
-                    } else if m >= 0.10 {
-                        self.cache[1]
-                    } else {
-                        self.cache[0]
-                    }
-                }
-            }
-        }
-        
-        Section {
-            blocks: arr,
-            ..Section::empty()
-        }
-    }
-
-    fn height_modifier(&self, pos: Vec2) -> f32 {
-        (self.planar_noise.get(pos).powi(2) * 30.0) as f32 + 50.0
-    }
-
-    fn flatness_modifier(&self, pos: Vec2) -> f32 {
-        ((self.overall_height.get(pos) + 1.0) * 0.5) as f32
-    }
+pub struct TerrainChunk {
+    pub height: Array2<u32>,
+    pub blocks: Chunk,
 }
 
 struct ChunkHeightSampler {

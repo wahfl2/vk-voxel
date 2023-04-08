@@ -26,10 +26,10 @@ shaderc = "0.8.1"
 smallvec = "1.10.0"
 turborand = "0.10.0"
 ultraviolet = { version = "0.9.0", features = ["int"] }
-vulkano = "0.32.3"
-vulkano-util = "0.32.0"
-vulkano-win = "0.32.0"
-winit = "0.27.5"
+vulkano = "0.33.0"
+vulkano-util = "0.33.0"
+vulkano-win = "0.33.0"
+winit = "0.28.3"
 
 [profile.release]
 debug = true

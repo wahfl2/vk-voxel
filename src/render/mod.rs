@@ -7,4 +7,4 @@ pub mod buffer;
 pub mod camera;
 pub mod mesh;
 pub mod texture;
-pub mod shader_resources;
+pub mod descriptor_sets;
