@@ -3,7 +3,7 @@ use std::{sync::Arc, collections::hash_map::Iter};
 use ahash::HashMap;
 use bytemuck::Pod;
 use ultraviolet::IVec2;
-use vulkano::{buffer::{BufferContents, BufferUsage, Subbuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::{DrawIndirectCommand, AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
+use vulkano::{buffer::{BufferContents, BufferUsage, Subbuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::DrawIndirectCommand};
 
 use super::swap_buffer::SwappingBuffer;
 
@@ -86,7 +86,7 @@ where
         self.buffer.get_current_buffer()
     }
 
-    pub fn get_ind_commands(&self, multiplier: u32) -> Vec<DrawIndirectCommand> {
+    pub fn get_ind_commands(&self) -> Vec<DrawIndirectCommand> {
         self.allocations.values().map(|alloc| {
             alloc.to_draw_command(self.vertex_count_multiplier)
         }).collect()

@@ -1,6 +1,5 @@
-use std::{f32::consts::PI, time::Instant, hint::black_box};
+use std::f32::consts::PI;
 
-use rand_xoshiro::{Xoshiro128StarStar, rand_core::{SeedableRng, RngCore}};
 use ultraviolet::{Mat4, projection, Isometry3, Vec3, Rotor3};
 use vulkano::pipeline::graphics::viewport::Viewport;
 
@@ -131,7 +130,7 @@ pub struct CalculatedFrustrum {
 impl CalculatedFrustrum {
     pub fn should_render(&self, aabb: Aabb) -> bool {
         let planes = self.planes;
-        for (i, plane) in planes.iter().enumerate() {
+        for plane in planes.iter() {
             let n = plane.normal;
 
             let mut positive = aabb.min;
@@ -153,25 +152,34 @@ impl CalculatedFrustrum {
     }
 }
 
-#[test]
-fn frustrum_speed_test() {
-    let mut rng = Xoshiro128StarStar::seed_from_u64(39847);
-    const NUM_TEST_VALUES: u32 = 500_000;
-    const NORMALIZE: f32 = 5.0 / u64::MAX as f32;
+#[cfg(test)]
+mod test {
+    use std::{time::Instant, hint::black_box};
 
-    let test_values = (0..NUM_TEST_VALUES).into_iter().map(|_| {
-        Vec3::new(rng.next_u64() as f32 * NORMALIZE, rng.next_u64() as f32 * NORMALIZE, rng.next_u64() as f32 * NORMALIZE)
-    }).map(|v| { Aabb::new(v - (5.0 * Vec3::one()), v) }).collect::<Vec<_>>();
+    use rand_xoshiro::{Xoshiro128StarStar, rand_core::{SeedableRng, RngCore}};
 
-    let cam = Camera::default();
-    let ratio = 16.0 / 9.0;
-    let start = Instant::now();
-    let frustrum = cam.calculate_frustrum(ratio);
-    for v in test_values.into_iter() {
-        black_box(frustrum.should_render(v));
+    use super::*;
+
+    #[test]
+    fn frustrum_speed_test() {
+        let mut rng = Xoshiro128StarStar::seed_from_u64(39847);
+        const NUM_TEST_VALUES: u32 = 500_000;
+        const NORMALIZE: f32 = 5.0 / u64::MAX as f32;
+
+        let test_values = (0..NUM_TEST_VALUES).into_iter().map(|_| {
+            Vec3::new(rng.next_u64() as f32 * NORMALIZE, rng.next_u64() as f32 * NORMALIZE, rng.next_u64() as f32 * NORMALIZE)
+        }).map(|v| { Aabb::new(v - (5.0 * Vec3::one()), v) }).collect::<Vec<_>>();
+
+        let cam = Camera::default();
+        let ratio = 16.0 / 9.0;
+        let start = Instant::now();
+        let frustrum = cam.calculate_frustrum(ratio);
+        for v in test_values.into_iter() {
+            black_box(frustrum.should_render(v));
+        }
+        
+        let duration = Instant::now().duration_since(start).as_secs_f64();
+        println!("\n{NUM_TEST_VALUES} frustrum AABB tests done in {}ms", duration * 1_000.0);
+        println!("{}ns per AABB", (duration / NUM_TEST_VALUES as f64) * 1_000_000_000.0);
     }
-    
-    let duration = Instant::now().duration_since(start).as_secs_f64();
-    println!("\n{NUM_TEST_VALUES} frustrum AABB tests done in {}ms", duration * 1_000.0);
-    println!("{}ns per AABB", (duration / NUM_TEST_VALUES as f64) * 1_000_000_000.0);
 }

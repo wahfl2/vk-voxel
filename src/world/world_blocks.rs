@@ -1,9 +1,7 @@
-use std::thread;
-
 use ahash::HashMap;
 use ultraviolet::{IVec2, Vec2};
 
-use crate::{render::renderer::Renderer, util::util::Facing};
+use crate::util::util::Facing;
 
 use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::TerrainGenerator};
 

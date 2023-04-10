@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use vulkano::buffer::Subbuffer;
 
 use crate::render::vertex::VertexRaw;

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bytemuck::Pod;
 use guillotiere::euclid::{Size2D, UnknownUnit, Box2D};
 use ultraviolet::{UVec2, Vec2};
-use vulkano::{swapchain::Surface, image::ImageDimensions, buffer::{Buffer, BufferUsage, Subbuffer, BufferContents, BufferCreateInfo}, memory::allocator::{DeviceLayout, StandardMemoryAllocator, MemoryUsage, AllocationCreateInfo}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, CopyBufferInfoTyped, CopyBufferInfo}};
+use vulkano::{swapchain::Surface, image::ImageDimensions, buffer::{Buffer, BufferUsage, Subbuffer, BufferContents, BufferCreateInfo}, memory::allocator::{StandardMemoryAllocator, MemoryUsage, AllocationCreateInfo}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, CopyBufferInfoTyped, CopyBufferInfo}};
 use winit::window::Window;
 
 use super::mesh::quad::QuadUV;

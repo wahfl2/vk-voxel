@@ -1,9 +1,5 @@
-use std::{ops::{Add, AddAssign}, time::Instant, hint::black_box, f32::consts::PI};
+use std::{ops::{Add, AddAssign}, f32::consts::PI};
 
-use ahash::{HashSet, HashSetExt};
-use hecs::{Query, Entity, Fetch};
-use rand_xoshiro::{Xoshiro128PlusPlus, Xoshiro128StarStar, rand_core::{SeedableRng, RngCore}};
-use turborand::{rng::Rng, GenCore};
 use ultraviolet::{Vec2, Vec3, Rotor3, IVec3, IVec2};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -276,33 +272,44 @@ impl MoreVecOps for Vec3 {
     }
 }
 
-#[test]
-fn set_speed_test() {
-    let mut rng = Xoshiro128StarStar::seed_from_u64(Rng::default().gen_u64());
-    let mut set = HashSet::new();
-    let mut vec = Vec::new();
-    const DATA_POINTS: usize = 50_000;
+#[cfg(test)]
+mod test {
+    use std::{time::Instant, hint::black_box};
 
-    for _ in 0..DATA_POINTS {
-        let random = IVec2::new((rng.next_u32() as i64 + i32::MIN as i64) as i32, (rng.next_u32() as i64 + i32::MIN as i64) as i32);
-        set.insert(random);
-        vec.push(random)
-    }
+    use ahash::{HashSet, HashSetExt};
+    use rand_xoshiro::{Xoshiro128StarStar, rand_core::{SeedableRng, RngCore}};
+    use turborand::{rng::Rng, GenCore};
+
+    use super::*;
+
+    #[test]
+    fn set_speed_test() {
+        let mut rng = Xoshiro128StarStar::seed_from_u64(Rng::default().gen_u64());
+        let mut set = HashSet::new();
+        let mut vec = Vec::new();
+        const DATA_POINTS: usize = 50_000;
     
-    let mut reads = 0;
-    let get = IVec2::new((rng.next_u32() as i64 + i32::MIN as i64) as i32, (rng.next_u32() as i64 + i32::MIN as i64) as i32);
-    let start = Instant::now();
-    while Instant::now().duration_since(start).as_secs_f32() < 1.0 {
-        black_box(set.contains(&get));
-        reads += 1;
+        for _ in 0..DATA_POINTS {
+            let random = IVec2::new((rng.next_u32() as i64 + i32::MIN as i64) as i32, (rng.next_u32() as i64 + i32::MIN as i64) as i32);
+            set.insert(random);
+            vec.push(random)
+        }
+        
+        let mut reads = 0;
+        let get = IVec2::new((rng.next_u32() as i64 + i32::MIN as i64) as i32, (rng.next_u32() as i64 + i32::MIN as i64) as i32);
+        let start = Instant::now();
+        while Instant::now().duration_since(start).as_secs_f32() < 1.0 {
+            black_box(set.contains(&get));
+            reads += 1;
+        }
+        println!("SET: {reads} reads in 1 second, {:.2}ns per read.", 1_000_000_000.0 / reads as f32);
+    
+        let mut reads = 0;
+        let start = Instant::now();
+        while Instant::now().duration_since(start).as_secs_f32() < 1.0 {
+            black_box(vec.contains(&get));
+            reads += 1;
+        }
+        println!("VEC: {reads} reads in 1 second, {:.2}ns per read.", 1_000_000_000.0 / reads as f32);
     }
-    println!("SET: {reads} reads in 1 second, {:.2}ns per read.", 1_000_000_000.0 / reads as f32);
-
-    let mut reads = 0;
-    let start = Instant::now();
-    while Instant::now().duration_since(start).as_secs_f32() < 1.0 {
-        black_box(vec.contains(&get));
-        reads += 1;
-    }
-    println!("VEC: {reads} reads in 1 second, {:.2}ns per read.", 1_000_000_000.0 / reads as f32);
 }

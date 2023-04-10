@@ -1,6 +1,6 @@
-use std::{sync::Arc, ops::Range};
+use std::sync::Arc;
 
-use vulkano::{descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet, WriteDescriptorSetElements, layout::DescriptorSetLayout, allocator::{DescriptorSetAllocator, StandardDescriptorSetAlloc}}, buffer::{Buffer, Subbuffer}, image::{view::ImageView, ImmutableImage, ImageViewAbstract}, sampler::Sampler, DeviceSize, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, CopyBufferInfo}, pipeline::{PipelineBindPoint, PipelineLayout}};
+use vulkano::{descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet, layout::DescriptorSetLayout, allocator::{DescriptorSetAllocator, StandardDescriptorSetAlloc}}, buffer::{Subbuffer}, image::{ImageViewAbstract}, sampler::Sampler, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, CopyBufferInfo}, pipeline::{PipelineBindPoint, PipelineLayout}};
 
 pub struct UploadDescriptorSet<T, A = StandardDescriptorSetAlloc> 
 where 

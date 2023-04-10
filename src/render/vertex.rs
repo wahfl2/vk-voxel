@@ -1,23 +1,24 @@
 use bytemuck::{Zeroable, Pod};
 use ultraviolet::{Vec3, Vec2};
-use vulkano::impl_vertex;
+use vulkano::{pipeline::graphics::vertex_input::Vertex as VertDerive};
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone, Zeroable, Pod)]
+#[derive(Debug, Default, Copy, Clone, Zeroable, Pod, VertDerive)]
 pub struct VertexRaw {
+    #[format(R32G32B32_SFLOAT)]
     pub position: [f32; 3],
+    #[format(R32G32B32_SFLOAT)]
     pub normal: [f32; 3],
+    #[format(R32G32_SFLOAT)]
     pub tex_coord: [f32; 2],
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone, Zeroable, Pod)]
+#[derive(Debug, Default, Copy, Clone, Zeroable, Pod, VertDerive)]
 pub struct Vertex2D {
+    #[format(R32G32_SFLOAT)]
     pub position: [f32; 2],
 }
-
-impl_vertex!(VertexRaw, position, normal, tex_coord);
-impl_vertex!(Vertex2D, position);
 
 #[derive(Debug, Clone)]
 pub struct Vertex {

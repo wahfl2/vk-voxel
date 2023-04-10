@@ -1,8 +1,8 @@
 use std::array;
 use std::num::NonZeroUsize;
 
-use ndarray::{arr1, arr2};
-use ndarray::{Array3, Axis, Array2};
+use ndarray::{arr1};
+use ndarray::{Axis, Array2};
 use rand_xoshiro::Xoshiro128StarStar;
 use rand_xoshiro::rand_core::{SeedableRng, RngCore};
 use turborand::TurboRand;
@@ -220,11 +220,18 @@ impl ChunkHeightSampler {
     }
 }
 
-#[test]
-fn height_sampler_test() {
-    let sampler = ChunkHeightSampler {
-        height_data: arr2(&[[0.0, 0.0], [1.0, 1.0]])
-    };
+#[cfg(test)]
+mod test {
+    use ndarray::arr2;
 
-    assert_eq!(sampler.sample(Vec2::new(8.0, 4.9743)), 0.5);
+    use super::*;
+
+    #[test]
+    fn height_sampler_test() {
+        let sampler = ChunkHeightSampler {
+            height_data: arr2(&[[0.0, 0.0], [1.0, 1.0]])
+        };
+
+        assert_eq!(sampler.sample(Vec2::new(8.0, 4.9743)), 0.5);
+    }
 }

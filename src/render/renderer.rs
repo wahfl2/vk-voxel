@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
 use ultraviolet::{Mat4, IVec2, Vec3};
-use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features, QueueFlags}, image::{view::{ImageView, ImageViewCreateInfo}, ImageUsage, SwapchainImage, AttachmentImage, ImageSubresourceRange}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState, vertex_input::{BuffersDefinition, Vertex}, color_blend::ColorBlendState}, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, future::FenceSignalFuture}, buffer::{BufferUsage, Subbuffer}, descriptor_set::allocator::StandardDescriptorSetAllocator, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
+use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features, QueueFlags}, image::{view::{ImageView, ImageViewCreateInfo}, ImageUsage, SwapchainImage, AttachmentImage, ImageSubresourceRange}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState, vertex_input::Vertex, color_blend::ColorBlendState}, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, future::FenceSignalFuture}, buffer::{BufferUsage, Subbuffer}, descriptor_set::allocator::StandardDescriptorSetAllocator, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::{WindowBuilder, CursorGrabMode}, dpi::PhysicalSize};
 
@@ -598,7 +598,7 @@ impl Renderer {
             CommandBufferUsage::OneTimeSubmit,
         ).unwrap();
 
-        let (quad_swapped, deco_swapped) = self.vertex_buffer.update();
+        let (quad_swapped, _deco_swapped) = self.vertex_buffer.update();
         if quad_swapped {
             self.descriptor_sets.block_quads.replace(
                 &self.vk_descriptor_set_allocator, 

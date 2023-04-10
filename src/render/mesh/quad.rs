@@ -1,7 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use ultraviolet::{Vec3, Vec2};
 
-use crate::{util::util::{Sign, Facing}, render::{texture::{TextureAtlas, TextureHandle}}};
+use crate::{util::util::{Sign, Facing}, render::texture::TextureHandle};
 
 // Unused
 pub struct RawQuad {
