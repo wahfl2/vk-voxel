@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use vulkano::{image::{view::ImageView, ImmutableImage, AttachmentImage}, sampler::Sampler, buffer::{Subbuffer, Buffer, BufferCreateInfo, BufferUsage}, descriptor_set::allocator::StandardDescriptorSetAllocator, pipeline::{Pipeline, PipelineBindPoint, GraphicsPipeline}, memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryUsage}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
 
-use super::{buffer::upload::{UploadDescriptorSet, UploadDescriptorSetArray}, mesh::quad::BlockQuad, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::CreateInfoConvenience};
-
+use super::{buffer::upload::UploadDescriptorSet, mesh::quad::BlockQuad, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::CreateInfoConvenience};
 
 pub type ImageViewSampler = (Arc<ImageView<ImmutableImage>>, Arc<Sampler>);
 
@@ -12,7 +11,7 @@ pub struct DescriptorSets {
     pub atlas_map: UploadDescriptorSet<Subbuffer<[[f32; 4]]>>,
 
     pub block_quads: UploadDescriptorSet<Subbuffer<[BlockQuad]>>,
-    pub attachments: UploadDescriptorSetArray<Arc<ImageView<AttachmentImage>>, 4>,
+    pub attachments: UploadDescriptorSet<[Arc<ImageView<AttachmentImage>>; 4]>,
 
     pub view: UploadDescriptorSet<Subbuffer<View>>,
     pub face_lighting: UploadDescriptorSet<Subbuffer<FaceLighting>>,
@@ -62,7 +61,7 @@ impl DescriptorSets {
             ).unwrap()
         );
 
-        let attachments = UploadDescriptorSetArray::new(
+        let attachments = UploadDescriptorSet::new(
             descriptor_set_allocator, 
             final_layouts[0].clone(), 
             0, 

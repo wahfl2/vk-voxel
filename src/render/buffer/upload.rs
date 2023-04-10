@@ -21,7 +21,7 @@ where
         Al: DescriptorSetAllocator<Alloc = A> + ?Sized,
     {
         Self {
-            set: PersistentDescriptorSet::new(allocator, layout.clone(), [data.write(binding)]).unwrap(),
+            set: PersistentDescriptorSet::new(allocator, layout.clone(), data.write(binding)).unwrap(),
             layout,
             binding,
             data,
@@ -35,7 +35,7 @@ where
         self.set = PersistentDescriptorSet::new(
             allocator, 
             self.layout.clone(), 
-            [new_data.write(self.binding)]
+            new_data.write(self.binding)
         ).unwrap();
 
         self.data = new_data;
@@ -49,81 +49,44 @@ impl<U, A> UploadDescriptorSet<Subbuffer<U>, A>
     }
 }
 
-// Separate type that does basically the same thing sad emoji
-pub struct UploadDescriptorSetArray<T, const N: usize, A = StandardDescriptorSetAlloc> 
-where 
-    T: DescriptorUploadable 
-{
-    pub set: Arc<PersistentDescriptorSet<A>>,
-    pub layout: Arc<DescriptorSetLayout>,
-    pub first_binding: u32,
-    pub data: [T; N],
-}
-
-impl<T, const N: usize, A> UploadDescriptorSetArray<T, N, A>
-where
-    T: DescriptorUploadable + Clone
-{
-    pub fn new<Al>(allocator: &Al, layout: Arc<DescriptorSetLayout>, first_binding: u32, data: [T; N]) -> Self
-    where 
-        Al: DescriptorSetAllocator<Alloc = A> + ?Sized,
-    {
-        Self {
-            set: PersistentDescriptorSet::new(
-                allocator, 
-                layout.clone(), 
-                data.clone().into_iter().enumerate().map(|(i, d)| {
-                    d.write(first_binding + i as u32)
-                })
-            ).unwrap(),
-            layout,
-            first_binding,
-            data,
-        }
-    }
-
-    pub fn replace<Al>(&mut self, allocator: &Al, new_data: [T; N])
-    where 
-        Al: DescriptorSetAllocator<Alloc = A> + ?Sized,
-    {
-        self.set = PersistentDescriptorSet::new(
-            allocator, 
-            self.layout.clone(), 
-            new_data.clone().into_iter().enumerate().map(|(i, d)| {
-                d.write(self.first_binding + i as u32)
-            })
-        ).unwrap();
-
-        self.data = new_data;
-    }
-}
-
 pub trait DescriptorUploadable {
-    fn write(&self, binding: u32) -> WriteDescriptorSet;
+    fn write(&self, binding: u32) -> Vec<WriteDescriptorSet>;
 }
 
 impl<T> DescriptorUploadable for Subbuffer<T>
 where 
     T: ?Sized
 {
-    fn write(&self, binding: u32) -> WriteDescriptorSet {
-        WriteDescriptorSet::buffer(binding, self.clone())
+    fn write(&self, binding: u32) -> Vec<WriteDescriptorSet> {
+        vec![WriteDescriptorSet::buffer(binding, self.clone())]
     }
 }
 
 impl<I> DescriptorUploadable for (Arc<I>, Arc<Sampler>)
 where I: ImageViewAbstract + 'static
 {
-    fn write(&self, binding: u32) -> WriteDescriptorSet {
+    fn write(&self, binding: u32) -> Vec<WriteDescriptorSet> {
         let (image_view, sampler) = self.clone();
-        WriteDescriptorSet::image_view_sampler(binding, image_view, sampler)
+        vec![WriteDescriptorSet::image_view_sampler(binding, image_view, sampler)]
     }
 }
 
 impl<I: ImageViewAbstract + 'static> DescriptorUploadable for Arc<I>
 {
-    fn write(&self, binding: u32) -> WriteDescriptorSet {
-        WriteDescriptorSet::image_view(binding, self.clone())
+    fn write(&self, binding: u32) -> Vec<WriteDescriptorSet> {
+        vec![WriteDescriptorSet::image_view(binding, self.clone())]
+    }
+}
+
+impl<D, const N: usize> DescriptorUploadable for [D; N]
+where D: DescriptorUploadable
+{
+    fn write(&self, binding: u32) -> Vec<WriteDescriptorSet> {
+        let mut ret = Vec::new();
+        for (i, w) in self.iter().enumerate() {
+            ret.append(&mut w.write(binding + i as u32))
+        }
+        ret
     }
 }
 
@@ -132,15 +95,6 @@ pub trait UploadSet {
 }
 
 impl<T> UploadSet for UploadDescriptorSet<T>
-where 
-    T: DescriptorUploadable
-{
-    fn descriptor_set(&self) -> Arc<PersistentDescriptorSet> {
-        self.set.clone()
-    }
-}
-
-impl<T, const N: usize> UploadSet for UploadDescriptorSetArray<T, N>
 where 
     T: DescriptorUploadable
 {
