@@ -1,9 +1,9 @@
 #![feature(array_zip)]
 #![feature(slice_as_chunks)]
 #![feature(slice_flatten)]
-#![feature(iter_collect_into)]
 #![feature(portable_simd)]
 #![feature(associated_const_equality)]
+#![feature(fn_traits)]
 
 use std::time::{Instant, Duration};
 

@@ -68,6 +68,11 @@ impl TerrainGenerator {
             4
         );
 
+        let mut chunk = self.chunk_from_height(height_sampler, chunk_pos);
+        chunk.blocks
+    }
+
+    fn chunk_from_height(&mut self, height_sampler: ChunkHeightSampler, chunk_pos: IVec2) -> TerrainChunk {
         let off = Vec2::new(0.5, 0.5);
         let mut lowest = 999;
         let mut highest = 0;
@@ -96,9 +101,12 @@ impl TerrainGenerator {
             }            
         }));
 
-        Chunk {
-            pos: chunk_pos,
-            sections,
+        TerrainChunk {
+            height: height_array,
+            blocks: Chunk {
+                pos: chunk_pos,
+                sections,
+            }
         }
     }
 
