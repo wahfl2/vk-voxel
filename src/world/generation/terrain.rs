@@ -1,24 +1,32 @@
 use std::array;
 use std::num::NonZeroUsize;
 
-use ndarray::{arr1};
+use ndarray::{arr1, s};
 use ndarray::{Axis, Array2};
+use noise::{SuperSimplex, NoiseFn};
 use rand_xoshiro::Xoshiro128StarStar;
 use rand_xoshiro::rand_core::{SeedableRng, RngCore};
 use turborand::TurboRand;
 use turborand::rng::Rng;
-use ultraviolet::{IVec2, Vec2, Vec3, IVec3};
+use ultraviolet::{IVec2, Vec2, Vec3, IVec3, UVec2, DVec3, UVec3};
 
+use crate::util::more_vec::UsizeVec3;
+use crate::util::util::{MoreCmp, VecRounding, UVecToSigned};
+use crate::world::block_data::Blocks;
 use crate::world::chunk::Chunk;
 use crate::world::{block_data::{StaticBlockData, BlockHandle}, section::Section};
 
 use super::noise::{ScaleNoise2D, ScaleNoise3D};
+use super::transformer::TerrainTransformer;
+
+const CAVE_SAMPLES: usize = 100;
 
 pub struct TerrainGenerator {
     pub planar_noise: ScaleNoise2D,
     pub world_noise: ScaleNoise3D,
     pub overall_height: ScaleNoise2D,
     pub seed: u32,
+    cave_transformer: TerrainTransformer<[Vec3; CAVE_SAMPLES]>,
     rng: Xoshiro128StarStar,
     cache: [BlockHandle; 5]
 }
@@ -52,7 +60,103 @@ impl TerrainGenerator {
             block_data.get_handle("stone").unwrap(),
         ];
 
-        Self { planar_noise, world_noise, overall_height, rng, seed, cache }
+        Self {
+            planar_noise, 
+            world_noise, 
+            overall_height, 
+            seed,
+            cave_transformer: Self::cave_transformer(),
+            rng, cache
+        }
+    }
+
+    fn cave_transformer() -> TerrainTransformer<[Vec3; CAVE_SAMPLES]> {
+        TerrainTransformer::new(
+            UVec2::new(20, 20),
+            UVec2::new(20, 20),
+            |offset, size| {
+                const NUMS: [i64; 4] = [
+                    1641017301357189737,
+                    1879853796394333093,
+                    1474238158419017591,
+                    1876115753880194887,
+                ];
+
+                let seed_i = ((offset.x as i64).overflowing_mul(NUMS[0]).0.overflowing_add(NUMS[1]).0).overflowing_mul(
+                    (offset.y as i64).overflowing_mul(NUMS[2]).0.overflowing_add(NUMS[3]).0
+                ).0;
+
+                let seed: u64 = unsafe { std::mem::transmute(seed_i) };
+
+                let mut rng = Xoshiro128StarStar::seed_from_u64(seed);
+                let noise = SuperSimplex::new(rng.next_u32());
+                let filler = DVec3::new(
+                    6540960043.0,
+                    6348425471.0,
+                    9810259013.0,
+                );
+
+                let length = DVec3::one() * 25.0;
+                let step = length / CAVE_SAMPLES as f64;
+                const MULTIPLIER: f32 = 20.0;
+
+                let middle = Vec2::from(size) * 8.0;
+                let mut worm_pos = Vec3::new(middle.x, 20.0, middle.y);
+
+                array::from_fn::<Vec3, CAVE_SAMPLES, _>(|i| {
+                    let d = i as f64 * step;
+                    let movement = Vec3::new(
+                        MULTIPLIER * noise.get([d.x, filler.y, filler.z]) as f32,
+                        MULTIPLIER * noise.get([filler.x, d.y, filler.z]) as f32,
+                        MULTIPLIER * noise.get([filler.x, filler.y, d.z]) as f32,
+                    );
+                    worm_pos += movement;
+                    worm_pos
+                })
+            },
+            |chunk, offset, size, data| {
+                const CAVE_RADIUS: i32 = 5;
+                let relative_pos = (chunk.blocks.pos - offset) * 16;
+
+                let min = relative_pos;
+                let max = relative_pos + (IVec2::one() * 16);
+
+                let min_chunk = Vec3::new(min.x as f32, 0.0, min.y as f32);
+                let max_chunk = Vec3::new(max.x as f32, 256.0, max.y as f32);
+
+                for carve in data.iter() {
+                    let min_carve = (*carve - Vec3::one() * (CAVE_RADIUS as f32 + 1.0)).clamped(Vec3::zero(), Vec3::one() * 256.0).round();
+                    let max_carve = (*carve + Vec3::one() * (CAVE_RADIUS as f32 + 1.0)).clamped(Vec3::zero(), Vec3::one() * 256.0).round();
+
+                    if min_carve.any_greater_than(&max_chunk) || max_carve.any_less_than(&min_chunk) {
+                        continue;
+                    }
+
+                    let min_section = (min_carve.y / 16.0).floor() as u32;
+                    let max_section = (max_carve.y / 16.0).floor() as u32;
+
+                    for i in min_section..=max_section {
+                        let section = chunk.blocks.sections.get_mut(i as usize).unwrap();
+
+                        let y_off = (i * 16) as f32;
+                        let mn = min_carve - Vec3::new(min_chunk.x, y_off, min_chunk.z);
+                        let mx = max_carve - Vec3::new(min_chunk.x, y_off, min_chunk.z);
+
+                        let min_section = UVec3::new(mn.x as u32, mn.y as u32, mn.z as u32).clamped(UVec3::zero(), UVec3::one() * 16);
+                        let max_section = UVec3::new(mx.x as u32, mx.y as u32, mx.z as u32).clamped(UVec3::zero(), UVec3::one() * 16);
+
+                        let min_idx = UsizeVec3::from(min_section);
+                        let max_idx = UsizeVec3::from(max_section);
+
+                        section.blocks.slice_mut(s![
+                            min_idx.x..max_idx.x, 
+                            min_idx.y..max_idx.y, 
+                            min_idx.z..max_idx.z
+                        ]).fill(Blocks::Air.handle());
+                    }
+                }
+            }
+        )
     }
 
     pub fn new_random(block_data: &StaticBlockData) -> Self {
@@ -69,6 +173,7 @@ impl TerrainGenerator {
         );
 
         let mut chunk = self.chunk_from_height(height_sampler, chunk_pos);
+        self.cave_transformer.apply(&mut chunk);
         chunk.blocks
     }
 
