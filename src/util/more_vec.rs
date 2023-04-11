@@ -1,6 +1,6 @@
 use std::ops::{Index, IndexMut, Mul};
 
-use ultraviolet::{Vec3, Vec2};
+use ultraviolet::{Vec3, Vec2, UVec3};
 
 #[derive(Copy, Clone, Debug)]
 pub struct UsizeVec3 {
@@ -88,5 +88,11 @@ impl Mul<usize> for UsizeVec2 {
 impl From<(usize, usize)> for UsizeVec2 {
     fn from(value: (usize, usize)) -> Self {
         Self::new(value.0, value.1)
+    }
+}
+
+impl From<UVec3> for UsizeVec3 {
+    fn from(value: UVec3) -> Self {
+        Self::new(value.x as usize, value.y as usize, value.z as usize)
     }
 }

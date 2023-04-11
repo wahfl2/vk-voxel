@@ -1,6 +1,6 @@
 use std::{ops::{Add, AddAssign}, f32::consts::PI};
 
-use ultraviolet::{Vec2, Vec3, Rotor3, IVec3, IVec2};
+use ultraviolet::{Vec2, Vec3, Rotor3, IVec3, IVec2, UVec3, UVec2};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Axis {
@@ -179,6 +179,8 @@ impl AdditionalSwizzles for IVec3 {
 pub trait MoreCmp {
     fn all_greater_than(&self, rhs: &Self) -> bool;
     fn all_less_than(&self, rhs: &Self) -> bool;
+    fn any_greater_than(&self, rhs: &Self) -> bool;
+    fn any_less_than(&self, rhs: &Self) -> bool;
 }
 
 impl MoreCmp for Vec3 {
@@ -188,6 +190,14 @@ impl MoreCmp for Vec3 {
 
     fn all_less_than(&self, rhs: &Self) -> bool {
         self.x < rhs.x && self.y < rhs.y && self.z < rhs.z
+    }
+
+    fn any_greater_than(&self, rhs: &Self) -> bool {
+        self.x > rhs.x || self.y > rhs.y || self.z > rhs.z
+    }
+
+    fn any_less_than(&self, rhs: &Self) -> bool {
+        self.x < rhs.x || self.y < rhs.y || self.z < rhs.z
     }
 }
 
@@ -269,6 +279,28 @@ impl MoreVecOps for Vec3 {
 
     fn powi(self, n: i32) -> Self {
         Self::new(self.x.powi(n), self.y.powi(n), self.z.powi(n))
+    }
+}
+
+pub trait UVecToSigned {
+    type IVec;
+
+    fn signed(self) -> Self::IVec;
+}
+
+impl UVecToSigned for UVec3 {
+    type IVec = IVec3;
+
+    fn signed(self) -> Self::IVec {
+        IVec3::new(self.x as i32, self.y as i32, self.z as i32)
+    }
+}
+
+impl UVecToSigned for UVec2 {
+    type IVec = IVec2;
+
+    fn signed(self) -> Self::IVec {
+        IVec2::new(self.x as i32, self.y as i32)
     }
 }
 
