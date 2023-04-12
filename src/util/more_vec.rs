@@ -1,4 +1,4 @@
-use std::ops::{Index, IndexMut, Mul};
+use std::ops::{Index, IndexMut, Mul, Add};
 
 use ultraviolet::{Vec3, Vec2, UVec3};
 
@@ -38,6 +38,14 @@ impl Mul<usize> for UsizeVec3 {
 
     fn mul(self, rhs: usize) -> Self::Output {
         (self.x * rhs, self.y * rhs, self.z * rhs).into()
+    }
+}
+
+impl Add<UsizeVec3> for UsizeVec3 {
+    type Output = Self;
+
+    fn add(self, rhs: UsizeVec3) -> Self::Output {
+        Self::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
     }
 }
 

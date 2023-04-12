@@ -176,6 +176,28 @@ impl AdditionalSwizzles for IVec3 {
     }
 }
 
+pub trait MoreVecConstructors {
+    type Inner;
+
+    fn splat(x: Self::Inner) -> Self;
+}
+
+impl MoreVecConstructors for Vec3 {
+    type Inner = f32;
+
+    fn splat(x: f32) -> Self {
+        Vec3::new(x, x, x)
+    }
+}
+
+impl MoreVecConstructors for Vec2 {
+    type Inner = f32;
+
+    fn splat(x: f32) -> Self {
+        Vec2::new(x, x)
+    }
+}
+
 pub trait MoreCmp {
     fn all_greater_than(&self, rhs: &Self) -> bool;
     fn all_less_than(&self, rhs: &Self) -> bool;
@@ -201,6 +223,24 @@ impl MoreCmp for Vec3 {
     }
 }
 
+impl MoreCmp for Vec2 {
+    fn all_greater_than(&self, rhs: &Self) -> bool {
+        self.x > rhs.x && self.y > rhs.y
+    }
+
+    fn all_less_than(&self, rhs: &Self) -> bool {
+        self.x < rhs.x && self.y < rhs.y
+    }
+
+    fn any_greater_than(&self, rhs: &Self) -> bool {
+        self.x > rhs.x || self.y > rhs.y
+    }
+
+    fn any_less_than(&self, rhs: &Self) -> bool {
+        self.x < rhs.x || self.y < rhs.y
+    }
+}
+
 pub trait VecRounding {
     fn round(self) -> Self;
     fn floor(self) -> Self;
@@ -221,13 +261,39 @@ impl VecRounding for Vec3 {
     }
 }
 
-pub trait Vec3Trunc {
-    fn into_i(self) -> IVec3;
+impl VecRounding for Vec2 {
+    fn round(self) -> Self {
+        Self::new(self.x.round(), self.y.round())
+    }
+
+    fn floor(self) -> Self {
+        Self::new(self.x.floor(), self.y.floor())
+    }
+
+    fn ceil(self) -> Self {
+        Self::new(self.x.ceil(), self.y.ceil())
+    }
 }
 
-impl Vec3Trunc for Vec3 {
-    fn into_i(self) -> IVec3 {
+pub trait VecTrunc {
+    type IVec;
+
+    fn into_i(self) -> Self::IVec;
+}
+
+impl VecTrunc for Vec3 {
+    type IVec = IVec3;
+
+    fn into_i(self) -> Self::IVec {
         IVec3::new(self.x as i32, self.y as i32, self.z as i32)
+    }
+}
+
+impl VecTrunc for Vec2 {
+    type IVec = IVec2;
+
+    fn into_i(self) -> Self::IVec {
+        IVec2::new(self.x as i32, self.y as i32)
     }
 }
 
