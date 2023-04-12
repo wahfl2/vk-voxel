@@ -29,3 +29,5 @@ pub struct Hitbox {
 }
 
 pub struct PhysicsEntity;
+
+pub struct Gravity;

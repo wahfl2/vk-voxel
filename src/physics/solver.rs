@@ -1,8 +1,8 @@
 use hecs::World;
 use ndarray::{Array3, Axis, s};
-use ultraviolet::{Vec3, IVec2, IVec3};
+use ultraviolet::{Vec3, IVec2, IVec3, Vec2};
 
-use crate::{util::{more_vec::UsizeVec3, util::{MoreCmp, VecRounding, VecAxisIndex, Vec3Trunc, MoreVecOps}}, server::components::{PhysicsEntity, Translation, Velocity, Hitbox}, world::{world_blocks::WorldBlocks, block_data::{StaticBlockData, BlockType}}};
+use crate::{util::{more_vec::UsizeVec3, util::{MoreCmp, VecRounding, VecAxisIndex, MoreVecOps, VecTrunc}}, server::components::{PhysicsEntity, Translation, Velocity, Hitbox, Gravity}, world::{world_blocks::WorldBlocks, block_data::{StaticBlockData, BlockType}}};
 
 pub struct PhysicsSolver {
     pub sub_steps: u32,
@@ -84,16 +84,21 @@ impl PhysicsSolver {
     }
 
     fn sub_step(&mut self, world: &mut World, time_multiplier: f32, blocks: &WorldBlocks, block_data: &StaticBlockData) {
+        let q = world.query_mut::<(&PhysicsEntity, Option<&Gravity>, &mut Translation, &mut Velocity, &Hitbox)>();
 
-        let q = world.query_mut::<(&PhysicsEntity, &mut Translation, &mut Velocity, &Hitbox)>();
+        for (_, (_, gravity, pos, velocity, hitbox)) in q.into_iter() {
+            let gravity_multiplier = match gravity {
+                Some(_) => 1.0,
+                None => 0.0,
+            };
 
-        for (_, (_, pos, velocity, hitbox)) in q.into_iter() {
-            **velocity += Vec3::new(0.0, self.gravity * time_multiplier.sqrt(), 0.0);
+            **velocity += Vec3::new(0.0, self.gravity * time_multiplier.sqrt() * gravity_multiplier, 0.0);
 
-            const DAMPING: Vec3 = Vec3::new(0.9, 0.1, 0.9);
-            **velocity *= (Vec3::one() - DAMPING).powf(time_multiplier);
+            const XZ_DAMPING: Vec2 = Vec2::new(0.9, 0.9);
+            let damping = Vec3::new(XZ_DAMPING.x, 0.9 - (gravity_multiplier * 0.8), XZ_DAMPING.y);
+            **velocity *= (Vec3::one() - damping).powf(time_multiplier);
 
-            if blocks.loaded_chunks.is_empty() {
+            if true { // blocks.loaded_chunks.is_empty()
                 **pos += **velocity * time_multiplier
             } else {
                 let real_pos = **pos;
