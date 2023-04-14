@@ -98,7 +98,7 @@ impl PhysicsSolver {
             let damping = Vec3::new(XZ_DAMPING.x, 0.9 - (gravity_multiplier * 0.8), XZ_DAMPING.y);
             **velocity *= (Vec3::one() - damping).powf(time_multiplier);
 
-            if true { // blocks.loaded_chunks.is_empty()
+            if blocks.loaded_chunks.is_empty() {
                 **pos += **velocity * time_multiplier
             } else {
                 let real_pos = **pos;

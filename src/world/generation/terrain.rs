@@ -19,14 +19,14 @@ use crate::world::{block_data::{StaticBlockData, BlockHandle}, section::Section}
 use super::noise::{ScaleNoise2D, ScaleNoise3D};
 use super::transformer::TerrainTransformer;
 
-const CAVE_SAMPLES: usize = 500;
+const CAVE_RADIUS: f32 = 4.0;
 
 pub struct TerrainGenerator {
     pub planar_noise: ScaleNoise2D,
     pub world_noise: ScaleNoise3D,
     pub overall_height: ScaleNoise2D,
     pub seed: u32,
-    cave_transformer: TerrainTransformer<[Vec3; CAVE_SAMPLES]>,
+    cave_transformer: TerrainTransformer<Vec<Vec3>>,
     rng: Xoshiro128StarStar,
     cache: [BlockHandle; 5]
 }
@@ -70,7 +70,7 @@ impl TerrainGenerator {
         }
     }
 
-    fn cave_transformer(seed: u32) -> TerrainTransformer<[Vec3; CAVE_SAMPLES]> {
+    fn cave_transformer(seed: u32) -> TerrainTransformer<Vec<Vec3>> {
         TerrainTransformer::new(
             UVec2::new(20, 20),
             UVec2::new(7, 7),
@@ -91,10 +91,16 @@ impl TerrainGenerator {
                 const MULTIPLIER: Vec3 = Vec3::new(1.0, 0.5, 1.0);
                 const MOVE_LENGTH: f32 = 4.0;
 
+                const CAVE_SAMPLES: usize = 500;
+
                 let middle = Vec2::from(size) * 8.0;
                 let mut worm_pos = Vec3::new(middle.x, 20.0, middle.y);
 
-                array::from_fn::<Vec3, CAVE_SAMPLES, _>(|i| {
+                let min_accept = Vec2::splat(CAVE_RADIUS);
+                let max_accept = Vec2::from(size * 16) - min_accept;
+
+                let mut ret = Vec::new();
+                for i in 0..CAVE_SAMPLES {
                     let d = i as f64 * step;
                     let movement = MOVE_LENGTH * (MULTIPLIER * Vec3::new(
                         noise.get([d.x, filler.y, filler.z]) as f32,
@@ -103,16 +109,16 @@ impl TerrainGenerator {
                     )).normalized();
 
                     worm_pos += movement;
-                    worm_pos
-                })
+                    if worm_pos.xz().all_greater_than(&min_accept) && worm_pos.xz().all_less_than(&max_accept) {
+                        ret.push(worm_pos);
+                    }
+                }
+
+                ret
             },
             |chunk, offset, size, data| {
-                const CAVE_RADIUS: f32 = 4.0;
                 const RAD_SQ: f32 = CAVE_RADIUS * CAVE_RADIUS;
                 let relative_pos = (chunk.blocks.pos - offset) * 16;
-
-                let min_accept = Vec2::splat(CAVE_RADIUS);
-                let max_accept = Vec2::from(size * 16) - Vec2::splat(CAVE_RADIUS);
 
                 let min = relative_pos;
                 let max = relative_pos + (IVec2::one() * 16);
@@ -121,10 +127,6 @@ impl TerrainGenerator {
                 let max_chunk = Vec3::new(max.x as f32, 256.0, max.y as f32);
 
                 for carve in data.iter() {
-                    if !(carve.xz().all_greater_than(&min_accept) && carve.xz().all_less_than(&max_accept)) {
-                        continue;
-                    }
-
                     let min_carve = (*carve - Vec3::one() * (CAVE_RADIUS + 1.0)).clamped(Vec3::zero(), Vec3::one() * 256.0).round();
                     let max_carve = (*carve + Vec3::one() * (CAVE_RADIUS + 1.0)).clamped(Vec3::zero(), Vec3::one() * 256.0).round();
 

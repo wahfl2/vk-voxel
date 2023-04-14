@@ -64,7 +64,7 @@ impl Server {
         let binding = self.world.query_mut::<(&Player, Option<&Gravity>, &mut Velocity)>();
         let (_, (_, gravity, vel)) = binding.into_iter().next().unwrap();
 
-        const MOVEMENT_SPEED: f32 = 1.0;
+        const MOVEMENT_SPEED: f32 = 0.5;
 
         // represents movement on the xz plane
         let mut movement = Vec2::zero();
@@ -89,14 +89,14 @@ impl Server {
         // incredible input handling i know
         if input_handler.is_pressed(VirtualKeyCode::Space) {
             if gravity.is_none() {
-                vel.y += 1.0;
+                vel.y += MOVEMENT_SPEED;
             } else {
                 vel.y = 6.0;
             }
         }
 
         if gravity.is_none() && input_handler.is_pressed(VirtualKeyCode::LShift) {
-            vel.y -= 1.0;
+            vel.y -= MOVEMENT_SPEED;
         }
 
         **vel += Vec3::new(movement.x, 0.0, movement.y);
