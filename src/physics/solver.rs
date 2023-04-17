@@ -2,7 +2,7 @@ use hecs::World;
 use ndarray::{Array3, Axis, s};
 use ultraviolet::{Vec3, IVec2, IVec3, Vec2};
 
-use crate::{util::{more_vec::UsizeVec3, util::{MoreCmp, VecRounding, VecAxisIndex, MoreVecOps, VecTrunc}}, server::components::{PhysicsEntity, Translation, Velocity, Hitbox, Gravity}, world::{world_blocks::WorldBlocks, block_data::{StaticBlockData, BlockType}}};
+use crate::{util::{more_vec::UsizeVec3, util::{MoreCmp, VecRounding, VecAxisIndex, MoreVecOps, VecTrunc, AdditionalSwizzles}}, server::components::{PhysicsEntity, Translation, Velocity, Hitbox, Gravity}, world::{world_blocks::WorldBlocks, block_data::{StaticBlockData, BlockType}, section::{F_SECTION_SIZE, I_SECTION_SIZE, SECTION_SIZE}, chunk::CHUNK_HEIGHT}};
 
 pub struct PhysicsSolver {
     pub sub_steps: u32,
@@ -116,23 +116,24 @@ impl PhysicsSolver {
                     0
                 );
 
-                const SIXTEENTH: f32 = 1.0 / 16.0;
+                let recip = F_SECTION_SIZE.recip();
+                let highest_block = (CHUNK_HEIGHT as i32 * I_SECTION_SIZE.y) - 1;
 
-                let min_section = ((Vec3::from(min) * SIXTEENTH).floor().into_i()).clamped(
-                    IVec3::new(i32::MIN, 0,   i32::MIN),
-                    IVec3::new(i32::MAX, 255, i32::MAX)
+                let min_section = ((Vec3::from(min) * recip).floor().into_i()).clamped(
+                    IVec3::new(i32::MIN, 0, i32::MIN),
+                    IVec3::new(i32::MAX, highest_block, i32::MAX)
                 );
 
-                let max_section = ((Vec3::from(max) * SIXTEENTH).floor().into_i()).clamped(
+                let max_section = ((Vec3::from(max) * recip).floor().into_i()).clamped(
                     IVec3::new(i32::MIN, 0,   i32::MIN),
-                    IVec3::new(i32::MAX, 255, i32::MAX)
+                    IVec3::new(i32::MAX, highest_block, i32::MAX)
                 );
 
-                if min_section.y != max_section.y || (min_section.y != 0 && max_section.y != 255) {
+                if min_section.y != max_section.y || (min_section.y != 0 && max_section.y != highest_block) {
                     for chunk_x in min_section.x..=max_section.x {
                         for chunk_z in min_section.z..=max_section.z {
                             let chunk_pos = IVec2::new(chunk_x, chunk_z);
-                            let chunk_offset = chunk_pos * 16;
+                            let chunk_offset = chunk_pos * I_SECTION_SIZE.xz();
     
                             let chunk = blocks.loaded_chunks.get(&chunk_pos);
                             if let None = chunk { continue; }
@@ -140,13 +141,13 @@ impl PhysicsSolver {
     
                             for section_i in min_section.y..=max_section.y {
                                 let section = &chunk.sections[section_i as usize];
-                                let section_offset = IVec3::new(chunk_offset.x, section_i * 16, chunk_offset.y);
+                                let section_offset = IVec3::new(chunk_offset.x, section_i * I_SECTION_SIZE.y, chunk_offset.y);
     
                                 let relative_min = min - section_offset;
                                 let relative_max = max - section_offset;
     
-                                let min_sec_index = relative_min.clamped(IVec3::zero(), 16 * IVec3::one());
-                                let max_sec_index = relative_max.clamped(IVec3::zero(), 16 * IVec3::one());
+                                let min_sec_index = relative_min.clamped(IVec3::zero(), I_SECTION_SIZE);
+                                let max_sec_index = relative_max.clamped(IVec3::zero(), I_SECTION_SIZE);
     
                                 let min_arr_index = min_sec_index - relative_min;
                                 let max_arr_index = max_sec_index - relative_min;

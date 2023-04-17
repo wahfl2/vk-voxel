@@ -1,31 +1,25 @@
 use std::{ops::{RangeBounds, RangeInclusive}, array};
 
 use ndarray::Axis;
-use rayon::prelude::{ParallelIterator, IntoParallelRefMutIterator, IndexedParallelIterator};
-use ultraviolet::{IVec2, UVec3, IVec3};
+use ultraviolet::{IVec2, IVec3};
 
-use crate::{render::{mesh::chunk_render::ChunkRender, texture::TextureAtlas}, util::util::{Facing, Sign}};
+use crate::{render::{mesh::chunk_render::ChunkRender, texture::TextureAtlas}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
 
-use super::{section::Section, block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData}, generation::terrain::TerrainGenerator};
+use super::{section::{Section, I_SECTION_SIZE, SECTION_SIZE}, block_data::StaticBlockData, generation::terrain::TerrainGenerator};
+
+pub const CHUNK_HEIGHT: u32 = 32;
+const CH_USIZE: usize = CHUNK_HEIGHT as usize;
 
 pub struct Chunk {
     pub pos: IVec2,
-    pub sections: Box<[Section; 16]>,
+    pub sections: Box<[Section; CH_USIZE]>,
 }
 
-impl BlockAccess for Chunk {
-    fn get_block(&self, pos: UVec3) -> BlockHandle {
-        let relative_y = pos.y % 16;
-        let section_idx = (pos.y / 16) as usize;
-        self.sections[section_idx].get_block(UVec3::new(pos.x, relative_y, pos.z))
-    }
-
-    fn set_block(&mut self, pos: UVec3, block: BlockHandle) {
-        let relative_y = pos.y % 16;
-        let section_idx = (pos.y / 16) as usize;
-        self.sections[section_idx].set_block(UVec3::new(pos.x, relative_y, pos.z), block);
-    }
-}
+const SIZE_SUB1: UsizeVec3 = UsizeVec3::new(
+    (SECTION_SIZE.x - 1) as usize,
+    (SECTION_SIZE.y - 1) as usize,
+    (SECTION_SIZE.z - 1) as usize,
+);
 
 impl Chunk {
     pub fn empty(pos: IVec2) -> Self {
@@ -42,11 +36,11 @@ impl Chunk {
         for i in range {
             self.sections[i].cull_inner(block_data);
             if i > 0 {
-                let plane = self.sections[i - 1].blocks.index_axis(Axis(1), 15).to_owned();
+                let plane = self.sections[i - 1].blocks.index_axis(Axis(1), SIZE_SUB1.y).to_owned();
                 self.sections[i].cull_outer(Facing::DOWN, &plane, block_data);
             }
 
-            if i < 15 {
+            if i < CH_USIZE - 1 {
                 let plane = self.sections[i + 1].blocks.index_axis(Axis(1), 0).to_owned();
                 self.sections[i].cull_outer(Facing::UP, &plane, block_data);
             }
@@ -70,9 +64,9 @@ impl Chunk {
 
             let outer_data = match (dir.axis, dir.sign) {
                 (crate::util::util::Axis::X, Sign::Positive) => outer_section.blocks.index_axis(Axis(0), 0),
-                (crate::util::util::Axis::X, Sign::Negative) => outer_section.blocks.index_axis(Axis(0), 15),
+                (crate::util::util::Axis::X, Sign::Negative) => outer_section.blocks.index_axis(Axis(0), SIZE_SUB1.x),
                 (crate::util::util::Axis::Z, Sign::Positive) => outer_section.blocks.index_axis(Axis(2), 0),
-                (crate::util::util::Axis::Z, Sign::Negative) => outer_section.blocks.index_axis(Axis(2), 15),
+                (crate::util::util::Axis::Z, Sign::Negative) => outer_section.blocks.index_axis(Axis(2), SIZE_SUB1.z),
                 _ => unreachable!()
             }.to_owned();
 
@@ -90,10 +84,10 @@ impl Chunk {
         let end = match r.end_bound() {
             std::ops::Bound::Included(n) => *n,
             std::ops::Bound::Excluded(n) => n - 1,
-            std::ops::Bound::Unbounded => 15,
+            std::ops::Bound::Unbounded => CH_USIZE - 1,
         };
 
-        if start > 15 || end > 15 { panic!("Section range out of bounds.") }
+        if start > CH_USIZE - 1 || end > CH_USIZE - 1 { panic!("Section range out of bounds.") }
         start..=end
     }
 
@@ -102,8 +96,8 @@ impl Chunk {
     }
 
     pub fn rebuild_mesh(&mut self, block_data: &StaticBlockData) {
-        self.sections.par_iter_mut().enumerate().for_each(|(i, section)| {
-            let offset = IVec3::new(self.pos.x * 16, i as i32 * 16, self.pos.y * 16);
+        self.sections.iter_mut().enumerate().for_each(|(i, section)| {
+            let offset = IVec3::new(self.pos.x, i as i32, self.pos.y) * I_SECTION_SIZE;
             section.rebuild_mesh(
                 offset.into(), 
                 block_data

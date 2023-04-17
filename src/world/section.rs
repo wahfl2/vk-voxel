@@ -1,11 +1,26 @@
-use std::array;
+use std::{array, ops::Index};
 
 use ndarray::{Array3, arr3, Axis, Array2};
-use ultraviolet::{UVec3, Vec3};
+use ultraviolet::{UVec3, Vec3, IVec2, IVec3};
 
-use crate::{render::{mesh::chunk_render::{ChunkRender, RenderSection}, texture::TextureAtlas, util::Reversed}, util::{util::{Facing, Sign}, more_vec::UsizeVec3}};
+use crate::{render::{mesh::chunk_render::{ChunkRender, RenderSection}, texture::TextureAtlas, util::Reversed}, util::{util::{Facing, Sign, UVecToSigned, VecAxisIndex}, more_vec::UsizeVec3}};
 
 use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType, ModelType}};
+
+
+pub const SECTION_SIZE: UVec3 = UVec3::new(8, 8, 8);
+
+pub const I_SECTION_SIZE: IVec3 = IVec3::new(
+    SECTION_SIZE.x as i32,
+    SECTION_SIZE.y as i32,
+    SECTION_SIZE.z as i32,
+);
+
+pub const F_SECTION_SIZE: Vec3 = Vec3::new(
+    SECTION_SIZE.x as f32,
+    SECTION_SIZE.y as f32,
+    SECTION_SIZE.z as f32,
+);
 
 pub struct Section {
     pub blocks: Array3<BlockHandle>,
@@ -26,15 +41,30 @@ impl BlockAccess for Section {
 impl Section {
     pub fn empty() -> Self {
         Self {
-            blocks: arr3(&[[[BlockHandle::default(); 16]; 16]; 16]),
-            cull: arr3(&[[[BlockCull::none(); 16]; 16]; 16]),
+            blocks: arr3(&[[[BlockHandle::default(); 
+                SECTION_SIZE.x as usize]; 
+                SECTION_SIZE.y as usize]; 
+                SECTION_SIZE.z as usize]
+            ),
+
+            cull: arr3(&[[[BlockCull::none(); 
+                SECTION_SIZE.x as usize]; 
+                SECTION_SIZE.y as usize]; 
+                SECTION_SIZE.z as usize]
+            ),
+
             render: RenderSection::empty(),
         }
     }
 
     pub fn full(block: BlockHandle) -> Self {
         Self {
-            blocks: arr3(&[[[block; 16]; 16]; 16]),
+            blocks: arr3(&[[[block; 
+                SECTION_SIZE.x as usize]; 
+                SECTION_SIZE.y as usize]; 
+                SECTION_SIZE.z as usize]
+            ),
+
             ..Self::empty()
         }
     }
@@ -74,7 +104,7 @@ impl Section {
         };
 
         let depth = match dir.sign {
-            Sign::Positive => 15,
+            Sign::Positive => SECTION_SIZE.get(axis) as usize - 1,
             Sign::Negative => 0,
         };
 
@@ -144,13 +174,14 @@ impl Section {
 
     fn get_neighbors(&self, pos: UsizeVec3) -> [Neighbor; 6] {
         let mut n = [Neighbor::Boundary; 6];
+        let m = UsizeVec3::from(SECTION_SIZE - UVec3::one());
 
-        if pos.x < 15 { n[0] = Neighbor::Block(*self.blocks.get((pos.x + 1, pos.y, pos.z)).unwrap()) }
-        if pos.x > 0  { n[1] = Neighbor::Block(*self.blocks.get((pos.x - 1, pos.y, pos.z)).unwrap()) }
-        if pos.y < 15 { n[2] = Neighbor::Block(*self.blocks.get((pos.x, pos.y + 1, pos.z)).unwrap()) }
-        if pos.y > 0  { n[3] = Neighbor::Block(*self.blocks.get((pos.x, pos.y - 1, pos.z)).unwrap()) }
-        if pos.z < 15 { n[4] = Neighbor::Block(*self.blocks.get((pos.x, pos.y, pos.z + 1)).unwrap()) }
-        if pos.z > 0  { n[5] = Neighbor::Block(*self.blocks.get((pos.x, pos.y, pos.z - 1)).unwrap()) }
+        if pos.x < m.x { n[0] = Neighbor::Block(*self.blocks.get((pos.x + 1, pos.y, pos.z)).unwrap()) }
+        if pos.x > 0   { n[1] = Neighbor::Block(*self.blocks.get((pos.x - 1, pos.y, pos.z)).unwrap()) }
+        if pos.y < m.y { n[2] = Neighbor::Block(*self.blocks.get((pos.x, pos.y + 1, pos.z)).unwrap()) }
+        if pos.y > 0   { n[3] = Neighbor::Block(*self.blocks.get((pos.x, pos.y - 1, pos.z)).unwrap()) }
+        if pos.z < m.z { n[4] = Neighbor::Block(*self.blocks.get((pos.x, pos.y, pos.z + 1)).unwrap()) }
+        if pos.z > 0   { n[5] = Neighbor::Block(*self.blocks.get((pos.x, pos.y, pos.z - 1)).unwrap()) }
 
         n
     }

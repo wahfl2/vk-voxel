@@ -2,7 +2,7 @@ use std::{sync::Arc, collections::hash_map::Iter};
 
 use ahash::HashMap;
 use bytemuck::Pod;
-use ultraviolet::IVec2;
+use ultraviolet::{IVec2, IVec3};
 use vulkano::{buffer::{BufferContents, BufferUsage, Subbuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::DrawIndirectCommand};
 
 use super::swap_buffer::SwappingBuffer;
@@ -12,8 +12,8 @@ where [T]: BufferContents,
 {
     buffer: SwappingBuffer<T>,
     chunk_allocator: ChunkBufferAllocator,
-    pub allocations: HashMap<(i32, i32), ChunkBufferAllocation>,
-    pub uploaded: Vec<(IVec2, ChunkBufferAllocation)>,
+    pub allocations: HashMap<IVec3, ChunkBufferAllocation>,
+    pub uploaded: Vec<(IVec3, ChunkBufferAllocation)>,
     pub indirect_buffer: Option<Subbuffer<[DrawIndirectCommand]>>,
     pub vertex_count_multiplier: u32,
     pub highest: usize,
@@ -44,14 +44,14 @@ where
         let swapped = self.buffer.update();
         if swapped {
             self.uploaded = self.allocations.iter()
-                .map(|((x, y), alloc)| { (IVec2::new(*x, *y), alloc.clone()) }).collect();
+                .map(|(v, alloc)| { (*v, *alloc) }).collect();
         }
         swapped
     }
 
     pub fn insert(
         &mut self, 
-        chunk_pos: IVec2, 
+        section_pos: IVec3, 
         data: &[U],
     ) {
         let size = data.len() as u32;
@@ -60,26 +60,26 @@ where
             self.highest = allocation.back as usize;
         }
 
-        self.allocations.insert(chunk_pos.into(), allocation);
+        self.allocations.insert(section_pos, allocation);
         self.buffer.write(allocation.front.try_into().unwrap(), data);
     }
 
-    pub fn remove(&mut self, chunk_pos: IVec2) {
-        if let Some(allocation) = self.allocations.remove(&chunk_pos.into()) {
+    pub fn remove(&mut self, section_pos: IVec3) {
+        if let Some(allocation) = self.allocations.remove(&section_pos) {
             self.chunk_allocator.deallocate(&allocation);
             // No need to push to queue, corresponding memory will not be read
         } else {
-            panic!("Tried to remove chunk that was not allocated. Chunk pos: {:?}", chunk_pos);
+            panic!("Tried to remove chunk that was not allocated. Section: {:?}", section_pos);
         }
     }
 
     pub fn reinsert(
         &mut self, 
-        chunk_pos: IVec2, 
+        section_pos: IVec3, 
         data: &[U],
     ) {
-        self.remove(chunk_pos);
-        self.insert(chunk_pos, data);
+        self.remove(section_pos);
+        self.insert(section_pos, data);
     }
 
     pub fn get_buffer(&self) -> Subbuffer<[U]> {

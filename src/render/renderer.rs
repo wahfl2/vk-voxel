@@ -6,7 +6,7 @@ use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapcha
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::{WindowBuilder, CursorGrabMode}, dpi::PhysicalSize};
 
-use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk, world_blocks::WorldBlocks}, util::util::Aabb};
+use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk, world_blocks::WorldBlocks, section::{F_SECTION_SIZE, I_SECTION_SIZE}}, util::util::{Aabb, InsertVec2}};
 
 use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{VertexRaw, Vertex2D}, camera::camera::Camera, descriptor_sets::DescriptorSets};
 
@@ -518,8 +518,11 @@ impl Renderer {
         );
     }
 
-    pub fn upload_chunk(&mut self, pos: IVec2, chunk: &Chunk, block_data: &StaticBlockData) {
-        self.vertex_buffer.insert_chunk(pos, chunk, &self.texture_atlas, block_data);
+    pub fn upload_chunk(&mut self, pos: IVec2, chunk: &Chunk) {
+        for (i, section) in chunk.sections.iter().enumerate() {
+            let section_pos = pos.insert_y(i as i32);
+            self.vertex_buffer.insert_section(section_pos, section);
+        }
     }
 
     fn get_indirect_commands(
@@ -528,7 +531,6 @@ impl Renderer {
         buffer_type: VertexBufferType,
         builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>
     ) -> Option<Subbuffer<[DrawIndirectCommand]>> {
-        const CHUNK_SIZE: Vec3 = Vec3::new(16.0, 16.0 * 16.0, 16.0);
         let ratio = self.viewport.dimensions[0] / self.viewport.dimensions[1];
         let frustrum = camera.calculate_frustrum(ratio);
         let mul = match buffer_type {
@@ -539,9 +541,9 @@ impl Renderer {
         let mut data = match buffer_type {
             VertexBufferType::Block => &self.vertex_buffer.block_quad_buffer.uploaded,
             VertexBufferType::Decorations => &self.vertex_buffer.deco_buffer.uploaded,
-        }.iter().filter(|(chunk_pos, _)| {
-            let min = Vec3::new((chunk_pos.x * 16) as f32, 0.0, (chunk_pos.y * 16) as f32);
-            let aabb = Aabb::new(min, min + CHUNK_SIZE);
+        }.iter().filter(|(section_pos, _)| {
+            let min = Vec3::from(*section_pos * I_SECTION_SIZE);
+            let aabb = Aabb::new(min, min + F_SECTION_SIZE);
             frustrum.should_render(aabb)
         }).map(|(_, alloc)| {
             alloc.to_draw_command(mul)
@@ -693,7 +695,7 @@ impl Renderer {
     fn update_vertex_buffers(&mut self, world_blocks: &mut WorldBlocks, block_data: &StaticBlockData) {
         for chunk_pos in world_blocks.updated_chunks.drain(..) {
             if let Some(chunk) = world_blocks.loaded_chunks.get(&chunk_pos) {
-                self.vertex_buffer.insert_chunk(chunk_pos, chunk, &self.texture_atlas, block_data);
+                self.vertex_buffer.insert_chunk(chunk);
             } else {
                 self.vertex_buffer.remove_chunk(chunk_pos);
             }

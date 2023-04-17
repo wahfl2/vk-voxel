@@ -13,7 +13,8 @@ use ultraviolet::{IVec2, Vec2, Vec3, IVec3, UVec2, DVec3, UVec3};
 use crate::util::more_vec::UsizeVec3;
 use crate::util::util::{MoreCmp, VecRounding, UVecToSigned, MoreVecConstructors, AdditionalSwizzles};
 use crate::world::block_data::Blocks;
-use crate::world::chunk::Chunk;
+use crate::world::chunk::{Chunk, CHUNK_HEIGHT};
+use crate::world::section::{F_SECTION_SIZE, SECTION_SIZE, I_SECTION_SIZE};
 use crate::world::{block_data::{StaticBlockData, BlockHandle}, section::Section};
 
 use super::noise::{ScaleNoise2D, ScaleNoise3D};
@@ -93,11 +94,11 @@ impl TerrainGenerator {
 
                 const CAVE_SAMPLES: usize = 500;
 
-                let middle = Vec2::from(size) * 8.0;
+                let middle = Vec2::from(size) * (F_SECTION_SIZE.xz() * 0.5);
                 let mut worm_pos = Vec3::new(middle.x, 20.0, middle.y);
 
                 let min_accept = Vec2::splat(CAVE_RADIUS);
-                let max_accept = Vec2::from(size * 16) - min_accept;
+                let max_accept = Vec2::from(size * SECTION_SIZE.xz()) - min_accept;
 
                 let mut ret = Vec::new();
                 for i in 0..CAVE_SAMPLES {
@@ -118,34 +119,36 @@ impl TerrainGenerator {
             },
             |chunk, offset, size, data| {
                 const RAD_SQ: f32 = CAVE_RADIUS * CAVE_RADIUS;
-                let relative_pos = (chunk.blocks.pos - offset) * 16;
+                let relative_pos = (chunk.blocks.pos - offset) * I_SECTION_SIZE.xz();
 
                 let min = relative_pos;
-                let max = relative_pos + (IVec2::one() * 16);
+                let max = relative_pos + (IVec2::one() * I_SECTION_SIZE.xz());
+
+                let max_h = F_SECTION_SIZE.y * CHUNK_HEIGHT as f32;
 
                 let min_chunk = Vec3::new(min.x as f32, 0.0, min.y as f32);
-                let max_chunk = Vec3::new(max.x as f32, 256.0, max.y as f32);
+                let max_chunk = Vec3::new(max.x as f32, max_h, max.y as f32);
 
                 for carve in data.iter() {
-                    let min_carve = (*carve - Vec3::one() * (CAVE_RADIUS + 1.0)).clamped(Vec3::zero(), Vec3::one() * 256.0).round();
-                    let max_carve = (*carve + Vec3::one() * (CAVE_RADIUS + 1.0)).clamped(Vec3::zero(), Vec3::one() * 256.0).round();
+                    let min_carve = (*carve - Vec3::one() * (CAVE_RADIUS + 1.0)).clamped(Vec3::zero(), Vec3::one() * max_h).floor();
+                    let max_carve = (*carve + Vec3::one() * (CAVE_RADIUS + 1.0)).clamped(Vec3::zero(), Vec3::one() * max_h).ceil();
 
                     if min_carve.any_greater_than(&max_chunk) || max_carve.any_less_than(&min_chunk) {
                         continue;
                     }
 
-                    let min_section = ((min_carve.y / 16.0).floor() as u32).min(15);
-                    let max_section = ((max_carve.y / 16.0).floor() as u32).min(15);
+                    let min_section = ((min_carve.y / F_SECTION_SIZE.y).floor() as u32).min(CHUNK_HEIGHT - 1);
+                    let max_section = ((max_carve.y / F_SECTION_SIZE.y).floor() as u32).min(CHUNK_HEIGHT - 1);
 
                     for i in min_section..=max_section {
                         let section = chunk.blocks.sections.get_mut(i as usize).unwrap();
 
-                        let y_off = (i * 16) as f32;
+                        let y_off = (i * SECTION_SIZE.y) as f32;
                         let mn = min_carve - Vec3::new(min_chunk.x, y_off, min_chunk.z);
                         let mx = max_carve - Vec3::new(min_chunk.x, y_off, min_chunk.z);
 
-                        let min_section = UVec3::new(mn.x as u32, mn.y as u32, mn.z as u32).clamped(UVec3::zero(), UVec3::one() * 16);
-                        let max_section = UVec3::new(mx.x as u32, mx.y as u32, mx.z as u32).clamped(UVec3::zero(), UVec3::one() * 16);
+                        let min_section = UVec3::new(mn.x as u32, mn.y as u32, mn.z as u32).clamped(UVec3::zero(), SECTION_SIZE);
+                        let max_section = UVec3::new(mx.x as u32, mx.y as u32, mx.z as u32).clamped(UVec3::zero(), SECTION_SIZE);
 
                         let min_idx = UsizeVec3::from(min_section);
                         let max_idx = UsizeVec3::from(max_section);
@@ -170,6 +173,7 @@ impl TerrainGenerator {
         )
     }
 
+    // Should be replaced by just a noise function
     fn basic_mix(seed: u32, n: impl IntoIterator<Item = i64>) -> i64 {
         // very large RSA numbers
         const NUMS: [i64; 11] = [
@@ -201,7 +205,7 @@ impl TerrainGenerator {
 
     pub fn gen_chunk(&mut self, chunk_pos: IVec2) -> Chunk {
         let height_sampler = ChunkHeightSampler::new(
-            (chunk_pos * 16).into(), 
+            (chunk_pos * I_SECTION_SIZE.xz()).into(), 
             NonZeroUsize::new(8).unwrap(), 
             &self.planar_noise, 
             4
@@ -216,18 +220,21 @@ impl TerrainGenerator {
         let off = Vec2::new(0.5, 0.5);
         let mut lowest = 999;
         let mut highest = 0;
-        let height_array = Array2::from_shape_fn((16, 16), |(x_step, y_step)| {
-            let pos = off + Vec2::new(x_step as f32, y_step as f32);
-            let height = (height_sampler.sample(pos) * 50.0 + 50.0).round() as u32;
-            let low_gen = height.saturating_sub(4);
-            if low_gen < lowest { lowest = low_gen; }
-            if height > highest { highest = height; }
+        let height_array = Array2::from_shape_fn(
+            (SECTION_SIZE.x as usize, SECTION_SIZE.z as usize), 
+            |(x_step, y_step)| {
+                let pos = off + Vec2::new(x_step as f32, y_step as f32);
+                let height = (height_sampler.sample(pos) * 50.0 + 50.0).round() as u32;
+                let low_gen = height.saturating_sub(4);
+                if low_gen < lowest { lowest = low_gen; }
+                if height > highest { highest = height; }
 
-            height
-        });
+                height
+            }
+        );
 
-        let section_low = lowest / 16;
-        let section_high = highest / 16;
+        let section_low = lowest / SECTION_SIZE.y;
+        let section_high = highest / SECTION_SIZE.y;
 
         let sections = Box::new(array::from_fn(|i| {
             let idx = i as u32;
@@ -251,35 +258,35 @@ impl TerrainGenerator {
     }
 
     fn section_from_height(&mut self, height_array: &Array2<u32>, section_num: u32, chunk_pos: IVec2) -> Section {
-        let height_offset = section_num * 16;
+        let height_offset = section_num * SECTION_SIZE.y;
         let mut ret = Section::empty();
         for (i, mut column) in ret.blocks.lanes_mut(Axis(1)).into_iter().enumerate() {
-            let (x, y) = ((i / 16), (i % 16));
-            let column_pos = (chunk_pos * 16) + IVec2::new(x as i32, y as i32);
-            let height = height_array[(x, y)];
+            let (x, z) = ((i / SECTION_SIZE.x as usize), (i % SECTION_SIZE.x as usize));
+            let column_pos = (chunk_pos * I_SECTION_SIZE.xz()) + IVec2::new(x as i32, z as i32);
+            let height = height_array[(x, z)];
             let relative_height = height.saturating_sub(height_offset);
 
             // All air
             if height < height_offset { continue; }
 
             // All stone
-            if height > height_offset + 20 {
+            if height > height_offset + SECTION_SIZE.y + 4 {
                 column.fill(self.cache[4]);
                 continue;
             }
 
-            let can_gen_grass = height >= height_offset.saturating_sub(1) && relative_height < 15;
-            let stone_end = relative_height.saturating_sub(3).min(15) as usize;
-            let dirt_end = relative_height.min(15) as usize;
-            let mut c = [self.cache[0]; 16];
+            let can_gen_grass = height >= height_offset.saturating_sub(1) && relative_height < SECTION_SIZE.y - 1;
+            let stone_end = relative_height.saturating_sub(3).min(SECTION_SIZE.y - 1) as usize;
+            let dirt_end = relative_height.min(SECTION_SIZE.y - 1) as usize;
+            let mut c = [self.cache[0]; SECTION_SIZE.y as usize];
 
             c[0..stone_end].fill(self.cache[4]);
             c[stone_end..dirt_end].fill(self.cache[3]);
-            c[relative_height.min(15) as usize] = self.cache[2];
+            c[relative_height.min(SECTION_SIZE.y - 1) as usize] = self.cache[2];
 
             let grass_pos = IVec3::new(
                 column_pos.x, 
-                ((section_num * 16) + relative_height + 1) as i32, 
+                ((section_num * SECTION_SIZE.y) + relative_height + 1) as i32, 
                 column_pos.y
             );
 
@@ -309,11 +316,11 @@ struct ChunkHeightSampler {
 impl ChunkHeightSampler {
     pub fn new(offset: Vec2, res: NonZeroUsize, noise: &ScaleNoise2D, octaves: u32) -> Self {
         let res = res.get();
-        let step_size = 16.0 / res as f32;
+        let step_size = F_SECTION_SIZE.xz() / res as f32;
         let arr = Array2::from_shape_fn((res + 1, res + 1), 
             |(step_x, step_y)| {
-                let x = offset.x + (step_x as f32 * step_size);
-                let y = offset.y + (step_y as f32 * step_size);
+                let x = offset.x + (step_x as f32 * step_size.x);
+                let y = offset.y + (step_y as f32 * step_size.y);
                 noise.sample(Vec2::new(x, y), octaves) as f32
             }
         );
@@ -325,23 +332,23 @@ impl ChunkHeightSampler {
 
     /// Bi-linear interpolation of the input data
     pub fn sample(&self, relative_pos: Vec2) -> f32 {
-        if relative_pos.component_max() > 16.0 || relative_pos.component_min() < 0.0 {
+        if relative_pos.any_greater_than(&F_SECTION_SIZE.xz()) || relative_pos.component_min() < 0.0 {
             panic!("Invalid sample position: {:?}", relative_pos);
         }
 
         let res = (self.height_data.len_of(Axis(0)) - 1) as f32;
-        let mul = res / 16.0;
+        let mul = Vec2::splat(res) / F_SECTION_SIZE.xz();
 
-        let rounded_x = (relative_pos.x * mul).floor();
-        let rounded_y = (relative_pos.y * mul).floor();
+        let rounded_x = (relative_pos.x * mul.x).floor();
+        let rounded_y = (relative_pos.y * mul.y).floor();
         let data_x = rounded_x as usize;
         let data_y = rounded_y as usize;
 
-        let recip = mul.recip();
-        let x0 = rounded_x * recip;
-        let y0 = rounded_y * recip;
-        let x1 = (rounded_x + 1.0) * recip;
-        let y1 = (rounded_y + 1.0) * recip;
+        let recip = Vec2::one() / mul;
+        let x0 = rounded_x * recip.x;
+        let y0 = rounded_y * recip.y;
+        let x1 = (rounded_x + 1.0) * recip.x;
+        let y1 = (rounded_y + 1.0) * recip.y;
 
         let p00 = self.height_data[(data_x, data_y)];
         let p10 = self.height_data[(data_x + 1, data_y)];

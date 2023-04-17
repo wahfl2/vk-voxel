@@ -10,7 +10,7 @@ pub struct UsizeVec3 {
 }
 
 impl UsizeVec3 {
-    pub fn new(x: usize, y: usize, z: usize) -> Self {
+    pub const fn new(x: usize, y: usize, z: usize) -> Self {
         Self { x, y, z }
     }
     

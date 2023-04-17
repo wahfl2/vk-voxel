@@ -1,9 +1,9 @@
-use ahash::HashMap;
+use ahash::{HashMap, HashSet};
 use ultraviolet::{IVec2, Vec2};
 
-use crate::util::util::Facing;
+use crate::util::util::{Facing, AdditionalSwizzles};
 
-use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::TerrainGenerator};
+use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::TerrainGenerator, section::F_SECTION_SIZE};
 
 pub struct WorldBlocks {
     pub loaded_chunks: HashMap<IVec2, Chunk>,
@@ -14,8 +14,8 @@ pub struct WorldBlocks {
 }
 
 impl WorldBlocks {
-    const CHUNK_UPDATES_PER_FRAME: u32 = 2;
-    const RENDER_DISTANCE: u32 = 12;
+    const CHUNK_UPDATES_PER_FRAME: u32 = 8;
+    const RENDER_DISTANCE: u32 = 16;
 
     const ADJ_CHUNK_OFFSETS: [IVec2; 4] = [
         IVec2::new(1, 0),
@@ -35,6 +35,7 @@ impl WorldBlocks {
 
     pub fn load_chunk(&mut self, chunk_pos: IVec2, block_data: &StaticBlockData) {
         // TODO: Load from storage
+        // TODO: Make this some form of asynchronous to avoid stutters
         let mut new_chunk = Chunk::generate(chunk_pos, &mut self.terrain_generator);
         new_chunk.init_mesh(block_data);
 
@@ -72,8 +73,8 @@ impl WorldBlocks {
     }
 
     fn get_closest_unloaded_chunks(&self, num: usize) -> Vec<IVec2> {
-        let div_16 = self.player_pos / -16.0;
-        let center_chunk = IVec2::new(div_16.x.floor() as i32, div_16.y.floor() as i32);
+        let div_size = self.player_pos / -F_SECTION_SIZE.xz();
+        let center_chunk = IVec2::new(div_size.x.floor() as i32, div_size.y.floor() as i32);
         
         let mut check = center_chunk.clone();
         let mut step = SpiralStep::Right;
@@ -111,8 +112,8 @@ impl WorldBlocks {
     }
 
     fn get_chunks_to_unload(&self) -> Vec<IVec2> {
-        let div_16 = self.player_pos / -16.0;
-        let player_pos = IVec2::new(div_16.x.floor() as i32, div_16.y.floor() as i32);
+        let div_size = self.player_pos / -F_SECTION_SIZE.xz();
+        let player_pos = IVec2::new(div_size.x.floor() as i32, div_size.y.floor() as i32);
 
         let mut ret = Vec::new();
         for pos in self.loaded_chunks.keys() {

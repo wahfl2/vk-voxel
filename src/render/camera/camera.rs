@@ -1,4 +1,4 @@
-use std::f32::consts::PI;
+use std::{f32::consts::PI, simd::{f32x4, SimdPartialOrd}};
 
 use ultraviolet::{Mat4, projection, Isometry3, Vec3, Rotor3};
 use vulkano::pipeline::graphics::viewport::Viewport;
@@ -134,14 +134,12 @@ impl CalculatedFrustrum {
             let n = plane.normal;
 
             let mut positive = aabb.min;
-            let mut negative = aabb.max;
-            if n.x >= 0.0 { positive.x = aabb.max.x }
-            if n.y >= 0.0 { positive.y = aabb.max.y }
-            if n.z >= 0.0 { positive.z = aabb.max.z }
+            const ZERO: f32x4 = f32x4::from_array([0.0, 0.0, 0.0, 0.0]);
+            let cmp = f32x4::from_array([n.x, n.y, n.z, 0.0]).simd_ge(ZERO).to_array();
 
-            if n.x >= 0.0 { negative.x = aabb.min.x }
-            if n.y >= 0.0 { negative.y = aabb.min.y }
-            if n.z >= 0.0 { negative.z = aabb.min.z }
+            if cmp[0] { positive.x = aabb.max.x }
+            if cmp[1] { positive.y = aabb.max.y }
+            if cmp[2] { positive.z = aabb.max.z }
 
             if plane.distance(positive) < 0.0 {
                 return false

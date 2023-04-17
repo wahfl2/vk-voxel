@@ -104,7 +104,7 @@ impl EulerRot2 {
 
     pub fn get_reversed_rotor(&self) -> Rotor3 {
         Rotor3::from_rotation_xz(PI - self.yaw) *
-            Rotor3::from_rotation_yz(-self.pitch)
+            Rotor3::from_rotation_yz(self.pitch)
     }
 }
 
@@ -154,6 +154,31 @@ impl Aabb {
     }
 }
 
+pub trait InsertVec2 {
+    type V3;
+    type Primitive;
+
+    fn insert_y(self, y: Self::Primitive) -> Self::V3;
+}
+
+impl InsertVec2 for Vec2 {
+    type V3 = Vec3;
+    type Primitive = f32;
+
+    fn insert_y(self, y: Self::Primitive) -> Self::V3 {
+        Vec3::new(self.x, y, self.y)
+    }
+}
+
+impl InsertVec2 for IVec2 {
+    type V3 = IVec3;
+    type Primitive = i32;
+
+    fn insert_y(self, y: Self::Primitive) -> Self::V3 {
+        IVec3::new(self.x, y, self.y)
+    }
+}
+
 pub trait AdditionalSwizzles {
     type Out;
 
@@ -170,6 +195,14 @@ impl AdditionalSwizzles for Vec3 {
 
 impl AdditionalSwizzles for IVec3 {
     type Out = IVec2;
+
+    fn xz(&self) -> Self::Out {
+        Self::Out::new(self.x, self.z)
+    }
+}
+
+impl AdditionalSwizzles for UVec3 {
+    type Out = UVec2;
 
     fn xz(&self) -> Self::Out {
         Self::Out::new(self.x, self.z)
@@ -298,13 +331,17 @@ impl VecTrunc for Vec2 {
 }
 
 pub trait VecAxisIndex {
-    fn get(&self, axis: ndarray::Axis) -> f32;
-    fn get_mut(&mut self, axis: ndarray::Axis) -> &mut f32;
+    type Primitive;
 
-    fn set(&mut self, axis: ndarray::Axis, value: f32);
+    fn get(&self, axis: ndarray::Axis) -> Self::Primitive;
+    fn get_mut(&mut self, axis: ndarray::Axis) -> &mut Self::Primitive;
+
+    fn set(&mut self, axis: ndarray::Axis, value: Self::Primitive);
 }
 
 impl VecAxisIndex for Vec3 {
+    type Primitive = f32;
+
     fn get(&self, axis: ndarray::Axis) -> f32 {
         match axis.0 {
             0 => self.x,
@@ -333,9 +370,41 @@ impl VecAxisIndex for Vec3 {
     }
 }
 
+impl VecAxisIndex for UVec3 {
+    type Primitive = u32;
+
+    fn get(&self, axis: ndarray::Axis) -> u32 {
+        match axis.0 {
+            0 => self.x,
+            1 => self.y,
+            2 => self.z,
+            d => panic!("Tried to get {d} axis of UVec3")
+        }
+    }
+
+    fn get_mut(&mut self, axis: ndarray::Axis) -> &mut u32 {
+        match axis.0 {
+            0 => &mut self.x,
+            1 => &mut self.y,
+            2 => &mut self.z,
+            d => panic!("Tried to get {d} axis of UVec3")
+        }
+    }
+
+    fn set(&mut self, axis: ndarray::Axis, value: u32) {
+        match axis.0 {
+            0 => self.x = value,
+            1 => self.y = value,
+            2 => self.z = value,
+            d => panic!("Tried to set {d} axis of UVec3")
+        }
+    }
+}
+
 pub trait MoreVecOps {
     fn powf(self, n: f32) -> Self;
     fn powi(self, n: i32) -> Self;
+    fn recip(self) -> Self;
 }
 
 impl MoreVecOps for Vec3 {
@@ -345,6 +414,10 @@ impl MoreVecOps for Vec3 {
 
     fn powi(self, n: i32) -> Self {
         Self::new(self.x.powi(n), self.y.powi(n), self.z.powi(n))
+    }
+
+    fn recip(self) -> Self {
+        Self::new(self.x.recip(), self.y.recip(), self.z.recip())
     }
 }
 
