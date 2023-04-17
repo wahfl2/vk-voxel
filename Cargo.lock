@@ -1396,6 +1396,7 @@ dependencies = [
  "mimalloc",
  "ndarray",
  "noise",
+ "num_cpus",
  "once_cell",
  "png",
  "rand_xoshiro",
