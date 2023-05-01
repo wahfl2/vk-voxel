@@ -8,3 +8,4 @@ pub mod camera;
 pub mod mesh;
 pub mod texture;
 pub mod descriptor_sets;
+pub mod brick;

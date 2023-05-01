@@ -113,7 +113,7 @@ impl TexturedSquare {
     pub fn into_block_quad(&self) -> BlockQuad {
         BlockQuad::new(
             self.center.into(),
-            self.texture_handle.get_index(),
+            self.texture_handle.index(),
             self.facing.to_num() as u32,
         )
     }

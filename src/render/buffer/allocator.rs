@@ -5,12 +5,12 @@ use bytemuck::Pod;
 use ultraviolet::{IVec2, IVec3};
 use vulkano::{buffer::{BufferContents, BufferUsage, Subbuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::DrawIndirectCommand};
 
-use super::swap_buffer::SwappingBuffer;
+use super::swap_buffer::SwapBufferSlice;
 
 pub struct HeapBuffer<T> 
 where [T]: BufferContents,
 {
-    buffer: SwappingBuffer<T>,
+    buffer: SwapBufferSlice<T>,
     chunk_allocator: ChunkBufferAllocator,
     pub allocations: HashMap<IVec3, ChunkBufferAllocation>,
     pub uploaded: Vec<(IVec3, ChunkBufferAllocation)>,
@@ -24,13 +24,9 @@ where
     U: Copy + Clone + Send + Sync + Pod,
     [U]: BufferContents,
 {
-    const INITIAL_SIZE: usize = 10_000_000;
-
-    pub fn new(device: Arc<Device>, usage: BufferUsage, vertex_count_multiplier: u32) -> Self {
-        let allocator = StandardMemoryAllocator::new_default(device.clone());
-
+    pub fn new(allocator: &StandardMemoryAllocator, usage: BufferUsage, size: usize, vertex_count_multiplier: u32) -> Self {
         HeapBuffer {
-            buffer: SwappingBuffer::new(Self::INITIAL_SIZE, usage, &allocator),
+            buffer: SwapBufferSlice::new(size, usage, allocator),
             chunk_allocator: ChunkBufferAllocator::new(),
             allocations: HashMap::default(),
             uploaded: Vec::new(),
@@ -53,7 +49,7 @@ where
         &mut self, 
         section_pos: IVec3, 
         data: &[U],
-    ) {
+    ) -> ChunkBufferAllocation {
         let size = data.len() as u32;
         let allocation = self.chunk_allocator.allocate(size);
         if allocation.back as usize > self.highest {
@@ -62,6 +58,7 @@ where
 
         self.allocations.insert(section_pos, allocation);
         self.buffer.write(allocation.front.try_into().unwrap(), data);
+        allocation
     }
 
     pub fn remove(&mut self, section_pos: IVec3) {
@@ -69,7 +66,7 @@ where
             self.chunk_allocator.deallocate(&allocation);
             // No need to push to queue, corresponding memory will not be read
         } else {
-            panic!("Tried to remove chunk that was not allocated. Section: {:?}", section_pos);
+            // println!("WARNING: Tried to remove chunk that was not allocated. Section: {:?}", section_pos);
         }
     }
 
@@ -83,7 +80,7 @@ where
     }
 
     pub fn get_buffer(&self) -> Subbuffer<[U]> {
-        self.buffer.get_current_buffer()
+        self.buffer.buffer.current_buffer()
     }
 
     pub fn get_ind_commands(&self) -> Vec<DrawIndirectCommand> {

@@ -135,7 +135,23 @@ pub enum ModelType {
     None,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+impl ModelType {
+    pub fn is_none(&self) -> bool {
+        match self {
+            ModelType::None => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_some(&self) -> bool {
+        match self {
+            ModelType::None => false,
+            _ => true,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BlockHandle {
     inner: u32
 }

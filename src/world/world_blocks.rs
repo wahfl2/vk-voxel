@@ -15,7 +15,7 @@ pub struct WorldBlocks {
 
 impl WorldBlocks {
     const CHUNK_UPDATES_PER_FRAME: u32 = 8;
-    const RENDER_DISTANCE: u32 = 16;
+    const RENDER_DISTANCE: u32 = 24;
 
     const ADJ_CHUNK_OFFSETS: [IVec2; 4] = [
         IVec2::new(1, 0),
@@ -37,29 +37,14 @@ impl WorldBlocks {
         // TODO: Load from storage
         // TODO: Make this some form of asynchronous to avoid stutters
         let mut new_chunk = Chunk::generate(chunk_pos, &mut self.terrain_generator);
-        new_chunk.init_mesh(block_data);
+        new_chunk.update_brickmap(block_data);
 
-        const DIRS: [Facing; 4] = [Facing::RIGHT, Facing::LEFT, Facing::FORWARD, Facing::BACK];
-        for (dir, offset) in DIRS.iter().zip(Self::ADJ_CHUNK_OFFSETS.iter()) {
-            if let Some(adj_chunk) = self.loaded_chunks.get_mut(&(chunk_pos + *offset)) {
-                new_chunk.cull_adjacent(*dir, adj_chunk, .., block_data);
-                adj_chunk.cull_adjacent(dir.opposite(), &new_chunk, .., block_data);
-                adj_chunk.rebuild_mesh(block_data);
-                self.updated_chunks.push(adj_chunk.pos);
-            }
-        }
-
-        new_chunk.rebuild_mesh(block_data);
         self.loaded_chunks.insert(chunk_pos, new_chunk);
         self.updated_chunks.push(chunk_pos);
     }
 
     pub fn frame_update(&mut self, block_data: &StaticBlockData) {
         let to_load = self.get_closest_unloaded_chunks(Self::CHUNK_UPDATES_PER_FRAME.try_into().unwrap());
-
-        // let handle = thread::spawn(|| {
-
-        // });
 
         for pos in to_load.into_iter() {
             self.load_chunk(pos, block_data);

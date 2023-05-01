@@ -3,9 +3,9 @@ use std::{array, ops::Index};
 use ndarray::{Array3, arr3, Axis, Array2};
 use ultraviolet::{UVec3, Vec3, IVec2, IVec3};
 
-use crate::{render::{mesh::chunk_render::{ChunkRender, RenderSection}, texture::TextureAtlas, util::Reversed}, util::{util::{Facing, Sign, UVecToSigned, VecAxisIndex}, more_vec::UsizeVec3}};
+use crate::{render::{mesh::chunk_render::{ChunkRender, RenderSection}, texture::TextureAtlas, util::Reversed, brick::brickmap::Brickmap}, util::{util::{Facing, Sign, UVecToSigned, VecAxisIndex}, more_vec::UsizeVec3}};
 
-use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType, ModelType}};
+use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType, ModelType, Blocks}};
 
 
 pub const SECTION_SIZE: UVec3 = UVec3::new(8, 8, 8);
@@ -24,8 +24,7 @@ pub const F_SECTION_SIZE: Vec3 = Vec3::new(
 
 pub struct Section {
     pub blocks: Array3<BlockHandle>,
-    pub cull: Array3<BlockCull>,
-    pub render: RenderSection,
+    pub brickmap: Brickmap,
 }
 
 impl BlockAccess for Section {
@@ -47,13 +46,7 @@ impl Section {
                 SECTION_SIZE.z as usize]
             ),
 
-            cull: arr3(&[[[BlockCull::none(); 
-                SECTION_SIZE.x as usize]; 
-                SECTION_SIZE.y as usize]; 
-                SECTION_SIZE.z as usize]
-            ),
-
-            render: RenderSection::empty(),
+            brickmap: Brickmap::empty(),
         }
     }
 
@@ -69,107 +62,33 @@ impl Section {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.blocks.iter().all(|b| *b == Blocks::Air.handle())
+    }
+
     pub fn flat_iter(&self) -> impl Iterator<Item = (UVec3, &BlockHandle)> {
         self.blocks.indexed_iter()
             .map(|((x, y, z), b)| { ((x as u32, y as u32, z as u32).into(), b) })
     }
 
-    pub fn cull_inner(&mut self, block_data: &StaticBlockData) {
-        let iter = self.blocks.indexed_iter().map(|(p, b)| { (UsizeVec3::from(p), b) });
+    pub fn update_brickmap(&mut self, block_data: &StaticBlockData) {
+        self.brickmap.solid_mask = self.solid_mask(block_data);
+    }
 
-        for (pos, block) in iter {
-            if block_data.get(block).block_type == BlockType::None { continue; }
-            for (face, n) in self.get_neighbors(pos).into_iter().enumerate() {
-                match n {
-                    Neighbor::Block(b) => {
-                        let cull = self.cull.get_mut((pos.x, pos.y, pos.z)).unwrap();
-                        if block_data.get(&b).block_type == BlockType::Full {
-                            cull.set_face(face, true);
-                        } else {
-                            cull.set_face(face, false);
-                        }
-                    },
-                    _ => (),
-                }
+    pub fn solid_mask(&self, block_data: &StaticBlockData) -> [[u8; 8]; 8] {
+        if SECTION_SIZE != UVec3::new(8, 8, 8) {
+            panic!("Section size incompatible");
+        }
+
+        let mut ret = [[0; 8]; 8];
+
+        for ((x, y, z), b) in self.blocks.indexed_iter() {
+            if block_data.get(b).model.is_some() {
+                ret[x][y] |= 1 << z;
             }
         }
-    }
 
-    pub fn cull_outer(&mut self, dir: Facing, outer_data: &Array2<BlockHandle>, block_data: &StaticBlockData) {
-        let face_num = dir.to_num();
-        let axis = match dir.axis {
-            crate::util::util::Axis::X => Axis(0),
-            crate::util::util::Axis::Y => Axis(1),
-            crate::util::util::Axis::Z => Axis(2),
-        };
-
-        let depth = match dir.sign {
-            Sign::Positive => SECTION_SIZE.get(axis) as usize - 1,
-            Sign::Negative => 0,
-        };
-
-        let plane = self.blocks.index_axis(axis, depth);
-        let mut cull_plane = self.cull.index_axis_mut(axis, depth);
-        let iter = plane.indexed_iter().zip(cull_plane.iter_mut().zip(outer_data.iter()));
-
-        for ((_pos, inner_block), (cull, outer_block)) in iter {
-            if block_data.get(inner_block).block_type == BlockType::None { continue; }
-            cull.set_face(face_num, block_data.get(outer_block).block_type == BlockType::Full);
-        }
-    }
-
-    pub fn cull_all_outer(&mut self, outer_data: [Option<Array2<BlockHandle>>; 6], block_data: &StaticBlockData) {
-        for i in 0..6 {
-            if let Some(outer) = &outer_data[i] {
-                self.cull_outer(Facing::from_num(i), outer, block_data);
-            }
-        }
-    }
-
-    pub fn cull_all(&mut self, outer_data: [Option<Array2<BlockHandle>>; 6], block_data: &StaticBlockData) {
-        self.cull_inner(block_data);
-        self.cull_all_outer(outer_data, block_data);
-    }
-
-    pub fn rebuild_mesh(
-        &mut self, 
-        offset: Vec3, 
-        block_data: &StaticBlockData,
-    ) {
-        let blocks = self.blocks.indexed_iter().map(|(p, b)| { (UsizeVec3::from(p), b) }).collect::<Vec<_>>();
-
-        self.render.block_quads.clear();
-        self.render.deco_vertices.clear();
-
-        let mut block_refs = Vec::new();
-        let mut deco_refs = Vec::new();
-
-        blocks.iter().for_each(|(pos, block)| {
-            let data = block_data.get(block);
-            if data.block_type == BlockType::None { return; }
-
-            match &data.model {
-                ModelType::FullBlock(m) => {
-                    block_refs.push((m, pos));
-                },
-
-                ModelType::Plant(m) => {
-                    deco_refs.push((m, pos));
-                },
-                _ => (),
-            }
-        });
-
-        self.render.block_quads.extend(block_refs.into_iter().flat_map(|(m, pos)| {
-            let faces = m.get_faces(offset + pos.into_vec3());
-            let cull = self.cull.get((pos.x, pos.y, pos.z)).unwrap();
-
-            cull.get_unculled().into_iter().map(move |i| { faces[i].into_block_quad() })
-        }));
-
-        self.render.deco_vertices.extend(deco_refs.into_iter().flat_map(|(m, pos)| {
-            m.with_translation(offset + pos.into_vec3()).get_raw_vertices().collect::<Vec<_>>()
-        }))
+        return ret;
     }
 
     fn get_neighbors(&self, pos: UsizeVec3) -> [Neighbor; 6] {
@@ -259,11 +178,5 @@ impl BlockCull {
             true => 1,
             false => 0,
         }
-    }
-}
-
-impl ChunkRender for Section {
-    fn get_render_section(&self, _atlas: &TextureAtlas, _block_data: &StaticBlockData) -> RenderSection {
-        self.render.clone()
     }
 }

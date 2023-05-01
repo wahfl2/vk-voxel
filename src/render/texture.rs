@@ -116,7 +116,7 @@ pub struct TextureHandle {
 }
 
 impl TextureHandle {
-    pub fn get_index(&self) -> u32 {
+    pub fn index(&self) -> u32 {
         self.inner_index
     }
 }

@@ -1,6 +1,6 @@
 use std::{path::Path, ffi::OsStr, fs, sync::Arc};
 
-use shaderc::ShaderKind;
+use shaderc::{ShaderKind, CompileOptions};
 use vulkano::{device::Device, shader::ShaderModule};
 
 pub trait LoadFromPath {
@@ -19,13 +19,16 @@ impl LoadFromPath for ShaderModule {
 
         let extension = Path::new(path).extension().and_then(OsStr::to_str).unwrap();
         let shader_kind = match_shader_ext(extension);
+        let mut compile_options = CompileOptions::new().unwrap();
+
+        compile_options.set_generate_debug_info();
 
         let shader_binary = match compiler.compile_into_spirv(
             &src, 
             shader_kind, 
             path,
             "main",
-            None,
+            Some(&compile_options),
         ) {
             Ok(b) => b,
             Err(e) => panic!("Error compiling shader file '{}': {}", path, e),

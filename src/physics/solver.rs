@@ -117,19 +117,19 @@ impl PhysicsSolver {
                 );
 
                 let recip = F_SECTION_SIZE.recip();
-                let highest_block = (CHUNK_HEIGHT as i32 * I_SECTION_SIZE.y) - 1;
+                let highest_section = CHUNK_HEIGHT as i32 - 1;
 
                 let min_section = ((Vec3::from(min) * recip).floor().into_i()).clamped(
                     IVec3::new(i32::MIN, 0, i32::MIN),
-                    IVec3::new(i32::MAX, highest_block, i32::MAX)
+                    IVec3::new(i32::MAX, highest_section, i32::MAX)
                 );
 
                 let max_section = ((Vec3::from(max) * recip).floor().into_i()).clamped(
                     IVec3::new(i32::MIN, 0,   i32::MIN),
-                    IVec3::new(i32::MAX, highest_block, i32::MAX)
+                    IVec3::new(i32::MAX, highest_section, i32::MAX)
                 );
 
-                if min_section.y != max_section.y || (min_section.y != 0 && max_section.y != highest_block) {
+                if min_section.y != max_section.y || (min_section.y != 0 && max_section.y != highest_section) {
                     for chunk_x in min_section.x..=max_section.x {
                         for chunk_z in min_section.z..=max_section.z {
                             let chunk_pos = IVec2::new(chunk_x, chunk_z);

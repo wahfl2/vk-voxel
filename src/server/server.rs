@@ -64,7 +64,7 @@ impl Server {
         let binding = self.world.query_mut::<(&Player, Option<&Gravity>, &mut Velocity)>();
         let (_, (_, gravity, vel)) = binding.into_iter().next().unwrap();
 
-        const MOVEMENT_SPEED: f32 = 2.0;
+        const MOVEMENT_SPEED: f32 = 0.25;
 
         // represents movement on the xz plane
         let mut movement = Vec2::zero();

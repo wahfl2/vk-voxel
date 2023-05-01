@@ -29,20 +29,16 @@ impl Default for Camera {
 }
 
 impl Camera {
-    /// Returns the matrix representing view projection and this camera's transform.
-    pub fn calculate_matrix(&self, viewport: &Viewport) -> Mat4 {
-        let aspect_ratio = viewport.dimensions[0] / viewport.dimensions[1];
-        let proj = projection::perspective_vk(self.fov * RADIANS, aspect_ratio, self.near, self.far);
+    /// Returns the matrix representing this camera's transform.
+    pub fn calculate_matrix(&self) -> Mat4 {
+        let rot = Rotor3::from_rotation_xz(PI - self.rotation.yaw) *
+            Rotor3::from_rotation_yz(self.rotation.pitch);
 
-        let yaw_rot = Rotor3::from_rotation_xz(self.rotation.yaw);
-        let pitch_rot = Rotor3::from_rotation_yz(self.rotation.pitch);
+        let mut transform = Isometry3::identity();
+        transform.append_rotation(rot);
+        transform.append_translation(self.pos);
 
-        let real_pos = -self.pos;
-        let mut transform = Isometry3::new(real_pos, Rotor3::identity());
-        transform.append_rotation(yaw_rot);
-        transform.append_rotation(pitch_rot);
-
-        proj * transform.into_homogeneous_matrix()
+        transform.into_homogeneous_matrix()
     }
 
     pub fn calculate_frustrum(&self, aspect_ratio: f32) -> CalculatedFrustrum {

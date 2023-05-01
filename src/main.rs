@@ -24,7 +24,7 @@ pub mod event_handler;
 pub mod server;
 pub mod physics;
 
-pub const FRAME_TIME: f64 = 1.0 / 1000.0;
+pub const FRAME_TIME: f64 = 0.0;
 
 #[global_allocator]
 pub static GLOBAL: MiMalloc = MiMalloc;
@@ -66,7 +66,7 @@ fn main() {
                 world_blocks.player_pos = -camera.pos.xz();
                 world_blocks.frame_update(&static_block_data);
                 server.tick(delta_time, &input_handler, &world_blocks, &static_block_data);
-                renderer.cam_uniform = Some(camera.calculate_matrix(&renderer.viewport));
+                renderer.cam_uniform = Some(camera.calculate_matrix());
 
                 input_handler.mouse_delta = Vec2::zero();
 

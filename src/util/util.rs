@@ -1,4 +1,4 @@
-use std::{ops::{Add, AddAssign}, f32::consts::PI};
+use std::{ops::{Add, AddAssign, Rem}, f32::consts::PI};
 
 use ultraviolet::{Vec2, Vec3, Rotor3, IVec3, IVec2, UVec3, UVec2};
 
@@ -418,6 +418,28 @@ impl MoreVecOps for Vec3 {
 
     fn recip(self) -> Self {
         Self::new(self.x.recip(), self.y.recip(), self.z.recip())
+    }
+}
+
+pub trait VecModPos {
+    type UVec;
+
+    fn mod_pos(self, div: Self::UVec) -> Self::UVec;
+}
+
+impl VecModPos for IVec3 {
+    type UVec = UVec3;
+
+    fn mod_pos(self, div: Self::UVec) -> Self::UVec {
+        let x = self.x % div.x as i32;
+        let y = self.y % div.y as i32;
+        let z = self.z % div.z as i32;
+
+        let x = if x < 0 { div.x as i32 + x } else { x } as u32;
+        let y = if y < 0 { div.y as i32 + y } else { y } as u32;
+        let z = if z < 0 { div.z as i32 + z } else { z } as u32;
+
+        UVec3::new(x, y, z)
     }
 }
 
