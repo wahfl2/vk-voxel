@@ -61,7 +61,7 @@ uint count_full_preceding(Brickmap brickmap, ivec3 section_pos) {
 }
 
 bool index_map(Brickmap brickmap, ivec3 section_pos, out bool out_of_range) {
-    const uint CHUNK_HEIGHT = brickgrid.size.y;
+    const uint CHUNK_HEIGHT = brickgrid.size.z;
 
     if (any(greaterThanEqual(section_pos, ivec3(SECTION_SIZE))) || any(lessThan(section_pos, ivec3(0)))) {
         out_of_range = true;
@@ -70,12 +70,11 @@ bool index_map(Brickmap brickmap, ivec3 section_pos, out bool out_of_range) {
         out_of_range = false;
     }
 
-    section_pos.y = 7 - section_pos.y;
     uint bit_index = (section_pos.x * SECTION_SIZE.y * SECTION_SIZE.z) + (section_pos.y * SECTION_SIZE.z) + section_pos.z;
 
-    uint n = brickmap.solid_mask[bit_index / CHUNK_HEIGHT];
+    uint n = brickmap.solid_mask[bit_index / 32];
     uint inner_idx = bit_index % CHUNK_HEIGHT;
-    return bool((n >> ((CHUNK_HEIGHT - 1) - inner_idx)) & 1);
+    return bool((n >> inner_idx) & 1);
 }
 
 uint index_grid(ivec3 grid_pos, out bool out_of_range) {
