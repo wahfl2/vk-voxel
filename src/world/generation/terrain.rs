@@ -11,7 +11,7 @@ use turborand::rng::Rng;
 use ultraviolet::{IVec2, Vec2, Vec3, IVec3, UVec2, DVec3, UVec3};
 
 use crate::util::more_vec::UsizeVec3;
-use crate::util::util::{MoreCmp, VecRounding, UVecToSigned, MoreVecConstructors, AdditionalSwizzles};
+use crate::util::util::{MoreCmp, VecRounding, MoreVecConstructors, AdditionalSwizzles};
 use crate::world::block_data::Blocks;
 use crate::world::chunk::{Chunk, CHUNK_HEIGHT};
 use crate::world::section::{F_SECTION_SIZE, SECTION_SIZE, I_SECTION_SIZE};
@@ -117,7 +117,7 @@ impl TerrainGenerator {
 
                 ret
             },
-            |chunk, offset, size, data| {
+            |chunk, offset, _size, data| {
                 const RAD_SQ: f32 = CAVE_RADIUS * CAVE_RADIUS;
                 let relative_pos = (chunk.blocks.pos - offset) * I_SECTION_SIZE.xz();
 
@@ -299,7 +299,7 @@ impl TerrainGenerator {
         ret
     }
 
-    fn gen_grass_at(&mut self, pos: IVec3) -> bool {
+    fn gen_grass_at(&mut self, _pos: IVec3) -> bool {
         self.rng.next_u32() & 1 == 0
     }
 }

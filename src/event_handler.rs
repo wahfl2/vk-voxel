@@ -33,7 +33,7 @@ impl InputHandler {
         
     }
 
-    pub fn handle_event(&mut self, event: DeviceEvent, proxy: &mut EventLoopProxy<UserEvent>) {
+    pub fn handle_event(&mut self, event: DeviceEvent, _proxy: &mut EventLoopProxy<UserEvent>) {
         match event {
             // Mouse movement
             DeviceEvent::MouseMotion { delta } => {

@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
-use ultraviolet::{Mat4, IVec2, Vec3};
-use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features, QueueFlags}, image::{view::{ImageView, ImageViewCreateInfo}, ImageUsage, SwapchainImage, AttachmentImage, ImageSubresourceRange}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, rasterization::{RasterizationState, CullMode, FrontFace}, depth_stencil::DepthStencilState, vertex_input::{Vertex, VertexInputState, BuffersDefinition}, color_blend::ColorBlendState}, StateMode}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, future::FenceSignalFuture}, buffer::{BufferUsage, Subbuffer}, descriptor_set::allocator::StandardDescriptorSetAllocator, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, format::Format};
+use ultraviolet::{Mat4, IVec2};
+use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features, QueueFlags}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, vertex_input::Vertex, color_blend::ColorBlendState}}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, future::FenceSignalFuture}, buffer::{BufferUsage, Subbuffer}, descriptor_set::allocator::StandardDescriptorSetAllocator, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}};
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::{WindowBuilder, CursorGrabMode}, dpi::PhysicalSize};
 
-use crate::{event_handler::UserEvent, world::{block_data::StaticBlockData, chunk::Chunk, world_blocks::WorldBlocks, section::{F_SECTION_SIZE, I_SECTION_SIZE}}, util::util::{Aabb, InsertVec2}};
+use crate::{event_handler::UserEvent, world::{chunk::Chunk, world_blocks::WorldBlocks}, util::util::InsertVec2};
 
-use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{VertexRaw, Vertex2D}, camera::camera::Camera, descriptor_sets::DescriptorSets};
+use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{Vertex2D}, descriptor_sets::DescriptorSets};
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
@@ -191,7 +191,6 @@ impl Renderer {
             &pipelines,
             &texture_atlas,
             texture_sampler.clone(),
-            view,
             BLOCK_FACE_LIGHTING,
         );
 
@@ -315,66 +314,6 @@ impl Renderer {
         ).unwrap()
     }
 
-    fn get_intermediate_attachment_images(
-        allocator: &StandardMemoryAllocator,
-        dimensions: PhysicalSize<u32>,
-    ) -> [Arc<ImageView<AttachmentImage>>; 4] {
-        [
-            Self::create_intermediate_image(allocator, dimensions),
-            Self::create_intermediate_image(allocator, dimensions),
-            Self::create_depth_image(allocator, dimensions),
-            Self::create_depth_image(allocator, dimensions),
-        ]
-    }
-
-    fn create_depth_image(
-        allocator: &StandardMemoryAllocator,
-        dimensions: PhysicalSize<u32>,
-    ) -> Arc<ImageView<AttachmentImage>> {
-        let image_fmt = Format::D32_SFLOAT;
-        let usage = ImageUsage::TRANSIENT_ATTACHMENT | ImageUsage::INPUT_ATTACHMENT | ImageUsage::DEPTH_STENCIL_ATTACHMENT;
-        let range = ImageSubresourceRange::from_parameters(image_fmt, 1, 1);
-
-        ImageView::new(
-            AttachmentImage::with_usage(
-                allocator, 
-                dimensions.into(),
-                Format::D32_SFLOAT,
-                usage,
-            ).unwrap(),
-            ImageViewCreateInfo {
-                format: Some(image_fmt),
-                subresource_range: range.clone(),
-                usage,
-                ..Default::default()
-            }
-        ).unwrap()
-    }
-
-    fn create_intermediate_image(
-        allocator: &StandardMemoryAllocator,
-        dimensions: PhysicalSize<u32>,
-    ) -> Arc<ImageView<AttachmentImage>> {
-        let image_fmt = Format::B8G8R8A8_UNORM;
-        let usage = ImageUsage::TRANSIENT_ATTACHMENT | ImageUsage::INPUT_ATTACHMENT | ImageUsage::COLOR_ATTACHMENT;
-        let range = ImageSubresourceRange::from_parameters(image_fmt, 1, 1);
-
-        ImageView::new(
-            AttachmentImage::with_usage(
-                allocator, 
-                dimensions.into(), 
-                image_fmt,
-                usage
-            ).unwrap(),
-            ImageViewCreateInfo {
-                format: Some(image_fmt),
-                subresource_range: range.clone(),
-                usage,
-                ..Default::default()
-            }
-        ).unwrap()
-    }
-
     fn get_framebuffers(
         images: &[Arc<SwapchainImage>], 
         render_pass: &Arc<RenderPass>, 
@@ -474,7 +413,7 @@ impl Renderer {
     }
 
     /// Get a command buffer that will render the scene.
-    pub fn get_render_command_buffer(&mut self, image_index: usize, camera: &Camera) -> Arc<PrimaryAutoCommandBuffer> {        
+    pub fn get_render_command_buffer(&mut self, image_index: usize) -> Arc<PrimaryAutoCommandBuffer> {        
         let mut builder = AutoCommandBufferBuilder::primary(
             &self.vk_command_buffer_allocator,
             self.vk_graphics_queue.queue_family_index(),
@@ -556,7 +495,7 @@ impl Renderer {
         Arc::new(builder.build().unwrap())
     }
 
-    fn update_vertex_buffers(&mut self, world_blocks: &mut WorldBlocks, block_data: &StaticBlockData) {
+    fn update_vertex_buffers(&mut self, world_blocks: &mut WorldBlocks) {
         for chunk_pos in world_blocks.updated_chunks.drain(..) {
             if let Some(chunk) = world_blocks.loaded_chunks.get(&chunk_pos) {
                 self.vertex_buffer.insert_chunk(chunk);
@@ -567,19 +506,19 @@ impl Renderer {
     }
 
     /// Get the command buffers to be executed on the GPU this frame.
-    fn get_command_buffers(&mut self, image_index: usize, camera: &Camera) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
+    fn get_command_buffers(&mut self, image_index: usize) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
         let mut ret = Vec::new();
         if self.upload_texture_atlas {
             self.upload_texture_atlas = false;
             ret.push(self.get_upload_command_buffer());
         }
-        ret.push(self.get_render_command_buffer(image_index, camera));
+        ret.push(self.get_render_command_buffer(image_index));
         ret
     }
 
     /// Renders the scene
-    pub fn render(&mut self, world_blocks: &mut WorldBlocks, block_data: &StaticBlockData, camera: &Camera) -> RenderState {
-        self.update_vertex_buffers(world_blocks, block_data);
+    pub fn render(&mut self, world_blocks: &mut WorldBlocks) -> RenderState {
+        self.update_vertex_buffers(world_blocks);
 
         let mut state = RenderState::Ok;
 
@@ -593,7 +532,7 @@ impl Renderer {
             };
         if suboptimal { state = RenderState::Suboptimal; }
 
-        let command_buffers = self.get_command_buffers(image_i as usize, camera);
+        let command_buffers = self.get_command_buffers(image_i as usize);
 
         // Overwrite the oldest fence and take control for drawing
         if let Some(image_fence) = &mut self.fences[image_i as usize] {
@@ -674,11 +613,6 @@ const BLOCK_FACE_LIGHTING: FaceLighting = FaceLighting {
     _pad1: 0,
     _pad2: 0,
 };
-
-enum VertexBufferType {
-    Block,
-    Decorations,
-}
 
 impl Default for FaceLighting {
     fn default() -> Self {

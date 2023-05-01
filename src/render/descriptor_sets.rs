@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use vulkano::{image::{view::ImageView, ImmutableImage, AttachmentImage}, sampler::Sampler, buffer::{Subbuffer, Buffer, BufferCreateInfo, BufferUsage}, descriptor_set::allocator::StandardDescriptorSetAllocator, pipeline::{Pipeline, PipelineBindPoint, GraphicsPipeline}, memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryUsage}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
+use vulkano::{image::{view::ImageView, ImmutableImage}, sampler::Sampler, buffer::{Subbuffer, Buffer, BufferCreateInfo, BufferUsage}, descriptor_set::allocator::StandardDescriptorSetAllocator, pipeline::{Pipeline, PipelineBindPoint, GraphicsPipeline}, memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryUsage}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
 
-use super::{buffer::{upload::UploadDescriptorSet}, mesh::quad::BlockQuad, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::CreateInfoConvenience, brick::{brickmap::Brickmap, brickgrid::{Brickgrid, self}}};
+use super::{buffer::upload::UploadDescriptorSet, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::CreateInfoConvenience, brick::{brickmap::Brickmap, brickgrid::Brickgrid}};
 
 pub type ImageViewSampler = (Arc<ImageView<ImmutableImage>>, Arc<Sampler>);
 
@@ -26,7 +26,6 @@ impl DescriptorSets {
         pipelines: &Pipelines,
         texture_atlas: &TextureAtlas,
         sampler: Arc<Sampler>,
-        view: View,
         face_lighting: FaceLighting,
     ) -> Self {
         let raytracing_layouts = pipelines.raytracing.layout().set_layouts();

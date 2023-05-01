@@ -1,11 +1,11 @@
-use std::{array, ops::Index};
+use std::array;
 
-use ndarray::{Array3, arr3, Axis, Array2};
-use ultraviolet::{UVec3, Vec3, IVec2, IVec3};
+use ndarray::{Array3, arr3};
+use ultraviolet::{UVec3, Vec3, IVec3};
 
-use crate::{render::{mesh::chunk_render::{ChunkRender, RenderSection}, texture::TextureAtlas, util::Reversed, brick::brickmap::Brickmap}, util::{util::{Facing, Sign, UVecToSigned, VecAxisIndex}, more_vec::UsizeVec3}};
+use crate::{render::{util::Reversed, brick::brickmap::Brickmap}, util::util::Facing};
 
-use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, BlockType, ModelType, Blocks}};
+use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, Blocks}};
 
 
 pub const SECTION_SIZE: UVec3 = UVec3::new(8, 8, 8);
@@ -89,20 +89,6 @@ impl Section {
         }
 
         return ret;
-    }
-
-    fn get_neighbors(&self, pos: UsizeVec3) -> [Neighbor; 6] {
-        let mut n = [Neighbor::Boundary; 6];
-        let m = UsizeVec3::from(SECTION_SIZE - UVec3::one());
-
-        if pos.x < m.x { n[0] = Neighbor::Block(*self.blocks.get((pos.x + 1, pos.y, pos.z)).unwrap()) }
-        if pos.x > 0   { n[1] = Neighbor::Block(*self.blocks.get((pos.x - 1, pos.y, pos.z)).unwrap()) }
-        if pos.y < m.y { n[2] = Neighbor::Block(*self.blocks.get((pos.x, pos.y + 1, pos.z)).unwrap()) }
-        if pos.y > 0   { n[3] = Neighbor::Block(*self.blocks.get((pos.x, pos.y - 1, pos.z)).unwrap()) }
-        if pos.z < m.z { n[4] = Neighbor::Block(*self.blocks.get((pos.x, pos.y, pos.z + 1)).unwrap()) }
-        if pos.z > 0   { n[5] = Neighbor::Block(*self.blocks.get((pos.x, pos.y, pos.z - 1)).unwrap()) }
-
-        n
     }
 }
 

@@ -1,9 +1,9 @@
-use std::{sync::Arc, collections::hash_map::Iter};
+use std::{collections::hash_map::Iter};
 
 use ahash::HashMap;
 use bytemuck::Pod;
-use ultraviolet::{IVec2, IVec3};
-use vulkano::{buffer::{BufferContents, BufferUsage, Subbuffer}, device::Device, memory::allocator::StandardMemoryAllocator, command_buffer::DrawIndirectCommand};
+use ultraviolet::IVec3;
+use vulkano::{buffer::{BufferContents, BufferUsage, Subbuffer}, memory::allocator::StandardMemoryAllocator, command_buffer::DrawIndirectCommand};
 
 use super::swap_buffer::SwapBufferSlice;
 

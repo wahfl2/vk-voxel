@@ -1,10 +1,7 @@
-use std::sync::Arc;
+use ultraviolet::{IVec2, IVec3};
+use vulkano::{buffer::BufferUsage, memory::allocator::StandardMemoryAllocator};
 
-use bytemuck::{Pod, Zeroable};
-use ultraviolet::{IVec2, IVec3, UVec3};
-use vulkano::{buffer::{BufferUsage, Subbuffer, Buffer, BufferCreateInfo}, device::Device, memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryUsage}};
-
-use crate::{render::{brick::{brickmap::{Brickmap, BrickmapPointer}, brickgrid::{Brickgrid, BrickgridBuffer, BrickgridBufferTask, BRICKGRID_SIZE}}, util::CreateInfoConvenience}, world::{chunk::{Chunk, CHUNK_HEIGHT}, section::Section}, util::util::{InsertVec2, VecModPos}};
+use crate::{render::brick::{brickmap::{Brickmap, BrickmapPointer}, brickgrid::{BrickgridBuffer, BrickgridBufferTask, BRICKGRID_SIZE}}, world::{chunk::{Chunk, CHUNK_HEIGHT}, section::Section}, util::util::{InsertVec2, VecModPos}};
 
 use super::allocator::HeapBuffer;
 
@@ -14,7 +11,6 @@ pub struct ChunkVertexBuffer {
 }
 
 const BM_BUFFER_USAGE: BufferUsage = BufferUsage::STORAGE_BUFFER;
-const BG_BUFFER_USAGE: BufferUsage = BufferUsage::STORAGE_BUFFER.union(BufferUsage::TRANSFER_DST);
 
 impl ChunkVertexBuffer {
     pub fn new(allocator: &StandardMemoryAllocator) -> Self {

@@ -5,7 +5,7 @@ use ndarray::{Array3, Axis};
 use ultraviolet::UVec3;
 use vulkano::{memory::allocator::StandardMemoryAllocator, buffer::{BufferUsage, subbuffer::BufferWriteGuard, Subbuffer}};
 
-use crate::{render::buffer::swap_buffer::{SwapBuffer, SwapDirtyPhase}, world::section::SECTION_SIZE, util::more_vec::UsizeVec3};
+use crate::{render::buffer::swap_buffer::{SwapBuffer, SwapDirtyPhase}, util::more_vec::UsizeVec3};
 
 use super::brickmap::BrickmapPointerRaw;
 
@@ -15,7 +15,7 @@ const BGS_X: usize = BRICKGRID_SIZE[0] as usize;
 const BGS_Y: usize = BRICKGRID_SIZE[1] as usize;
 const BGS_Z: usize = BRICKGRID_SIZE[2] as usize;
 
-const DATA_SIZE: usize = size_of::<BrickmapPointerRaw>() * BGS_X * BGS_Y * BGS_Z + 16;
+const _DATA_SIZE: usize = size_of::<BrickmapPointerRaw>() * BGS_X * BGS_Y * BGS_Z + 16;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]

@@ -1,4 +1,4 @@
-use std::{ops::{Add, AddAssign, Rem}, f32::consts::PI};
+use std::{ops::{Add, AddAssign}, f32::consts::PI};
 
 use ultraviolet::{Vec2, Vec3, Rotor3, IVec3, IVec2, UVec3, UVec2};
 

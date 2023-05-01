@@ -1,7 +1,7 @@
-use ahash::{HashMap, HashSet};
+use ahash::HashMap;
 use ultraviolet::{IVec2, Vec2};
 
-use crate::util::util::{Facing, AdditionalSwizzles};
+use crate::util::util::AdditionalSwizzles;
 
 use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::TerrainGenerator, section::F_SECTION_SIZE};
 
@@ -16,13 +16,6 @@ pub struct WorldBlocks {
 impl WorldBlocks {
     const CHUNK_UPDATES_PER_FRAME: u32 = 8;
     const RENDER_DISTANCE: u32 = 24;
-
-    const ADJ_CHUNK_OFFSETS: [IVec2; 4] = [
-        IVec2::new(1, 0),
-        IVec2::new(-1, 0),
-        IVec2::new(0, 1),
-        IVec2::new(0, -1),
-    ];
 
     pub fn new(block_data: &StaticBlockData) -> Self {
         Self {

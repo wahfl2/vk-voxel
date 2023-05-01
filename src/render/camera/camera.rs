@@ -1,11 +1,8 @@
 use std::{f32::consts::PI, simd::{f32x4, SimdPartialOrd}};
 
-use ultraviolet::{Mat4, projection, Isometry3, Vec3, Rotor3};
-use vulkano::pipeline::graphics::viewport::Viewport;
+use ultraviolet::{Mat4, Isometry3, Vec3, Rotor3};
 
 use crate::util::util::{EulerRot2, Aabb};
-
-const RADIANS: f32 = PI / 180.0;
 
 #[derive(Clone)]
 pub struct Camera {

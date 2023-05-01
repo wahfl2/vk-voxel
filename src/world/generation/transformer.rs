@@ -1,9 +1,9 @@
 use std::collections::hash_map::Entry;
 
 use ahash::{HashMap, HashMapExt};
-use ultraviolet::{UVec2, IVec2, Vec2};
+use ultraviolet::{UVec2, IVec2};
 
-use crate::util::util::{UVecToSigned, VecRounding, VecTrunc};
+use crate::util::util::UVecToSigned;
 
 use super::terrain::TerrainChunk;
 
