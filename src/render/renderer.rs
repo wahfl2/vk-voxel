@@ -372,13 +372,6 @@ impl Renderer {
             self.viewport.clone(),
         );
     }
-
-    pub fn upload_chunk(&mut self, pos: IVec2, chunk: &Chunk) {
-        for (i, section) in chunk.sections.iter().enumerate() {
-            let section_pos = pos.insert_y(i as i32);
-            self.vertex_buffer.insert_section(section_pos, section);
-        }
-    }
     
     /// Get a command buffer that will upload `self`'s texture atlas to the GPU when executed.
     /// 
