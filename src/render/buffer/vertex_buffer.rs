@@ -27,13 +27,7 @@ impl ChunkVertexBuffer {
 
     pub fn update(&mut self) -> (bool, bool) {
         let bg = self.brickgrid_buffer.update();
-        if bg {
-            println!("Brickgrid swapped");
-        }
         let bm = self.brickmap_buffer.update();
-        if bm {
-            println!("Brickmap swapped");
-        }
 
         (bg, bm)
     }
@@ -48,7 +42,9 @@ impl ChunkVertexBuffer {
     pub fn remove_chunk(&mut self, chunk_pos: IVec2) {
         for i in 0..CHUNK_HEIGHT as i32 {
             let section_pos = chunk_pos.insert_y(i);
-            self.remove_section(section_pos);
+            if self.brickmap_buffer.allocations.contains_key(&section_pos) {
+                self.remove_section(section_pos);
+            }
         }
     }
 
@@ -71,8 +67,6 @@ impl ChunkVertexBuffer {
 
         let raw_ptr = ptr.to_raw();
         let m_pos = section_pos.mod_pos(BRICKGRID_SIZE.into());
-
-        // println!("Wrote {:#034b} to ({}, {}, {})", raw_ptr.pointer, m_pos.x, m_pos.y, m_pos.z);
 
         self.brickgrid_buffer.write(BrickgridBufferTask::One { pos: m_pos, section: raw_ptr });
     }
