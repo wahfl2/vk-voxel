@@ -5,6 +5,8 @@ use bytemuck::Pod;
 use ultraviolet::IVec3;
 use vulkano::{buffer::{BufferContents, BufferUsage, Subbuffer}, memory::allocator::StandardMemoryAllocator, command_buffer::DrawIndirectCommand};
 
+use crate::{render::brick::brickgrid::BRICKGRID_SIZE, util::util::{VecModPos, UVecToSigned}};
+
 use super::swap_buffer::SwapBufferSlice;
 
 pub struct HeapBuffer<T> 
@@ -66,7 +68,7 @@ where
             self.chunk_allocator.deallocate(&allocation);
             // No need to push to queue, corresponding memory will not be read
         } else {
-            // println!("WARNING: Tried to remove chunk that was not allocated. Section: {:?}", section_pos);
+            println!("WARNING: Tried to remove chunk that was not allocated. Section: {:?}", section_pos);
         }
     }
 
