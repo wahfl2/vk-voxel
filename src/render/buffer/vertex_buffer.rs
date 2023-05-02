@@ -73,6 +73,10 @@ impl ChunkVertexBuffer {
 
     pub fn remove_section(&mut self, section_pos: IVec3) {
         self.brickmap_buffer.remove(section_pos);
+
+        let raw_ptr = BrickmapPointer::Empty.to_raw();
+        let m_pos = section_pos.mod_pos(BRICKGRID_SIZE.into());
+        self.brickgrid_buffer.write(BrickgridBufferTask::One { pos: m_pos, section: raw_ptr });
     }
 
     pub fn has_section(&self, section_pos: IVec3) -> bool {
