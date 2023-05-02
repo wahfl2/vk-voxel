@@ -39,9 +39,6 @@ where T: Clone
 
     pub fn apply(&mut self, chunk: &mut TerrainChunk) {
         let locations = self.locations(chunk.blocks.pos);
-        // let offsets = locations.clone().into_iter().map(|v| { v * self.spacing.signed() }).collect::<Vec<_>>();
-        // let pos = chunk.blocks.pos;
-        // println!("chunk ({}, {}), offsets: {:?}", pos.x, pos.y, offsets);
 
         for location in locations {
             let data = &*match self.data_cache.entry(location) {
