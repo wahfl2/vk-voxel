@@ -123,8 +123,8 @@ void main() {
     vec3 delta_dist = abs(1.0 / norm_ray_dir);
 
     ivec3 ray_step = ivec3(sign(ray_dir));
-    vec3 side_dist = (sign(ray_dir) * (vec3(grid_pos) - grid_ray_origin) + (sign(ray_dir) * 0.5) + 0.5) * delta_dist;
-    bvec3 grid_mask;
+    vec3 side_dist = (sign(ray_dir) * (vec3(grid_pos) - grid_ray_origin) + (sign(ray_dir) * 0.5) + vec3(0.5)) * delta_dist;
+    bvec3 grid_mask = bvec3(false);
 
     for (int i = 0; i < MAX_RAY_STEPS; i++) {
         bool out_of_range = false;
@@ -164,14 +164,16 @@ void main() {
 
             Brickmap brickmap = brickmap_buffer.maps[data];
             float d = length(vec3(grid_mask) * (side_dist - delta_dist)) / length(ray_dir);
-            float adjusted_d = d + (sign(d) * 0.00001);
 
-            vec3 grid_intersect = grid_ray_origin + (adjusted_d * ray_dir);
+            vec3 grid_intersect = grid_ray_origin + (d * ray_dir);
             vec3 intersect = grid_intersect * vec3(SECTION_SIZE);
 
             // This assumes square sections.
-            ivec3 section_pos = ivec3(mod(ivec3(floor(intersect)), SECTION_SIZE));
-            vec3 side_dist_sec = (sign(ray_dir) * (floor(intersect) - intersect) + (sign(ray_dir) * 0.5) + 0.5) * delta_dist;
+            vec3 off = sign(ray_dir) * vec3(grid_mask) * 0.5;
+            ivec3 block_pos = ivec3(floor(intersect + off));
+            ivec3 section_pos = ivec3(mod(block_pos, SECTION_SIZE));
+
+            vec3 side_dist_sec = (sign(ray_dir) * (block_pos - intersect) + (sign(ray_dir) * 0.5) + vec3(0.5)) * delta_dist;
 
             bvec3 mask = grid_mask;
             bool out_of_range = false;
