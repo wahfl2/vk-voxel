@@ -83,7 +83,7 @@ impl Section {
         let mut ret = [[0; 8]; 8];
 
         for ((x, y, z), b) in self.blocks.indexed_iter() {
-            if block_data.get(b).model.is_some() {
+            if block_data.get(b).model.is_full() {
                 ret[x][y] |= 1 << z;
             }
         }

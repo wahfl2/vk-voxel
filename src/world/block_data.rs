@@ -149,6 +149,13 @@ impl ModelType {
             _ => true,
         }
     }
+
+    pub fn is_full(&self) -> bool {
+        match self {
+            Self::FullBlock(_) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
