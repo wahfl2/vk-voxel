@@ -46,6 +46,19 @@ impl AxisAlignedQuad {
     }
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct TexelTexture {
+    pub offset: [u16; 2],
+    pub size: [u16; 2],
+}
+
+impl TexelTexture {
+    pub const fn new(offset: [u16; 2], size: [u16; 2]) -> Self {
+        Self { offset, size }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct QuadUV {
     pub min: Vec2,
@@ -59,15 +72,6 @@ impl QuadUV {
             Vec2::new(self.min.x, self.max.y),
             self.min,
             Vec2::new(self.max.x, self.min.y),
-        ]
-    }
-
-    pub const fn to_raw(&self) -> [f32; 4] {
-        [
-            self.min.x,
-            self.min.y,
-            self.max.x,
-            self.max.y,
         ]
     }
 }

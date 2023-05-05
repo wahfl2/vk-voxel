@@ -1,6 +1,6 @@
 use ultraviolet::Vec3;
 
-use crate::{render::texture::TextureHandle, util::util::Facing};
+use crate::{render::texture::TextureHandle, util::util::Facing, world::block_data::BlockTexture};
 
 use super::quad::TexturedSquare;
 
@@ -45,7 +45,7 @@ impl UnitCube {
         ]
     }
 
-    fn expand_textures(textures: Vec<TextureHandle>) -> Option<[TextureHandle; 6]> {
+    pub fn expand_textures(textures: Vec<TextureHandle>) -> Option<[TextureHandle; 6]> {
         match textures.len() {
             0 => panic!("No textures"),
             1 => Some([textures[0]; 6]),
@@ -55,6 +55,14 @@ impl UnitCube {
             },
             6 => Some(textures[..6].try_into().unwrap()),
             len => panic!("Uninferrable texture amount: {len}\nPrefer expanding it to 6 textures."),
+        }
+    }
+}
+
+impl From<UnitCube> for BlockTexture {
+    fn from(value: UnitCube) -> Self {
+        Self {
+            textures: value.textures.map(|t| t.index()),
         }
     }
 }

@@ -1,12 +1,13 @@
 use ultraviolet::{IVec2, IVec3};
 use vulkano::{buffer::BufferUsage, memory::allocator::StandardMemoryAllocator};
 
-use crate::{render::brick::{brickmap::{Brickmap, BrickmapPointer}, brickgrid::{BrickgridBuffer, BrickgridBufferTask, BRICKGRID_SIZE}}, world::{chunk::{Chunk, CHUNK_HEIGHT}, section::Section}, util::util::{InsertVec2, VecModPos}};
+use crate::{render::brick::{brickmap::{Brickmap, BrickmapPointer}, brickgrid::{BrickgridBuffer, BrickgridBufferTask, BRICKGRID_SIZE}}, world::{chunk::{Chunk, CHUNK_HEIGHT}, section::Section, block_data::{BlockTexture, StaticBlockData, ModelType}}, util::util::{InsertVec2, VecModPos}};
 
 use super::allocator::HeapBuffer;
 
 pub struct ChunkVertexBuffer {
     pub brickmap_buffer: HeapBuffer<Brickmap>,
+    pub texture_pointer_buffer: HeapBuffer<u32>,
     pub brickgrid_buffer: BrickgridBuffer,
 }
 
@@ -21,21 +22,28 @@ impl ChunkVertexBuffer {
                 0
             ),
 
+            texture_pointer_buffer: HeapBuffer::new(
+                allocator, BM_BUFFER_USAGE, 
+                128_000_000, 
+                0
+            ),
+
             brickgrid_buffer: BrickgridBuffer::new(allocator),
         }
     }
 
-    pub fn update(&mut self) -> (bool, bool) {
+    pub fn update(&mut self) -> (bool, bool, bool) {
         let bg = self.brickgrid_buffer.update();
+        let tp = self.texture_pointer_buffer.update();
         let bm = self.brickmap_buffer.update();
 
-        (bg, bm)
+        (bg, tp, bm)
     }
 
-    pub fn insert_chunk(&mut self, chunk: &Chunk) {
+    pub fn insert_chunk(&mut self, chunk: &Chunk, block_data: &StaticBlockData) {
         for (i, section) in chunk.sections.iter().enumerate() {
             let section_pos = chunk.pos.insert_y(i as i32);
-            self.insert_section(section_pos, section);
+            self.insert_section(section_pos, section, block_data);
         }
     }
 
@@ -52,15 +60,24 @@ impl ChunkVertexBuffer {
         &mut self, 
         section_pos: IVec3, 
         section: &Section,
+        block_data: &StaticBlockData,
     ) {
         if self.has_section(section_pos) {
             self.remove_section(section_pos);
         }
 
-        let brickmap = section.brickmap;
+        let mut brickmap = section.brickmap;
         let ptr = if brickmap.is_empty() {
             BrickmapPointer::Empty
         } else {
+            let block_textures = section.blocks.iter().filter_map(|b| {
+                match &block_data.get(b).model {
+                    ModelType::FullBlock(_) => Some(b.inner()),
+                    _ => None,
+                }
+            }).collect::<Vec<_>>();
+            brickmap.textures_offset = self.texture_pointer_buffer.insert(section_pos, &block_textures).front;
+
             let allocation = self.brickmap_buffer.insert(section_pos, &[brickmap]);
             BrickmapPointer::Brickmap(allocation.front)
         };
@@ -73,6 +90,7 @@ impl ChunkVertexBuffer {
 
     pub fn remove_section(&mut self, section_pos: IVec3) {
         self.brickmap_buffer.remove(section_pos);
+        self.texture_pointer_buffer.remove(section_pos);
 
         let raw_ptr = BrickmapPointer::Empty.to_raw();
         let m_pos = section_pos.mod_pos(BRICKGRID_SIZE.into());

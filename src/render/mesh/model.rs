@@ -4,7 +4,7 @@ use ultraviolet::Vec3;
 
 use crate::render::vertex::{Vertex, VertexRaw};
 
-use super::quad::QuadUV;
+use super::quad::{TexelTexture, QuadUV};
 
 #[derive(Debug, Clone)]
 pub struct Model {

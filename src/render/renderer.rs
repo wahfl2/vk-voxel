@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
+use once_cell::unsync::OnceCell;
 use ultraviolet::Mat4;
 use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features, QueueFlags}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, vertex_input::Vertex, color_blend::ColorBlendState}}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, future::FenceSignalFuture}, buffer::{BufferUsage, Subbuffer}, descriptor_set::allocator::StandardDescriptorSetAllocator, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}};
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::{WindowBuilder, CursorGrabMode}, dpi::PhysicalSize};
 
-use crate::{event_handler::UserEvent, world::world_blocks::WorldBlocks};
+use crate::{event_handler::UserEvent, world::{world_blocks::WorldBlocks, block_data::StaticBlockData}};
 
 use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{Vertex2D}, descriptor_sets::DescriptorSets};
 
@@ -46,7 +47,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(event_loop: &EventLoop<UserEvent>) -> Self {
+    pub fn new(event_loop: &EventLoop<UserEvent>, texture_atlas: TextureAtlas, block_data: &StaticBlockData) -> Self {
         let vk_lib = VulkanLibrary::new().expect("no local Vulkan library/DLL");
 
         let device_extensions = DeviceExtensions {
@@ -162,7 +163,6 @@ impl Renderer {
             viewport.clone(),
         );
 
-        let texture_atlas = Self::load_texture_folder_into_atlas("./resources");
         let texture_sampler = Sampler::new(
             vk_device.clone(),
             SamplerCreateInfo {
@@ -190,6 +190,7 @@ impl Renderer {
             &mut cbb,
             &pipelines,
             &texture_atlas,
+            block_data,
             texture_sampler.clone(),
             BLOCK_FACE_LIGHTING,
         );
@@ -238,6 +239,10 @@ impl Renderer {
             fences,
             previous_fence_i: 0,
         }
+    }
+
+    pub fn init_descriptor_sets(&mut self, block_data: &StaticBlockData) {
+
     }
 
     /// Select the best available phyisical device.
@@ -336,7 +341,7 @@ impl Renderer {
             .collect::<Vec<_>>()
     }
 
-    fn load_texture_folder_into_atlas(folder_path: &str) -> TextureAtlas {
+    pub fn load_texture_folder_into_atlas(folder_path: &str) -> TextureAtlas {
         TextureAtlas::from_folder(folder_path)
     }
 
@@ -398,7 +403,7 @@ impl Renderer {
             super::util::make_device_only_buffer_slice(
                 &self.vk_memory_allocator, &mut builder, 
                 BufferUsage::STORAGE_BUFFER, 
-                self.texture_atlas.uvs.iter().map(|uv| { uv.to_raw() })
+                self.texture_atlas.uvs.clone()
             )
         );
 
@@ -413,11 +418,18 @@ impl Renderer {
             CommandBufferUsage::OneTimeSubmit,
         ).unwrap();
 
-        let (brickgrid_swapped, brickmaps_swapped) = self.vertex_buffer.update();
+        let (brickgrid_swapped, texture_pointer_swapped, brickmaps_swapped) = self.vertex_buffer.update();
         if brickmaps_swapped {
             self.descriptor_sets.brickmap.replace(
                 &self.vk_descriptor_set_allocator, 
                 self.vertex_buffer.brickmap_buffer.get_buffer()
+            );
+        }
+
+        if texture_pointer_swapped {
+            self.descriptor_sets.texture_buffer.replace(
+                &self.vk_descriptor_set_allocator, 
+                self.vertex_buffer.texture_pointer_buffer.get_buffer()
             );
         }
 
@@ -488,10 +500,10 @@ impl Renderer {
         Arc::new(builder.build().unwrap())
     }
 
-    fn update_vertex_buffers(&mut self, world_blocks: &mut WorldBlocks) {
+    fn update_vertex_buffers(&mut self, world_blocks: &mut WorldBlocks, block_data: &StaticBlockData) {
         for chunk_pos in world_blocks.updated_chunks.drain(..) {
             if let Some(chunk) = world_blocks.loaded_chunks.get(&chunk_pos) {
-                self.vertex_buffer.insert_chunk(chunk);
+                self.vertex_buffer.insert_chunk(chunk, block_data);
             } else {
                 self.vertex_buffer.remove_chunk(chunk_pos);
             }
@@ -510,8 +522,8 @@ impl Renderer {
     }
 
     /// Renders the scene
-    pub fn render(&mut self, world_blocks: &mut WorldBlocks) -> RenderState {
-        self.update_vertex_buffers(world_blocks);
+    pub fn render(&mut self, world_blocks: &mut WorldBlocks, block_data: &StaticBlockData) -> RenderState {
+        self.update_vertex_buffers(world_blocks, block_data);
 
         let mut state = RenderState::Ok;
 

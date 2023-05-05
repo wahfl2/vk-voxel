@@ -1,20 +1,25 @@
 use std::sync::Arc;
 
+use bytemuck::Zeroable;
 use vulkano::{image::{view::ImageView, ImmutableImage}, sampler::Sampler, buffer::{Subbuffer, Buffer, BufferCreateInfo, BufferUsage}, descriptor_set::allocator::StandardDescriptorSetAllocator, pipeline::{Pipeline, PipelineBindPoint, GraphicsPipeline}, memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryUsage}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
 
-use super::{buffer::upload::UploadDescriptorSet, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::CreateInfoConvenience, brick::{brickmap::Brickmap, brickgrid::Brickgrid}};
+use crate::world::block_data::{StaticBlockData, BlockTexture, ModelType};
+
+use super::{buffer::upload::UploadDescriptorSet, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::CreateInfoConvenience, brick::{brickmap::Brickmap, brickgrid::Brickgrid}, mesh::quad::TexelTexture};
 
 pub type ImageViewSampler = (Arc<ImageView<ImmutableImage>>, Arc<Sampler>);
 
 pub struct DescriptorSets {
     pub atlas: UploadDescriptorSet<ImageViewSampler>,
-    pub atlas_map: UploadDescriptorSet<Subbuffer<[[f32; 4]]>>,
+    pub atlas_map: UploadDescriptorSet<Subbuffer<[TexelTexture]>>,
+    pub block_texture_map: UploadDescriptorSet<Subbuffer<[BlockTexture]>>,
 
     pub view: UploadDescriptorSet<Subbuffer<View>>,
     pub face_lighting: UploadDescriptorSet<Subbuffer<FaceLighting>>,
 
     pub brickmap: UploadDescriptorSet<Subbuffer<[Brickmap]>>,
     pub brickgrid: UploadDescriptorSet<Subbuffer<Brickgrid>>,
+    pub texture_buffer: UploadDescriptorSet<Subbuffer<[u32]>>,
 }
 
 impl DescriptorSets {
@@ -25,6 +30,7 @@ impl DescriptorSets {
 
         pipelines: &Pipelines,
         texture_atlas: &TextureAtlas,
+        block_data: &StaticBlockData,
         sampler: Arc<Sampler>,
         face_lighting: FaceLighting,
     ) -> Self {
@@ -39,13 +45,30 @@ impl DescriptorSets {
         let atlas_map_storage_buffer = super::util::make_device_only_buffer_slice(
             memory_allocator, cbb, 
             BufferUsage::STORAGE_BUFFER, 
-            texture_atlas.uvs.iter().map(|uv| { uv.to_raw() })
+            texture_atlas.uvs.clone()
         );
         
         let atlas_map = UploadDescriptorSet::new(
             descriptor_set_allocator,
             raytracing_layouts[1].clone(), 0,
             atlas_map_storage_buffer
+        );
+
+        let block_texture_storage_buffer = super::util::make_device_only_buffer_slice(
+            memory_allocator, cbb, 
+            BufferUsage::STORAGE_BUFFER, 
+            block_data.block_data().into_iter().map(|b| {
+                match &b.model {
+                    ModelType::FullBlock(m) => BlockTexture::from(m.clone()),
+                    _ => BlockTexture::zeroed(),
+                }
+            })
+        );
+
+        let block_texture_map = UploadDescriptorSet::new(
+            descriptor_set_allocator,
+            raytracing_layouts[7].clone(), 0,
+            block_texture_storage_buffer
         );
 
         let view_storage_buffer = super::util::make_device_only_buffer_sized(
@@ -93,13 +116,26 @@ impl DescriptorSets {
             ).unwrap()
         );
 
+        let texture_buffer = UploadDescriptorSet::new(
+            descriptor_set_allocator,
+            raytracing_layouts[6].clone(), 0,
+            Buffer::new_slice(
+                memory_allocator,
+                BufferCreateInfo::usage(BufferUsage::STORAGE_BUFFER), 
+                AllocationCreateInfo::usage(MemoryUsage::Upload),
+                1,
+            ).unwrap()
+        );
+
         Self {
             atlas,
             atlas_map,
+            block_texture_map,
             view,
             face_lighting,
             brickmap,
             brickgrid,
+            texture_buffer,
         }
     }
 
@@ -119,6 +155,8 @@ impl DescriptorSets {
                 self.face_lighting.set.clone(),
                 self.brickmap.set.clone(),
                 self.brickgrid.set.clone(),
+                self.texture_buffer.set.clone(),
+                self.block_texture_map.set.clone(),
             ]
         );
     }

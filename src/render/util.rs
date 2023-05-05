@@ -6,7 +6,7 @@ use ultraviolet::{UVec2, Vec2};
 use vulkano::{swapchain::Surface, image::ImageDimensions, buffer::{Buffer, BufferUsage, Subbuffer, BufferContents, BufferCreateInfo}, memory::allocator::{StandardMemoryAllocator, MemoryUsage, AllocationCreateInfo}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, CopyBufferInfoTyped, CopyBufferInfo}};
 use winit::window::Window;
 
-use super::mesh::quad::QuadUV;
+use super::mesh::quad::TexelTexture;
 
 pub trait GetWindow {
     fn get_window(&self) -> Option<Arc<Window>>;
@@ -28,19 +28,15 @@ pub enum RenderState {
 }
 
 pub trait BoxToUV {
-    fn to_quad_uv(self, atlas_size: UVec2) -> QuadUV;
+    fn to_quad_uv(self) -> TexelTexture;
 }
 
 impl BoxToUV for Box2D<i32, UnknownUnit> {
-    fn to_quad_uv(self, atlas_size: UVec2) -> QuadUV {
-        let size = Vec2::from(atlas_size);
-        let x_recip = 1.0 / size.x;
-        let y_recip = 1.0 / size.y;
-
-        QuadUV {
-            min: Vec2::new(self.min.x as f32 * x_recip, self.min.y as f32 * y_recip),
-            max: Vec2::new(self.max.x as f32 * x_recip, self.max.y as f32 * y_recip),
-        }        
+    fn to_quad_uv(self) -> TexelTexture {
+        let size = self.max - self.min;
+        let ret = TexelTexture::new([self.min.x as u16, self.min.y as u16], [size.x as u16, size.y as u16]);
+        println!("texel texture: {:?}", ret);
+        ret
     }
 }
 

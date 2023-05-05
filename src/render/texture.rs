@@ -7,14 +7,14 @@ use png::{Transformations, ColorType};
 use ultraviolet::UVec2;
 use vulkano::{memory::allocator::StandardMemoryAllocator, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::ImageView}, format::Format};
 
-use super::{util::{VecConvenience, BoxToUV}, mesh::quad::QuadUV};
+use super::{util::{VecConvenience, BoxToUV}, mesh::quad::TexelTexture};
 
 pub struct TextureAtlas {
     /// Map that matches file names to the index of the texture
     pub name_index_map: HashMap<String, usize>,
     pub data: ImageData,
     allocations: Vec<Box2D<i32, UnknownUnit>>,
-    pub uvs: Vec<QuadUV>,
+    pub uvs: Vec<TexelTexture>,
 }
 
 impl TextureAtlas {
@@ -69,7 +69,7 @@ impl TextureAtlas {
             }
 
             allocations.push(alloc);
-            uvs.push(alloc.to_quad_uv(atlas_size));
+            uvs.push(alloc.to_quad_uv());
         }
 
         Self {
@@ -104,9 +104,9 @@ impl TextureAtlas {
         ImageView::new_default(image).unwrap()
     }
 
-    pub fn get_uv(&self, handle: TextureHandle) -> QuadUV {
+    pub fn get_uv(&self, handle: TextureHandle) -> TexelTexture {
         let alloc = self.allocations[handle.inner_index as usize];
-        alloc.to_quad_uv(self.data.dimensions)
+        alloc.to_quad_uv()
     }
 }
 

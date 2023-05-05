@@ -29,7 +29,7 @@ pub struct TerrainGenerator {
     pub seed: u32,
     cave_transformer: TerrainTransformer<Vec<Vec3>>,
     rng: Xoshiro128StarStar,
-    cache: [BlockHandle; 5]
+    cache: [BlockHandle; 4]
 }
 
 impl TerrainGenerator {
@@ -55,7 +55,6 @@ impl TerrainGenerator {
 
         let cache = [
             block_data.get_handle("air").unwrap(),
-            block_data.get_handle("grass").unwrap(),
             block_data.get_handle("grass_block").unwrap(),
             block_data.get_handle("dirt").unwrap(),
             block_data.get_handle("stone").unwrap(),
@@ -240,7 +239,7 @@ impl TerrainGenerator {
             let idx = i as u32;
 
             if idx < section_low {
-                Section::full(self.cache[4])
+                Section::full(self.cache[3])
             } else if idx <= section_high {
                 self.section_from_height(&height_array, i as u32, chunk_pos)
             } else {
@@ -271,28 +270,28 @@ impl TerrainGenerator {
 
             // All stone
             if height > height_offset + SECTION_SIZE.y + 4 {
-                column.fill(self.cache[4]);
+                column.fill(self.cache[3]);
                 continue;
             }
 
-            let can_gen_grass = height >= height_offset.saturating_sub(1) && relative_height < SECTION_SIZE.y - 1;
+            // let can_gen_grass = height >= height_offset.saturating_sub(1) && relative_height < SECTION_SIZE.y - 1;
             let stone_end = relative_height.saturating_sub(3).min(SECTION_SIZE.y - 1) as usize;
             let dirt_end = relative_height.min(SECTION_SIZE.y - 1) as usize;
             let mut c = [self.cache[0]; SECTION_SIZE.y as usize];
 
-            c[0..stone_end].fill(self.cache[4]);
-            c[stone_end..dirt_end].fill(self.cache[3]);
-            c[relative_height.min(SECTION_SIZE.y - 1) as usize] = self.cache[2];
+            c[0..stone_end].fill(self.cache[3]);
+            c[stone_end..dirt_end].fill(self.cache[2]);
+            c[relative_height.min(SECTION_SIZE.y - 1) as usize] = self.cache[1];
 
-            let grass_pos = IVec3::new(
-                column_pos.x, 
-                ((section_num * SECTION_SIZE.y) + relative_height + 1) as i32, 
-                column_pos.y
-            );
+            // let grass_pos = IVec3::new(
+            //     column_pos.x, 
+            //     ((section_num * SECTION_SIZE.y) + relative_height + 1) as i32, 
+            //     column_pos.y
+            // );
 
-            if can_gen_grass && self.gen_grass_at(grass_pos) {
-                c[relative_height as usize + 1] = self.cache[1];
-            }
+            // if can_gen_grass && self.gen_grass_at(grass_pos) {
+            //     c[relative_height as usize + 1] = self.cache[1];
+            // }
 
             column.assign(&arr1(&c));
         }

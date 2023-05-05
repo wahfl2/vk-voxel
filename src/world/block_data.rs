@@ -1,6 +1,7 @@
 use ahash::HashMap;
+use bytemuck::{Zeroable, Pod};
 
-use crate::render::{texture::TextureAtlas, mesh::{cube::UnitCube, quad::QuadUV, model::Model}};
+use crate::render::{texture::TextureAtlas, mesh::{cube::UnitCube, quad::{TexelTexture, QuadUV}, model::Model}};
 
 /// Static block data, should be initialized at startup and probably left alone.
 pub struct StaticBlockData {
@@ -58,7 +59,7 @@ impl StaticBlockData {
             BlockType::Full,
         ));
 
-        self.add(InitBlockData::new_plant("grass", atlas.get_uv(atlas.get_handle("grass").unwrap())));
+        // self.add(InitBlockData::new_plant("grass", atlas.get_uv(atlas.get_handle("grass").unwrap())));
     }
 
     pub fn add(&mut self, data: InitBlockData) -> BlockHandle {
@@ -75,6 +76,10 @@ impl StaticBlockData {
     pub fn get_handle(&self, id: &str) -> Option<BlockHandle> {
         let idx = self.ids.get(id)?;
         Some(BlockHandle::new(*idx))
+    }
+
+    pub fn block_data(&self) -> &[InitBlockData] {
+        &self.inner
     }
 }
 
@@ -171,6 +176,10 @@ impl BlockHandle {
     pub fn new_unchecked(inner: u32) -> Self {
         Self { inner }
     }
+
+    pub fn inner(&self) -> u32 {
+        self.inner
+    }
 }
 
 impl From<Option<UnitCube>> for ModelType {
@@ -180,4 +189,10 @@ impl From<Option<UnitCube>> for ModelType {
             None => Self::None,
         }
     }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct BlockTexture {
+    pub textures: [u32; 6],
 }

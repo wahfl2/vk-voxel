@@ -11,13 +11,22 @@ struct Brickmap {
     uint lod_color;
 };
 
+struct Texture {
+    uint offset_xy;
+    uint size_xy;
+};
+
 layout(location = 0) out vec4 f_color;
 
 layout(set = 0, binding = 0) uniform sampler2D tex;
 
 layout(std140, set = 1, binding = 0) readonly buffer AtlasMap {
-    vec4 textures[];
+    Texture textures[];
 } atlas_map;
+
+layout(set = 7, binding = 0) readonly buffer BlockTextureMap {
+    uint textures[];
+} block_texture_map;
 
 layout(set = 2, binding = 0) uniform View {
     mat4 camera;
@@ -42,8 +51,18 @@ layout(set = 5, binding = 0) readonly buffer Brickgrid {
     uint pointers[];
 } brickgrid;
 
+layout(set = 6, binding = 0) readonly buffer TextureBuffer {
+    uint textures[];
+} block_texture_buffer;
+
 bvec3 and_bvec(bvec3 n, bvec3 m) {
     return bvec3(n.x && m.x, n.y && m.y, n.z && m.z);
+}
+
+ivec2 get_texel(Texture texture_s, vec2 uv) {
+    uvec2 offset = uvec2(texture_s.offset_xy & 65535, texture_s.offset_xy >> 16);
+    uvec2 size = uvec2(texture_s.size_xy & 65535, texture_s.size_xy >> 16);
+    return ivec2(offset + (size * uv));
 }
 
 // Used for obtaining the texture index of a full block
@@ -53,9 +72,9 @@ uint count_full_preceding(Brickmap brickmap, ivec3 section_pos) {
     uint bit_index = (section_pos.x * SECTION_SIZE.y * SECTION_SIZE.z) + (section_pos.y * SECTION_SIZE.z) + section_pos.z;
     uint t_idx = 0;
     for (uint i = 0; i < bit_index; i++) {
-        uint n = brickmap.solid_mask[i / CHUNK_HEIGHT];
+        uint n = brickmap.solid_mask[i / 32];
         uint inner_idx = i % CHUNK_HEIGHT;
-        t_idx += (n >> ((CHUNK_HEIGHT - 1) - inner_idx)) & 1;
+        t_idx += (n >> inner_idx) & 1;
     }
     return t_idx;
 }
@@ -97,7 +116,7 @@ void normal_shading(in vec3 n, out float ret) {
 
 void main() {
     vec4 placeholder1 = texture(tex, vec2(0.0));
-    vec4 placeholder2 = atlas_map.textures[0];
+    // vec4 placeholder2 = atlas_map.textures[0];
     uint placeholder3 = face_lighting._pad1;
 
     vec2 frag_coord = vec2(view.resolution.x - gl_FragCoord.x, view.resolution.y - gl_FragCoord.y);
@@ -208,7 +227,14 @@ void main() {
                 );
 
                 vec2 uv = possible_uv[face_axis];
-                f_color = vec4(uv, 0.0, 1.0);
+
+                uint block_texture_index = brickmap.textures_offset + count_full_preceding(brickmap, section_pos);
+                uint block_texture_id = block_texture_buffer.textures[block_texture_index];
+                uint texture_index = block_texture_map.textures[block_texture_id * 6 + face_id];
+                
+                Texture texture_s = atlas_map.textures[texture_index];
+
+                f_color = texelFetch(tex, get_texel(texture_s, uv), 0);
                 return;
             }
 

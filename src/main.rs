@@ -34,9 +34,11 @@ fn main() {
     let event_loop: EventLoop<UserEvent> = EventLoopBuilder::with_user_event().build();
     let mut proxy = event_loop.create_proxy();
 
-    let mut renderer = Renderer::new(&event_loop);
+    let texture_atlas = Renderer::load_texture_folder_into_atlas("./resources");
     let mut static_block_data = StaticBlockData::empty();
-    static_block_data.init(&renderer.texture_atlas);
+    static_block_data.init(&texture_atlas);
+
+    let mut renderer = Renderer::new(&event_loop, texture_atlas, &static_block_data);
     let mut world_blocks = WorldBlocks::new(&static_block_data);
     let mut server = Server::new();
     server.init_single_player();
@@ -70,7 +72,7 @@ fn main() {
 
                 input_handler.mouse_delta = Vec2::zero();
 
-                match renderer.render(&mut world_blocks) {
+                match renderer.render(&mut world_blocks, &static_block_data) {
                     RenderState::OutOfDate | RenderState::Suboptimal => recreate_swapchain = true,
                     _ => ()
                 }
