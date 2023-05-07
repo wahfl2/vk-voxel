@@ -3,7 +3,9 @@
 const float PI = 3.1415926535897932384626;
 const float TO_RADIANS = PI / 180.0;
 const int MAX_RAY_STEPS = 64;
+const int MAX_INNER_STEPS = 32;
 const uvec3 SECTION_SIZE = uvec3(8, 8, 8);
+const float RECIP_255 = 0.00392156862;
 
 struct Brickmap {
     uint solid_mask[16];
@@ -66,20 +68,20 @@ ivec2 get_texel(Texture texture_s, vec2 uv) {
 }
 
 // Used for obtaining the texture index of a full block
-uint count_full_preceding(Brickmap brickmap, ivec3 section_pos) {
+uint count_full_preceding(uint solid_mask[16], ivec3 section_pos) {
     const uint CHUNK_HEIGHT = brickgrid.size.y;
 
     uint bit_index = (section_pos.x * SECTION_SIZE.y * SECTION_SIZE.z) + (section_pos.y * SECTION_SIZE.z) + section_pos.z;
     uint t_idx = 0;
     for (uint i = 0; i < bit_index; i++) {
-        uint n = brickmap.solid_mask[i / 32];
+        uint n = solid_mask[i / 32];
         uint inner_idx = i % CHUNK_HEIGHT;
         t_idx += (n >> inner_idx) & 1;
     }
     return t_idx;
 }
 
-bool index_map(Brickmap brickmap, ivec3 section_pos, out bool out_of_range) {
+bool index_map(uint solid_mask[16], ivec3 section_pos, out bool out_of_range) {
     const uint CHUNK_HEIGHT = brickgrid.size.z;
 
     if (any(greaterThanEqual(section_pos, ivec3(SECTION_SIZE))) || any(lessThan(section_pos, ivec3(0)))) {
@@ -91,7 +93,7 @@ bool index_map(Brickmap brickmap, ivec3 section_pos, out bool out_of_range) {
 
     uint bit_index = (section_pos.x * SECTION_SIZE.y * SECTION_SIZE.z) + (section_pos.y * SECTION_SIZE.z) + section_pos.z;
 
-    uint n = brickmap.solid_mask[bit_index / 32];
+    uint n = solid_mask[bit_index / 32];
     uint inner_idx = bit_index % CHUNK_HEIGHT;
     return bool((n >> inner_idx) & 1);
 }
@@ -115,7 +117,7 @@ void normal_shading(in vec3 n, out float ret) {
 }
 
 void main() {
-    vec4 placeholder1 = texture(tex, vec2(0.0));
+    // vec4 placeholder1 = texture(tex, vec2(0.0));
     // vec4 placeholder2 = atlas_map.textures[0];
     uint placeholder3 = face_lighting._pad1;
 
@@ -165,15 +167,13 @@ void main() {
             // Unloaded brickmap
 
             // feedback?
-            // f_color = vec4(1.0, 0.0, 0.0, 1.0);
             discard;
         } else if (flags == 2) {
             // LOD brickmap
-
             f_color = vec4(
-                float((data >>  0) & 255) / 255.0,
-                float((data >>  8) & 255) / 255.0,
-                float((data >> 16) & 255) / 255.0,
+                float((data >>  0) & 255) * RECIP_255,
+                float((data >>  8) & 255) * RECIP_255,
+                float((data >> 16) & 255) * RECIP_255,
                 1.0
             );
             // also feedback?
@@ -197,8 +197,8 @@ void main() {
             bvec3 mask = grid_mask;
             bool out_of_range = false;
 
-            for (int j = 0; j < MAX_RAY_STEPS; j++) {
-                bool solid = index_map(brickmap, section_pos, out_of_range);
+            for (int j = 0; j < MAX_INNER_STEPS; j++) {
+                bool solid = index_map(brickmap.solid_mask, section_pos, out_of_range);
 
                 if (out_of_range || solid) {
                     break;
@@ -228,7 +228,7 @@ void main() {
 
                 vec2 uv = possible_uv[face_axis];
 
-                uint block_texture_index = brickmap.textures_offset + count_full_preceding(brickmap, section_pos);
+                uint block_texture_index = brickmap.textures_offset + count_full_preceding(brickmap.solid_mask, section_pos);
                 uint block_texture_id = block_texture_buffer.textures[block_texture_index];
                 uint texture_index = block_texture_map.textures[block_texture_id * 6 + face_id];
                 
@@ -236,11 +236,11 @@ void main() {
 
                 f_color = texelFetch(tex, get_texel(texture_s, uv), 0);
                 return;
+            } else {
+                grid_mask = lessThanEqual(side_dist.xyz, min(side_dist.yzx, side_dist.zxy));
+                side_dist += vec3(grid_mask) * delta_dist;
+                grid_pos += ivec3(vec3(grid_mask)) * ray_step;
             }
-
-            grid_mask = lessThanEqual(side_dist.xyz, min(side_dist.yzx, side_dist.zxy));
-            side_dist += vec3(grid_mask) * delta_dist;
-            grid_pos += ivec3(vec3(grid_mask)) * ray_step;
         }
     }
 
