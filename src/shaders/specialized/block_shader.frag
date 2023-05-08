@@ -155,7 +155,7 @@ void main() {
         bool out_of_range = false;
         uint ptr = index_grid(grid_pos, out_of_range);
         if (out_of_range) {
-            discard;
+            break;
         };
 
         uint flags = ptr & 3;
@@ -171,7 +171,7 @@ void main() {
             // Unloaded brickmap
 
             // feedback?
-            discard;
+            break;
         } else if (flags == 2) {
             // LOD brickmap
             f_color = vec4(
@@ -250,5 +250,11 @@ void main() {
         }
     }
 
-    f_color = vec4(1.0, 0.0, 1.0, 0.0);
+    const vec3 above_horizon = vec3(0.55, 0.69, 0.99);
+    const vec3 below_horizon = vec3(0.05, 0.14, 0.24);
+    float bias = clamp(ray_dir.y * 3.0 + ray_origin.y * 0.005, -1.0, 0.0) + 1.0;
+    float r_bias = 1.0 - bias;
+
+    vec3 skybox_color = (bias * above_horizon) + (r_bias * below_horizon);
+    f_color = vec4(skybox_color, 1.0);
 }
