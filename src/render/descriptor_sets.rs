@@ -5,13 +5,13 @@ use vulkano::{image::{view::ImageView, ImmutableImage}, sampler::Sampler, buffer
 
 use crate::world::block_data::{StaticBlockData, BlockTexture, ModelType};
 
-use super::{buffer::upload::UploadDescriptorSet, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::CreateInfoConvenience, brick::{brickmap::Brickmap, brickgrid::Brickgrid}, mesh::quad::TexelTexture};
+use super::{buffer::upload::UploadDescriptorSet, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::CreateInfoConvenience, brick::{brickmap::Brickmap, brickgrid::Brickgrid}, mesh::quad::{TexelTexture, TexelTexturePad}};
 
 pub type ImageViewSampler = (Arc<ImageView<ImmutableImage>>, Arc<Sampler>);
 
 pub struct DescriptorSets {
     pub atlas: UploadDescriptorSet<ImageViewSampler>,
-    pub atlas_map: UploadDescriptorSet<Subbuffer<[TexelTexture]>>,
+    pub atlas_map: UploadDescriptorSet<Subbuffer<[TexelTexturePad]>>,
     pub block_texture_map: UploadDescriptorSet<Subbuffer<[BlockTexture]>>,
 
     pub view: UploadDescriptorSet<Subbuffer<View>>,
@@ -45,7 +45,7 @@ impl DescriptorSets {
         let atlas_map_storage_buffer = super::util::make_device_only_buffer_slice(
             memory_allocator, cbb, 
             BufferUsage::STORAGE_BUFFER, 
-            texture_atlas.uvs.clone()
+            texture_atlas.uvs.iter().map(|t| TexelTexturePad::from(*t))
         );
         
         let atlas_map = UploadDescriptorSet::new(

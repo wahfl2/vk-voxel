@@ -9,7 +9,7 @@ use winit::{event_loop::EventLoop, window::{WindowBuilder, CursorGrabMode}, dpi:
 
 use crate::{event_handler::UserEvent, world::{world_blocks::WorldBlocks, block_data::StaticBlockData}};
 
-use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{Vertex2D}, descriptor_sets::DescriptorSets};
+use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{Vertex2D}, descriptor_sets::DescriptorSets, mesh::quad::TexelTexturePad};
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
@@ -403,7 +403,7 @@ impl Renderer {
             super::util::make_device_only_buffer_slice(
                 &self.vk_memory_allocator, &mut builder, 
                 BufferUsage::STORAGE_BUFFER, 
-                self.texture_atlas.uvs.clone()
+                self.texture_atlas.uvs.iter().map(|t| TexelTexturePad::from(*t))
             )
         );
 

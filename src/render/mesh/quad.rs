@@ -53,6 +53,24 @@ pub struct TexelTexture {
     pub size: [u16; 2],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct TexelTexturePad {
+    pub offset: [u16; 2],
+    pub size: [u16; 2],
+    pub _pad: u64,
+}
+
+impl From<TexelTexture> for TexelTexturePad {
+    fn from(value: TexelTexture) -> Self {
+        Self {
+            offset: value.offset,
+            size: value.size,
+            _pad: 0,
+        }
+    }
+}
+
 impl TexelTexture {
     pub const fn new(offset: [u16; 2], size: [u16; 2]) -> Self {
         Self { offset, size }
