@@ -2,10 +2,13 @@
 
 const float PI = 3.1415926535897932384626;
 const float TO_RADIANS = PI / 180.0;
-const int MAX_RAY_STEPS = 64;
+const int MAX_RAY_STEPS = 128;
 const int MAX_INNER_STEPS = 32;
 const uvec3 SECTION_SIZE = uvec3(8, 8, 8);
 const float RECIP_255 = 0.00392156862;
+
+const float DEG_90 = 90.0 * TO_RADIANS;
+const mat2 ROT_90 = mat2(cos(DEG_90), -sin(DEG_90), sin(DEG_90), cos(DEG_90));
 
 struct Brickmap {
     uint solid_mask[16];
@@ -16,6 +19,7 @@ struct Brickmap {
 struct Texture {
     uint offset_xy;
     uint size_xy;
+    uvec2 _pad;
 };
 
 layout(location = 0) out vec4 f_color;
@@ -210,7 +214,7 @@ void main() {
             }
 
             if (!out_of_range) {
-                uint negative = uint(any(and_bvec(mask, lessThan(ray_dir, vec3(0)))));
+                uint negative = uint(any(and_bvec(mask, greaterThanEqual(ray_dir, vec3(0)))));
                 uvec3 u_mask = uvec3(mask);
                 uint face_id = (u_mask.y * 2u) + (u_mask.z * 4u) + negative;
                 uint face_axis = u_mask.y + (u_mask.z * 2u);
@@ -220,10 +224,12 @@ void main() {
                 vec3 sec_intersect = intersect + d_sec * ray_dir;
                 vec3 sd = sec_intersect - floor(sec_intersect);
 
+                vec2 yz = ROT_90 * (sd.yz - 0.5) + 0.5;
+
                 vec2 possible_uv[3] = vec2[3](
-                    sd.yz,
+                    yz,
                     sd.xz,
-                    sd.xy
+                    1.0 - sd.xy
                 );
 
                 vec2 uv = possible_uv[face_axis];
