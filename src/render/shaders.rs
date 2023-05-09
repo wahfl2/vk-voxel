@@ -1,6 +1,6 @@
-use std::{path::Path, ffi::OsStr, fs, sync::Arc};
+use std::{path::Path, ffi::OsStr, fs::{self, File}, sync::Arc, hint::black_box, io::Write};
 
-use shaderc::{ShaderKind, CompileOptions};
+use shaderc::{ShaderKind, CompileOptions, OptimizationLevel};
 use vulkano::{device::Device, shader::ShaderModule};
 
 pub trait LoadFromPath {
@@ -12,7 +12,7 @@ impl LoadFromPath for ShaderModule {
         let compiler = shaderc::Compiler::new().unwrap();
 
         let shader_path = format!("./src/shaders/{}", path);
-        let src = match fs::read_to_string(shader_path) {
+        let src = match fs::read_to_string(shader_path.clone()) {
             Ok(s) => s,
             Err(e) => panic!("Error reading shader file '{}': {}", path, e),
         };
@@ -22,6 +22,21 @@ impl LoadFromPath for ShaderModule {
         let mut compile_options = CompileOptions::new().unwrap();
 
         compile_options.set_generate_debug_info();
+        compile_options.set_optimization_level(OptimizationLevel::Performance);
+
+        let shader_pre = match compiler.compile_into_spirv_assembly(
+            &src, 
+            shader_kind, 
+            path,
+            "main",
+            Some(&compile_options),
+        ) {
+            Ok(b) => b,
+            Err(e) => panic!("Error compiling shader file '{}': {}", path, e),
+        };
+
+        let mut asm_out = File::create(shader_path + ".spv").unwrap();
+        asm_out.write_all(shader_pre.as_text().as_bytes()).unwrap();
 
         let shader_binary = match compiler.compile_into_spirv(
             &src, 
