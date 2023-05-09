@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 use once_cell::unsync::OnceCell;
 use ultraviolet::Mat4;
-use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features, QueueFlags}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, vertex_input::Vertex, color_blend::ColorBlendState}}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, future::FenceSignalFuture}, buffer::{BufferUsage, Subbuffer}, descriptor_set::allocator::StandardDescriptorSetAllocator, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}};
+use vulkano::{memory::allocator::StandardMemoryAllocator, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features, QueueFlags}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{input_assembly::InputAssemblyState, viewport::{Viewport, ViewportState}, vertex_input::Vertex, color_blend::ColorBlendState}, Pipeline, PipelineLayout, layout::PipelineLayoutCreateInfo}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, future::FenceSignalFuture}, buffer::{BufferUsage, Subbuffer}, descriptor_set::{allocator::StandardDescriptorSetAllocator, layout::{DescriptorSetLayout, DescriptorSetLayoutCreateInfo, DescriptorSetLayoutBinding, DescriptorType}}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, shader::ShaderStages};
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::{WindowBuilder, CursorGrabMode}, dpi::PhysicalSize};
 
@@ -185,6 +185,7 @@ impl Renderer {
         };
 
         let descriptor_sets = DescriptorSets::new(
+            vk_device.clone(),
             &vk_memory_allocator,
             &vk_descriptor_set_allocator,
             &mut cbb,
@@ -298,7 +299,39 @@ impl Renderer {
             .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
             .build(device.clone()).unwrap();
 
-        Pipelines { raytracing }
+        let mut set_layouts = raytracing.layout().set_layouts().to_owned();
+        set_layouts[4] = DescriptorSetLayout::new(
+            device.clone(), 
+            DescriptorSetLayoutCreateInfo {
+                bindings: [(0, DescriptorSetLayoutBinding {
+                    stages: ShaderStages::FRAGMENT,
+                    ..DescriptorSetLayoutBinding::descriptor_type(DescriptorType::StorageBuffer)
+                })].into(),
+                ..Default::default()
+            }
+        ).unwrap();
+
+        let layout = PipelineLayout::new(
+            device.clone(),
+            PipelineLayoutCreateInfo { 
+                set_layouts,
+                ..Default::default()
+            }
+        ).unwrap();
+
+        let raytracing = GraphicsPipeline::start()
+            .vertex_shader(block_shader.vertex.entry_point("main").unwrap(), ())
+            .fragment_shader(block_shader.fragment.entry_point("main").unwrap(), ())
+
+            .color_blend_state(ColorBlendState::new(1).blend_alpha())
+            .input_assembly_state(InputAssemblyState::new())
+            .vertex_input_state(Vertex2D::per_vertex())
+            .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport.clone()]))
+
+            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
+            .with_pipeline_layout(device, layout.clone()).unwrap();
+
+        Pipelines { raytracing, layout }
     }
 
     fn get_render_pass(device: Arc<Device>, swapchain: &Arc<Swapchain>) -> Arc<RenderPass> {
@@ -403,7 +436,7 @@ impl Renderer {
             super::util::make_device_only_buffer_slice(
                 &self.vk_memory_allocator, &mut builder, 
                 BufferUsage::STORAGE_BUFFER, 
-                self.texture_atlas.uvs.iter().map(|t| TexelTexturePad::from(*t))
+                self.texture_atlas.uvs.clone()
             )
         );
 
@@ -490,7 +523,7 @@ impl Renderer {
 
         // Render blocks
         builder.bind_pipeline_graphics(self.pipelines.raytracing.clone());
-        self.descriptor_sets.bind_raytracing(&mut builder, self.pipelines.raytracing.clone());
+        self.descriptor_sets.bind_raytracing(&mut builder, self.pipelines.layout.clone());
         builder.bind_vertex_buffers(0, self.fullscreen_quad.clone().unwrap())
             .draw(6, 1, 0, 0)
             .unwrap();
@@ -636,4 +669,5 @@ struct QueueFamilyIndices {
 
 pub struct Pipelines {
     pub raytracing: Arc<GraphicsPipeline>,
+    pub layout: Arc<PipelineLayout>,
 }
