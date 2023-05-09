@@ -1,7 +1,8 @@
-use std::sync::Arc;
+use std::{sync::Arc, collections::{HashMap}};
 
+use ahash::RandomState;
 use bytemuck::Zeroable;
-use vulkano::{image::{view::ImageView, ImmutableImage}, sampler::Sampler, buffer::{Subbuffer, Buffer, BufferCreateInfo, BufferUsage}, descriptor_set::allocator::StandardDescriptorSetAllocator, pipeline::{Pipeline, PipelineBindPoint, GraphicsPipeline}, memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryUsage}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
+use vulkano::{image::{view::ImageView, ImmutableImage}, sampler::Sampler, buffer::{Subbuffer, Buffer, BufferCreateInfo, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, layout::{DescriptorSetLayout, DescriptorSetLayoutCreateInfo, DescriptorType, DescriptorSetLayoutBinding}}, pipeline::{Pipeline, PipelineBindPoint, GraphicsPipeline, PipelineLayout}, memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryUsage}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, device::Device, shader::{DescriptorBindingRequirements, DescriptorRequirements, ShaderStages}, NonExhaustive};
 
 use crate::world::block_data::{StaticBlockData, BlockTexture, ModelType};
 
@@ -11,11 +12,11 @@ pub type ImageViewSampler = (Arc<ImageView<ImmutableImage>>, Arc<Sampler>);
 
 pub struct DescriptorSets {
     pub atlas: UploadDescriptorSet<ImageViewSampler>,
-    pub atlas_map: UploadDescriptorSet<Subbuffer<[TexelTexturePad]>>,
+    pub atlas_map: UploadDescriptorSet<Subbuffer<[TexelTexture]>>,
     pub block_texture_map: UploadDescriptorSet<Subbuffer<[BlockTexture]>>,
 
     pub view: UploadDescriptorSet<Subbuffer<View>>,
-    pub face_lighting: UploadDescriptorSet<Subbuffer<FaceLighting>>,
+    // pub face_lighting: UploadDescriptorSet<Subbuffer<FaceLighting>>,
 
     pub brickmap: UploadDescriptorSet<Subbuffer<[Brickmap]>>,
     pub brickgrid: UploadDescriptorSet<Subbuffer<Brickgrid>>,
@@ -34,7 +35,7 @@ impl DescriptorSets {
         sampler: Arc<Sampler>,
         face_lighting: FaceLighting,
     ) -> Self {
-        let raytracing_layouts = pipelines.raytracing.layout().set_layouts();
+        let raytracing_layouts = pipelines.layout.set_layouts();
 
         let atlas = UploadDescriptorSet::new(
             descriptor_set_allocator,
@@ -45,7 +46,7 @@ impl DescriptorSets {
         let atlas_map_storage_buffer = super::util::make_device_only_buffer_slice(
             memory_allocator, cbb, 
             BufferUsage::STORAGE_BUFFER, 
-            texture_atlas.uvs.iter().map(|t| TexelTexturePad::from(*t))
+            texture_atlas.uvs.clone()
         );
         
         let atlas_map = UploadDescriptorSet::new(
@@ -83,17 +84,17 @@ impl DescriptorSets {
             view_storage_buffer
         );
 
-        let face_lighting_storage_buffer = super::util::make_device_only_buffer_sized(
-            memory_allocator, cbb, 
-            BufferUsage::STORAGE_BUFFER | BufferUsage::UNIFORM_BUFFER, 
-            face_lighting
-        );
+        // let face_lighting_storage_buffer = super::util::make_device_only_buffer_sized(
+        //     memory_allocator, cbb, 
+        //     BufferUsage::STORAGE_BUFFER | BufferUsage::UNIFORM_BUFFER, 
+        //     face_lighting
+        // );
 
-        let face_lighting = UploadDescriptorSet::new(
-            descriptor_set_allocator,
-            raytracing_layouts[3].clone(), 0,
-            face_lighting_storage_buffer
-        );
+        // let face_lighting = UploadDescriptorSet::new(
+        //     descriptor_set_allocator,
+        //     raytracing_layouts[3].clone(), 0,
+        //     face_lighting_storage_buffer
+        // );
 
         let brickmap = UploadDescriptorSet::new(
             descriptor_set_allocator,
@@ -132,7 +133,6 @@ impl DescriptorSets {
             atlas_map,
             block_texture_map,
             view,
-            face_lighting,
             brickmap,
             brickgrid,
             texture_buffer,
@@ -142,17 +142,24 @@ impl DescriptorSets {
     pub fn bind_raytracing(
         &self, 
         cbb: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-        raytracing_pipeline: Arc<GraphicsPipeline>,
+        pipeline_layout: Arc<PipelineLayout>,
     ) {
         cbb.bind_descriptor_sets(
             PipelineBindPoint::Graphics, 
-            raytracing_pipeline.layout().clone(), 
+            pipeline_layout.clone(), 
             0, 
             vec![
                 self.atlas.set.clone(),
                 self.atlas_map.set.clone(),
                 self.view.set.clone(),
-                self.face_lighting.set.clone(),
+            ]
+        );
+
+        cbb.bind_descriptor_sets(
+            PipelineBindPoint::Graphics, 
+            pipeline_layout.clone(), 
+            4, 
+            vec![
                 self.brickmap.set.clone(),
                 self.brickgrid.set.clone(),
                 self.texture_buffer.set.clone(),
