@@ -131,20 +131,12 @@ uint count_full_preceding(uint solid_mask[16], ivec3 section_pos) {
 }
 
 bool index_map(uint solid_mask[16], ivec3 section_pos, out bool out_of_range) {
-    const uint CHUNK_HEIGHT = brickgrid.size.z;
-
-    if (any(greaterThanEqual(section_pos, ivec3(SECTION_SIZE))) || any(lessThan(section_pos, ivec3(0)))) {
-        out_of_range = true;
-        return false;
-    } else {
-        out_of_range = false;
-    }
-
+    out_of_range = any(greaterThanEqual(section_pos, ivec3(SECTION_SIZE))) || any(lessThan(section_pos, ivec3(0)));
     uint bit_index = (section_pos.x * SECTION_SIZE.y * SECTION_SIZE.z) + (section_pos.y * SECTION_SIZE.z) + section_pos.z;
 
-    uint n = solid_mask[bit_index / 32];
-    uint inner_idx = bit_index % CHUNK_HEIGHT;
-    return bool((n >> inner_idx) & 1);
+    uint n = solid_mask[bit_index >> 5];
+    uint inner_idx = bit_index & 31;
+    return bool((n >> inner_idx) & 1) && !out_of_range;
 }
 
 uint index_grid(ivec3 grid_pos, out bool out_of_range) {
@@ -193,12 +185,10 @@ bool shadow_march_brickgrid(vec3 ray_origin, vec3 ray_dir) {
             grid_mask = lessThanEqual(side_dist.xyz, min(side_dist.yzx, side_dist.zxy));
             side_dist += vec3(grid_mask) * delta_dist;
             grid_pos += ivec3(vec3(grid_mask)) * ray_step;
-        } else if (flags == 0) {
-            // Unloaded brickmap
-            return false;
-        } else if (flags == 2) {
-            // LOD brickmap
-            return true;
+        } else if (flags < 3) {
+            // Unloaded brickmap = 0
+            // LOD brickmap = 2
+            return flags > 1;
         } else {
             // Brickmap 
 
@@ -221,22 +211,22 @@ bool shadow_march_brickgrid(vec3 ray_origin, vec3 ray_dir) {
             for (int j = 0; j < MAX_INNER_STEPS; j++) {
                 bool solid = index_map(brickmap.solid_mask, section_pos, out_of_range);
 
-                if (out_of_range || solid) {
+                if (solid) {
+                    return true;
+                }
+
+                if (out_of_range) {
                     break;
                 }
 
                 mask = lessThanEqual(side_dist_sec.xyz, min(side_dist_sec.yzx, side_dist_sec.zxy));
                 side_dist_sec += vec3(mask) * delta_dist;
-                section_pos += ivec3(vec3(mask)) * ray_step;
+                section_pos += ivec3(mask) * ray_step;
             }
 
-            if (!out_of_range) {
-                return true;
-            } else {
-                grid_mask = lessThanEqual(side_dist.xyz, min(side_dist.yzx, side_dist.zxy));
-                side_dist += vec3(grid_mask) * delta_dist;
-                grid_pos += ivec3(vec3(grid_mask)) * ray_step;
-            }
+            grid_mask = lessThanEqual(side_dist.xyz, min(side_dist.yzx, side_dist.zxy));
+            side_dist += vec3(grid_mask) * delta_dist;
+            grid_pos += ivec3(grid_mask) * ray_step;
         }
     }
 
