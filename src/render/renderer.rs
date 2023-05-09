@@ -185,7 +185,6 @@ impl Renderer {
         };
 
         let descriptor_sets = DescriptorSets::new(
-            vk_device.clone(),
             &vk_memory_allocator,
             &vk_descriptor_set_allocator,
             &mut cbb,
@@ -240,10 +239,6 @@ impl Renderer {
             fences,
             previous_fence_i: 0,
         }
-    }
-
-    pub fn init_descriptor_sets(&mut self, block_data: &StaticBlockData) {
-
     }
 
     /// Select the best available phyisical device.
