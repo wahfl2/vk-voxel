@@ -10,7 +10,7 @@ const float RECIP_255 = 0.00392156862;
 const float DEG_90 = 90.0 * TO_RADIANS;
 const mat2 ROT_90 = mat2(cos(DEG_90), -sin(DEG_90), sin(DEG_90), cos(DEG_90));
 
-const vec3 SUN_DIRECTION = normalize(vec3(0.5, 1.0, 1.0));
+const vec3 SUN_DIRECTION = normalize(vec3(0.405, 1.0, 0.904));
 const float SHADOW_DARKNESS = 0.75;
 
 const vec3 FACE_NORMALS[] = vec3[6](
@@ -36,6 +36,7 @@ struct Texture {
 struct Intersection {
     vec3 pos;
     bool hit;
+    vec4 raw_color;
     vec3 normal;
 };
 
@@ -57,12 +58,10 @@ layout(set = 2, binding = 0) uniform View {
     float fov;
 } view;
 
-layout(set = 3, binding = 0) uniform FaceLighting {
-    vec3 positive;
-    uint _pad1;
-    vec3 negative;
-    uint _pad2;
-} face_lighting;
+layout(set = 3, binding = 0) uniform ProgramInfo {
+    uint frame_number;
+    uint start;
+} program_info;
 
 layout(set = 4, binding = 0) readonly buffer BrickmapBuffer {
     Brickmap maps[];
@@ -150,11 +149,6 @@ uint index_grid(ivec3 grid_pos, out bool out_of_range) {
     uvec3 idx_3d = uvec3(mod(grid_pos, ivec3(brickgrid.size)));
     uint idx = (idx_3d.x * brickgrid.size.y * brickgrid.size.z) + (idx_3d.y * brickgrid.size.z) + idx_3d.z;
     return brickgrid.pointers[idx];
-}
-
-void normal_shading(in vec3 n, out float ret) {
-    vec3 v = ((max(n, vec3(0.0)) * face_lighting.positive) + (-1.0 * min(n, vec3(0.0)) * face_lighting.negative)) * abs(n);
-    ret = v.x + v.y + v.z;
 }
 
 bool shadow_march_brickgrid(vec3 ray_origin, vec3 ray_dir) {
@@ -339,8 +333,9 @@ vec4 raymarch_brickgrid(vec3 ray_origin, vec3 ray_dir, out Intersection intersec
                 
                 Texture texture_s = atlas_map.textures[texture_index];
                 vec4 color = texelFetch(tex, get_texel(texture_s, uv), 0);
+                intersection.raw_color = color;
 
-                vec3 shadow_ray_origin = sec_intersect + SUN_DIRECTION * 0.001;
+                vec3 shadow_ray_origin = sec_intersect + SUN_DIRECTION * 0.0001;
                 bool light_occluded = shadow_march_brickgrid(shadow_ray_origin, SUN_DIRECTION);
                 float color_multiplier = 1.0 - float(light_occluded) * SHADOW_DARKNESS;
 
@@ -365,10 +360,7 @@ vec4 raymarch_brickgrid(vec3 ray_origin, vec3 ray_dir, out Intersection intersec
 }
 
 void main() {
-    // vec4 placeholder1 = texture(tex, vec2(0.0));
-    // vec4 placeholder2 = atlas_map.textures[0];
-
-    state = uint(gl_FragCoord.x * view.resolution.y + gl_FragCoord.y);
+    state = uint(gl_FragCoord.x * view.resolution.y + gl_FragCoord.y) + program_info.start + program_info.frame_number;
     vec3 cam_pos = (view.camera * vec4(vec3(0.0), 1.0)).xyz;
     float cam_pos_sum = cam_pos.x + cam_pos.y + cam_pos.z;
     state *= floatBitsToUint(cam_pos_sum) * 648391 + 4535189;
@@ -392,21 +384,22 @@ void main() {
 
     Intersection intersection;
     f_color = raymarch_brickgrid(ray_origin, ray_dir, intersection);
+
     if (!intersection.hit) {
         return;
     }
 
-    return;
-
+    vec4 hit_color = intersection.raw_color;
     vec3 hit_norm = intersection.normal;
     vec3 gi_ro = intersection.pos + hit_norm * 0.0001;
 
-    const uint GI_SAMPLES = 0;
+    const uint GI_SAMPLES = 1;
     vec4 color_add = vec4(0);
     for (int i = 0; i < GI_SAMPLES; i++) {
         vec3 gi_rd = uniform_sample_hemisphere(hit_norm);
         float attenuation = dot(intersection.normal, gi_rd) / length(gi_rd);
-        color_add += raymarch_brickgrid(gi_ro, gi_rd, intersection) * attenuation;
+        Intersection intersect;
+        color_add += raymarch_brickgrid(gi_ro, gi_rd, intersect) * hit_color * attenuation;
     }
 
     f_color += color_add / GI_SAMPLES;
