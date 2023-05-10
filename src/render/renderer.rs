@@ -286,32 +286,28 @@ impl Renderer {
         render_pass: Arc<RenderPass>,
         viewport: Viewport,
     ) -> Pipelines {
-        println!("Creating invalid pipeline...");
-        let raytracing = GraphicsPipeline::start()
-            .vertex_shader(block_shader.vertex.entry_point("main").unwrap(), ())
-            .fragment_shader(block_shader.fragment.entry_point("main").unwrap(), ())
+        fn create_fragment_layout_type(device: Arc<Device>, descriptor_type: DescriptorType) -> Arc<DescriptorSetLayout> {
+            DescriptorSetLayout::new(
+                device,
+                DescriptorSetLayoutCreateInfo {
+                    bindings: [(0, DescriptorSetLayoutBinding {
+                        stages: ShaderStages::FRAGMENT,
+                        ..DescriptorSetLayoutBinding::descriptor_type(descriptor_type)
+                    })].into(),
+                    ..Default::default()
+                }
+            ).unwrap()
+        }
 
-            .color_blend_state(ColorBlendState::new(1).blend_alpha())
-            .input_assembly_state(InputAssemblyState::new())
-            .vertex_input_state(Vertex2D::per_vertex())
-            .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport.clone()]))
-
-            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
-            .build(device.clone()).unwrap();
-
-        println!("Creating the invalid pipeline didn't crash it");
-
-        let mut set_layouts = raytracing.layout().set_layouts().to_owned();
-        set_layouts[4] = DescriptorSetLayout::new(
-            device.clone(), 
-            DescriptorSetLayoutCreateInfo {
-                bindings: [(0, DescriptorSetLayoutBinding {
-                    stages: ShaderStages::FRAGMENT,
-                    ..DescriptorSetLayoutBinding::descriptor_type(DescriptorType::StorageBuffer)
-                })].into(),
-                ..Default::default()
-            }
-        ).unwrap();
+        let mut set_layouts = Vec::new();
+        set_layouts.push(create_fragment_layout_type(device.clone(), DescriptorType::CombinedImageSampler)); // 0
+        set_layouts.push(create_fragment_layout_type(device.clone(), DescriptorType::StorageBuffer)); // 1
+        set_layouts.push(create_fragment_layout_type(device.clone(), DescriptorType::UniformBuffer)); // 2
+        set_layouts.push(create_fragment_layout_type(device.clone(), DescriptorType::UniformBuffer)); // 3
+        set_layouts.push(create_fragment_layout_type(device.clone(), DescriptorType::StorageBuffer)); // 4
+        set_layouts.push(create_fragment_layout_type(device.clone(), DescriptorType::StorageBuffer)); // 5
+        set_layouts.push(create_fragment_layout_type(device.clone(), DescriptorType::StorageBuffer)); // 6
+        set_layouts.push(create_fragment_layout_type(device.clone(), DescriptorType::StorageBuffer)); // 7
 
         let layout = PipelineLayout::new(
             device.clone(),
@@ -325,8 +321,7 @@ impl Renderer {
             .vertex_shader(block_shader.vertex.entry_point("main").unwrap(), ())
             .fragment_shader(block_shader.fragment.entry_point("main").unwrap(), ())
 
-            .color_blend_state(ColorBlendState::new(1).blend_alpha())
-            .input_assembly_state(InputAssemblyState::new())
+            .color_blend_state(ColorBlendState::new(1))
             .vertex_input_state(Vertex2D::per_vertex())
             .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport.clone()]))
 
