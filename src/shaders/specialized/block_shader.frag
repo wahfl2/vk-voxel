@@ -52,13 +52,13 @@ layout(set = 7, binding = 0) readonly buffer BlockTextureMap {
     uint textures[];
 } block_texture_map;
 
-layout(set = 2, binding = 0) uniform View {
+layout(set = 2, binding = 0) readonly uniform View {
     mat4 camera;
     uvec2 resolution;
     float fov;
 } view;
 
-layout(set = 3, binding = 0) uniform ProgramInfo {
+layout(set = 3, binding = 0) readonly uniform ProgramInfo {
     uint frame_number;
     uint start;
 } program_info;
