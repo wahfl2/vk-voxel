@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::SystemTime, alloc::System};
 
-use bytemuck::Pod;
+use bytemuck::{Pod, Zeroable};
 use guillotiere::euclid::{Size2D, UnknownUnit, Box2D};
 use ultraviolet::{UVec2, Vec2};
 use vulkano::{swapchain::Surface, image::ImageDimensions, buffer::{Buffer, BufferUsage, Subbuffer, BufferContents, BufferCreateInfo}, memory::allocator::{StandardMemoryAllocator, MemoryUsage, AllocationCreateInfo}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, CopyBufferInfoTyped, CopyBufferInfo}};
@@ -155,4 +155,20 @@ where
 
     cbb.copy_buffer(CopyBufferInfo::buffers(staging, ret.clone())).unwrap();
     ret
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+pub struct ProgramInfo {
+    pub frame_number: u32,
+    pub start: u32,
+}
+
+impl ProgramInfo {
+    pub fn new() -> Self {
+        Self {
+            frame_number: 0,
+            start: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().subsec_nanos()
+        }
+    }
 }

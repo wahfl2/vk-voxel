@@ -9,7 +9,7 @@ use winit::{event_loop::EventLoop, window::{WindowBuilder, CursorGrabMode}, dpi:
 
 use crate::{event_handler::UserEvent, world::{world_blocks::WorldBlocks, block_data::StaticBlockData}};
 
-use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState}, vertex::{Vertex2D}, descriptor_sets::DescriptorSets, mesh::quad::TexelTexturePad};
+use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState, ProgramInfo}, vertex::{Vertex2D}, descriptor_sets::DescriptorSets, mesh::quad::TexelTexturePad};
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
@@ -36,6 +36,7 @@ pub struct Renderer {
     pub cam_uniform: Option<Mat4>,
     pub texture_atlas: TextureAtlas,
     pub texture_sampler: Arc<Sampler>,
+    pub program_info: ProgramInfo,
     pub descriptor_sets: DescriptorSets,
 
     pub upload_texture_atlas: bool,
@@ -173,6 +174,8 @@ impl Renderer {
             },
         ).unwrap();
 
+        let program_info = ProgramInfo::new();
+
         let mut cbb = AutoCommandBufferBuilder::primary(
             &vk_command_buffer_allocator, 
             vk_graphics_queue.queue_family_index(), 
@@ -192,7 +195,7 @@ impl Renderer {
             &texture_atlas,
             block_data,
             texture_sampler.clone(),
-            BLOCK_FACE_LIGHTING,
+            program_info,
         );
 
         let future = sync::now(vk_device.clone())
@@ -230,6 +233,7 @@ impl Renderer {
             cam_uniform: None,
             texture_atlas,
             texture_sampler,
+            program_info,
             descriptor_sets,
 
             upload_texture_atlas: true,
@@ -282,6 +286,7 @@ impl Renderer {
         render_pass: Arc<RenderPass>,
         viewport: Viewport,
     ) -> Pipelines {
+        println!("Creating invalid pipeline...");
         let raytracing = GraphicsPipeline::start()
             .vertex_shader(block_shader.vertex.entry_point("main").unwrap(), ())
             .fragment_shader(block_shader.fragment.entry_point("main").unwrap(), ())
@@ -293,6 +298,8 @@ impl Renderer {
 
             .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
             .build(device.clone()).unwrap();
+
+        println!("Creating the invalid pipeline didn't crash it");
 
         let mut set_layouts = raytracing.layout().set_layouts().to_owned();
         set_layouts[4] = DescriptorSetLayout::new(
@@ -467,6 +474,16 @@ impl Renderer {
                 self.vertex_buffer.brickgrid_buffer.get_buffer()
             );
         }
+
+        self.program_info.frame_number += 1;
+        self.descriptor_sets.program_info.replace(
+            &self.vk_descriptor_set_allocator, 
+            super::util::make_device_only_buffer_sized(
+                &self.vk_memory_allocator, &mut builder, 
+                BufferUsage::STORAGE_BUFFER.union(BufferUsage::UNIFORM_BUFFER), 
+                self.program_info,
+            )
+        );
         
         if let Some(mat) = self.cam_uniform.take() {
             self.view.camera = mat.as_array().to_owned();

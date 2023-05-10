@@ -1,4 +1,4 @@
-use std::{sync::Arc, collections::{HashMap}};
+use std::{sync::Arc, collections::{HashMap}, time::{Instant, SystemTime}};
 
 use ahash::RandomState;
 use bytemuck::Zeroable;
@@ -6,7 +6,7 @@ use vulkano::{image::{view::ImageView, ImmutableImage}, sampler::Sampler, buffer
 
 use crate::world::block_data::{StaticBlockData, BlockTexture, ModelType};
 
-use super::{buffer::upload::UploadDescriptorSet, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::CreateInfoConvenience, brick::{brickmap::Brickmap, brickgrid::Brickgrid}, mesh::quad::{TexelTexture, TexelTexturePad}};
+use super::{buffer::upload::UploadDescriptorSet, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::{CreateInfoConvenience, ProgramInfo}, brick::{brickmap::Brickmap, brickgrid::Brickgrid}, mesh::quad::{TexelTexture, TexelTexturePad}};
 
 pub type ImageViewSampler = (Arc<ImageView<ImmutableImage>>, Arc<Sampler>);
 
@@ -16,7 +16,7 @@ pub struct DescriptorSets {
     pub block_texture_map: UploadDescriptorSet<Subbuffer<[BlockTexture]>>,
 
     pub view: UploadDescriptorSet<Subbuffer<View>>,
-    // pub face_lighting: UploadDescriptorSet<Subbuffer<FaceLighting>>,
+    pub program_info: UploadDescriptorSet<Subbuffer<ProgramInfo>>,
 
     pub brickmap: UploadDescriptorSet<Subbuffer<[Brickmap]>>,
     pub brickgrid: UploadDescriptorSet<Subbuffer<Brickgrid>>,
@@ -33,7 +33,7 @@ impl DescriptorSets {
         texture_atlas: &TextureAtlas,
         block_data: &StaticBlockData,
         sampler: Arc<Sampler>,
-        face_lighting: FaceLighting,
+        program_info: ProgramInfo,
     ) -> Self {
         let raytracing_layouts = pipelines.layout.set_layouts();
 
@@ -84,17 +84,20 @@ impl DescriptorSets {
             view_storage_buffer
         );
 
-        // let face_lighting_storage_buffer = super::util::make_device_only_buffer_sized(
-        //     memory_allocator, cbb, 
-        //     BufferUsage::STORAGE_BUFFER | BufferUsage::UNIFORM_BUFFER, 
-        //     face_lighting
-        // );
+        let program_info_storage_buffer = super::util::make_device_only_buffer_sized(
+            memory_allocator, cbb, 
+            BufferUsage::STORAGE_BUFFER | BufferUsage::UNIFORM_BUFFER, 
+            ProgramInfo {
+                frame_number: 0,
+                start: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().subsec_nanos(),
+            }
+        );
 
-        // let face_lighting = UploadDescriptorSet::new(
-        //     descriptor_set_allocator,
-        //     raytracing_layouts[3].clone(), 0,
-        //     face_lighting_storage_buffer
-        // );
+        let program_info = UploadDescriptorSet::new(
+            descriptor_set_allocator,
+            raytracing_layouts[3].clone(), 0,
+            program_info_storage_buffer
+        );
 
         let brickmap = UploadDescriptorSet::new(
             descriptor_set_allocator,
@@ -132,6 +135,7 @@ impl DescriptorSets {
             atlas,
             atlas_map,
             block_texture_map,
+            program_info,
             view,
             brickmap,
             brickgrid,
@@ -152,14 +156,7 @@ impl DescriptorSets {
                 self.atlas.set.clone(),
                 self.atlas_map.set.clone(),
                 self.view.set.clone(),
-            ]
-        );
-
-        cbb.bind_descriptor_sets(
-            PipelineBindPoint::Graphics, 
-            pipeline_layout.clone(), 
-            4, 
-            vec![
+                self.program_info.set.clone(),
                 self.brickmap.set.clone(),
                 self.brickgrid.set.clone(),
                 self.texture_buffer.set.clone(),
