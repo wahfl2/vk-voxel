@@ -30,7 +30,7 @@ pub struct Renderer {
     pub view: View,
     pub viewport: Viewport,
     pub vertex_buffer: ChunkVertexBuffer,
-    pub fullscreen_quad: Option<Subbuffer<[Vertex2D; 6]>>,
+    pub fullscreen_quad: Option<Subbuffer<[Vertex2D; 3]>>,
     pub indirect_buffer: Option<Subbuffer<[DrawIndirectCommand]>>,
     pub num_vertices: u32,
     pub cam_uniform: Option<Mat4>,
@@ -500,12 +500,8 @@ impl Renderer {
                 BufferUsage::VERTEX_BUFFER, 
                 [
                     Vertex2D { position: [-1.0, -1.0] },
-                    Vertex2D { position: [ 1.0, -1.0] },
-                    Vertex2D { position: [ 1.0,  1.0] },
-
-                    Vertex2D { position: [-1.0, -1.0] },
-                    Vertex2D { position: [ 1.0,  1.0] },
-                    Vertex2D { position: [-1.0,  1.0] },
+                    Vertex2D { position: [ 3.0, -1.0] },
+                    Vertex2D { position: [-1.0,  3.0] },
                 ], 
             ));
         }
@@ -532,7 +528,7 @@ impl Renderer {
         builder.bind_pipeline_graphics(self.pipelines.raytracing.clone());
         self.descriptor_sets.bind_raytracing(&mut builder, self.pipelines.layout.clone());
         builder.bind_vertex_buffers(0, self.fullscreen_quad.clone().unwrap())
-            .draw(6, 1, 0, 0)
+            .draw(3, 1, 0, 0)
             .unwrap();
             
         builder.end_render_pass().unwrap();
