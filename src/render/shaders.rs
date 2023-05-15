@@ -1,4 +1,4 @@
-use std::{path::Path, ffi::OsStr, fs::{self, File}, sync::Arc, hint::black_box, io::Write};
+use std::{path::Path, ffi::OsStr, fs::{self, File}, sync::Arc, io::Write};
 
 use shaderc::{ShaderKind, CompileOptions, OptimizationLevel};
 use vulkano::{device::Device, shader::ShaderModule};

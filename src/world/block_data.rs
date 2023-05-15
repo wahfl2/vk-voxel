@@ -1,7 +1,7 @@
 use ahash::HashMap;
 use bytemuck::{Zeroable, Pod};
 
-use crate::render::{texture::TextureAtlas, mesh::{cube::UnitCube, quad::{TexelTexture, QuadUV}, model::Model}};
+use crate::render::{texture::TextureAtlas, mesh::{cube::UnitCube, quad::QuadUV, model::Model}};
 
 /// Static block data, should be initialized at startup and probably left alone.
 pub struct StaticBlockData {

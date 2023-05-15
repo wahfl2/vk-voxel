@@ -1,8 +1,8 @@
-use std::{sync::Arc, time::SystemTime, alloc::System};
+use std::{sync::Arc, time::SystemTime};
 
 use bytemuck::{Pod, Zeroable};
 use guillotiere::euclid::{Size2D, UnknownUnit, Box2D};
-use ultraviolet::{UVec2, Vec2};
+use ultraviolet::UVec2;
 use vulkano::{swapchain::Surface, image::ImageDimensions, buffer::{Buffer, BufferUsage, Subbuffer, BufferContents, BufferCreateInfo}, memory::allocator::{StandardMemoryAllocator, MemoryUsage, AllocationCreateInfo}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, CopyBufferInfoTyped, CopyBufferInfo}};
 use winit::window::Window;
 

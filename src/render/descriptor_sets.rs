@@ -1,12 +1,11 @@
-use std::{sync::Arc, collections::{HashMap}, time::{Instant, SystemTime}};
+use std::sync::Arc;
 
-use ahash::RandomState;
 use bytemuck::Zeroable;
-use vulkano::{image::{view::ImageView, ImmutableImage}, sampler::Sampler, buffer::{Subbuffer, Buffer, BufferCreateInfo, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator, layout::{DescriptorSetLayout, DescriptorSetLayoutCreateInfo, DescriptorType, DescriptorSetLayoutBinding}}, pipeline::{Pipeline, PipelineBindPoint, GraphicsPipeline, PipelineLayout}, memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryUsage}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, device::Device, shader::{DescriptorBindingRequirements, DescriptorRequirements, ShaderStages}, NonExhaustive};
+use vulkano::{image::{view::ImageView, ImmutableImage}, sampler::Sampler, buffer::{Subbuffer, Buffer, BufferCreateInfo, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator}, pipeline::{PipelineBindPoint, PipelineLayout}, memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryUsage}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
 
 use crate::world::block_data::{StaticBlockData, BlockTexture, ModelType};
 
-use super::{buffer::upload::UploadDescriptorSet, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::{CreateInfoConvenience, ProgramInfo}, brick::{brickmap::Brickmap, brickgrid::Brickgrid, feedback::Feedback}, mesh::quad::{TexelTexture, TexelTexturePad}};
+use super::{buffer::upload::UploadDescriptorSet, renderer::{Pipelines, View}, texture::TextureAtlas, util::{CreateInfoConvenience, ProgramInfo}, brick::{brickmap::Brickmap, brickgrid::Brickgrid, feedback::Feedback}, mesh::quad::{TexelTexture}};
 
 pub type ImageViewSampler = (Arc<ImageView<ImmutableImage>>, Arc<Sampler>);
 
@@ -34,7 +33,6 @@ impl DescriptorSets {
         texture_atlas: &TextureAtlas,
         block_data: &StaticBlockData,
         sampler: Arc<Sampler>,
-        program_info: ProgramInfo,
     ) -> Self {
         let raytracing_layouts = pipelines.layout.set_layouts();
 
@@ -88,10 +86,7 @@ impl DescriptorSets {
         let program_info_storage_buffer = super::util::make_device_only_buffer_sized(
             memory_allocator, cbb, 
             BufferUsage::STORAGE_BUFFER | BufferUsage::UNIFORM_BUFFER, 
-            ProgramInfo {
-                frame_number: 0,
-                start: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().subsec_nanos(),
-            }
+            ProgramInfo::new(),
         );
 
         let program_info = UploadDescriptorSet::new(

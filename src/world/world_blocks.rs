@@ -1,7 +1,7 @@
 use ahash::HashMap;
 use ultraviolet::{IVec2, Vec2};
 
-use crate::{util::util::AdditionalSwizzles, render::brick::feedback::Feedback};
+use crate::util::util::AdditionalSwizzles;
 
 use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::TerrainGenerator, section::F_SECTION_SIZE};
 
@@ -28,7 +28,6 @@ impl WorldBlocks {
 
     pub fn load_chunk(&mut self, chunk_pos: IVec2, block_data: &StaticBlockData) {
         // TODO: Load from storage
-        // TODO: Make this some form of asynchronous to avoid stutters
         let mut new_chunk = Chunk::generate(chunk_pos, &mut self.terrain_generator);
         new_chunk.update_brickmap(block_data);
 

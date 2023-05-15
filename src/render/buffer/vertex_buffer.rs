@@ -1,7 +1,7 @@
 use ultraviolet::{IVec2, IVec3};
 use vulkano::{buffer::BufferUsage, memory::allocator::StandardMemoryAllocator};
 
-use crate::{render::brick::{brickmap::{Brickmap, BrickmapPointer}, brickgrid::{BrickgridBuffer, BrickgridBufferTask, BRICKGRID_SIZE}}, world::{chunk::{Chunk, CHUNK_HEIGHT}, section::Section, block_data::{BlockTexture, StaticBlockData, ModelType}}, util::util::{InsertVec2, VecModPos}};
+use crate::{render::brick::{brickmap::{Brickmap, BrickmapPointer}, brickgrid::{BrickgridBuffer, BrickgridBufferTask, BRICKGRID_SIZE}}, world::{chunk::{Chunk, CHUNK_HEIGHT}, section::Section, block_data::{StaticBlockData, ModelType}}, util::util::{InsertVec2, VecModPos}};
 
 use super::allocator::HeapBuffer;
 
