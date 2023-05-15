@@ -6,7 +6,7 @@ use vulkano::{image::{view::ImageView, ImmutableImage}, sampler::Sampler, buffer
 
 use crate::world::block_data::{StaticBlockData, BlockTexture, ModelType};
 
-use super::{buffer::upload::UploadDescriptorSet, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::{CreateInfoConvenience, ProgramInfo}, brick::{brickmap::Brickmap, brickgrid::Brickgrid}, mesh::quad::{TexelTexture, TexelTexturePad}};
+use super::{buffer::upload::UploadDescriptorSet, renderer::{FaceLighting, Pipelines, View}, texture::TextureAtlas, util::{CreateInfoConvenience, ProgramInfo}, brick::{brickmap::Brickmap, brickgrid::Brickgrid, feedback::Feedback}, mesh::quad::{TexelTexture, TexelTexturePad}};
 
 pub type ImageViewSampler = (Arc<ImageView<ImmutableImage>>, Arc<Sampler>);
 
@@ -21,6 +21,7 @@ pub struct DescriptorSets {
     pub brickmap: UploadDescriptorSet<Subbuffer<[Brickmap]>>,
     pub brickgrid: UploadDescriptorSet<Subbuffer<Brickgrid>>,
     pub texture_buffer: UploadDescriptorSet<Subbuffer<[u32]>>,
+    pub feedback: UploadDescriptorSet<Subbuffer<Feedback>>,
 }
 
 impl DescriptorSets {
@@ -131,6 +132,16 @@ impl DescriptorSets {
             ).unwrap()
         );
 
+        let feedback = UploadDescriptorSet::new(
+            descriptor_set_allocator,
+            raytracing_layouts[8].clone(), 0,
+            Buffer::new_sized(
+                memory_allocator,
+                BufferCreateInfo::usage(BufferUsage::STORAGE_BUFFER), 
+                AllocationCreateInfo::usage(MemoryUsage::Download)
+            ).unwrap()
+        );
+
         Self {
             atlas,
             atlas_map,
@@ -140,6 +151,7 @@ impl DescriptorSets {
             brickmap,
             brickgrid,
             texture_buffer,
+            feedback,
         }
     }
 
@@ -161,6 +173,7 @@ impl DescriptorSets {
                 self.brickgrid.set.clone(),
                 self.texture_buffer.set.clone(),
                 self.block_texture_map.set.clone(),
+                self.feedback.set.clone(),
             ]
         );
     }

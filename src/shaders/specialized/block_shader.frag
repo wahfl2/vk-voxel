@@ -67,7 +67,7 @@ layout(set = 4, binding = 0) readonly buffer BrickmapBuffer {
     Brickmap maps[];
 } brickmap_buffer;
 
-layout(set = 5, binding = 0) readonly buffer Brickgrid {
+layout(set = 5, binding = 0) buffer Brickgrid {
     uvec3 size;
     uint _pad;
     uint pointers[];
@@ -76,6 +76,16 @@ layout(set = 5, binding = 0) readonly buffer Brickgrid {
 layout(set = 6, binding = 0) readonly buffer TextureBuffer {
     uint textures[];
 } block_texture_buffer;
+
+layout(set = 8, binding = 0) buffer FeedbackBuffer {
+    uint top;
+    ivec3 map_positions[256];
+} feedback;
+
+void push_feedback(ivec3 pos) {
+    uint idx = atomicAdd(feedback.top, 1);
+    if (idx < 256) feedback.map_positions[idx] = pos;
+}
 
 uint state = 9737333;
 uint rand() {
@@ -148,7 +158,7 @@ uint index_grid(ivec3 grid_pos, out bool out_of_range) {
 
     uvec3 idx_3d = uvec3(mod(grid_pos, ivec3(brickgrid.size)));
     uint idx = (idx_3d.x * brickgrid.size.y * brickgrid.size.z) + (idx_3d.y * brickgrid.size.z) + idx_3d.z;
-    return brickgrid.pointers[idx];
+    return idx;
 }
 
 bool shadow_march_brickgrid(vec3 ray_origin, vec3 ray_dir) {
@@ -165,11 +175,12 @@ bool shadow_march_brickgrid(vec3 ray_origin, vec3 ray_dir) {
 
     for (int i = 0; i < MAX_RAY_STEPS; i++) {
         bool out_of_range = false;
-        uint ptr = index_grid(grid_pos, out_of_range);
+        uint idx = index_grid(grid_pos, out_of_range);
         if (out_of_range) {
             return false;
         };
 
+        uint ptr = brickgrid.pointers[idx];
         uint flags = ptr & 3;
         uint data = ptr >> 2;
 
@@ -242,11 +253,12 @@ vec4 raymarch_brickgrid(vec3 ray_origin, vec3 ray_dir, out Intersection intersec
 
     for (int i = 0; i < MAX_RAY_STEPS; i++) {
         bool out_of_range = false;
-        uint ptr = index_grid(grid_pos, out_of_range);
+        uint idx = index_grid(grid_pos, out_of_range);
         if (out_of_range) {
             break;
         };
 
+        uint ptr = brickgrid.pointers[idx];
         uint flags = ptr & 3;
         uint data = ptr >> 2;
 
@@ -258,8 +270,11 @@ vec4 raymarch_brickgrid(vec3 ray_origin, vec3 ray_dir, out Intersection intersec
             grid_pos += ivec3(grid_mask) * ray_step;
         } else if (flags == 0) {
             // Unloaded brickmap
+            if (data == 0) {
+                push_feedback(grid_pos);
+                brickgrid.pointers[idx] = 4;
+            }
 
-            // feedback?
             break;
         } else if (flags == 2) {
             // LOD brickmap
