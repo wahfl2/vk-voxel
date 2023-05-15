@@ -404,6 +404,8 @@ void main() {
         return;
     }
 
+    return;
+
     vec4 hit_color = intersection.raw_color;
     vec3 hit_norm = intersection.normal;
     vec3 gi_ro = intersection.pos + hit_norm * 0.0001;
