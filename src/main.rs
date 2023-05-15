@@ -5,7 +5,7 @@
 #![feature(associated_const_equality)]
 #![feature(fn_traits)]
 
-use std::time::{Instant, Duration};
+use std::{time::{Instant, Duration}, thread, sync::{Mutex, Arc}};
 
 use event_handler::{InputHandler, UserEvent};
 use mimalloc::MiMalloc;
@@ -38,8 +38,23 @@ fn main() {
     let mut static_block_data = StaticBlockData::empty();
     static_block_data.init(&texture_atlas);
 
+    let static_block_data = Arc::new(static_block_data);
+
     let mut renderer = Renderer::new(&event_loop, texture_atlas, &static_block_data);
-    let mut world_blocks = WorldBlocks::new(&static_block_data);
+    let world_blocks = Arc::new(Mutex::new(WorldBlocks::new(&static_block_data)));
+
+    thread::spawn({
+        let world_blocks = world_blocks.clone();
+        let static_block_data = static_block_data.clone();
+        move || { loop {
+            let mut lock = world_blocks.lock().unwrap();
+            lock.frame_update(&static_block_data);
+            drop(lock);
+
+            thread::sleep(Duration::from_micros(100));
+        }}
+    });
+
     let mut server = Server::new();
     server.init_single_player();
 
@@ -51,6 +66,8 @@ fn main() {
     let mut last_frame_start = Instant::now();
 
     event_loop.run(move |event, _, control_flow| {
+        let world_blocks = world_blocks.clone();
+
         match event {
             Event::RedrawRequested(_) => {
                 let delta_time = fps_log.update();
@@ -64,15 +81,19 @@ fn main() {
                     }
                 }
 
-                let camera = server.get_camera();
-                world_blocks.player_pos = -camera.pos.xz();
-                world_blocks.frame_update(&static_block_data);
-                server.tick(delta_time, &input_handler, &world_blocks, &static_block_data);
+                let camera = server.camera();
+
+                let mut world_blocks_lock = world_blocks.lock().unwrap();
+                world_blocks_lock.player_pos = -camera.pos.xz();
+                server.tick(delta_time, &input_handler, &world_blocks_lock, &static_block_data);
+                drop(world_blocks_lock);
+
+                let camera = server.camera();
                 renderer.cam_uniform = Some(camera.calculate_matrix());
 
                 input_handler.mouse_delta = Vec2::zero();
 
-                match renderer.render(&mut world_blocks, &static_block_data) {
+                match renderer.render(world_blocks.clone(), &static_block_data) {
                     RenderState::OutOfDate | RenderState::Suboptimal => recreate_swapchain = true,
                     _ => ()
                 }

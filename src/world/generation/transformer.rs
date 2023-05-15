@@ -12,18 +12,18 @@ pub struct TerrainTransformer<T> {
     pub spacing: UVec2,
     data_cache: HashMap<IVec2, T>,
 
-    pub data_generator: Box<dyn FnMut(IVec2, UVec2) -> T>,
-    pub closure: Box<dyn FnMut(&mut TerrainChunk, IVec2, UVec2, &T)>
+    pub data_generator: Box<dyn FnMut(IVec2, UVec2) -> T + Send + Sync>,
+    pub closure: Box<dyn FnMut(&mut TerrainChunk, IVec2, UVec2, &T) + Send + Sync>
 }
 
 impl<T> TerrainTransformer<T>
-where T: Clone
+where T: Clone + Send + Sync
 {
     pub fn new(
         size: UVec2, 
         spacing: UVec2, 
-        data_generator: impl FnMut(IVec2, UVec2) -> T + 'static,
-        closure: impl FnMut(&mut TerrainChunk, IVec2, UVec2, &T) + 'static
+        data_generator: impl FnMut(IVec2, UVec2) -> T + 'static + Send + Sync,
+        closure: impl FnMut(&mut TerrainChunk, IVec2, UVec2, &T) + 'static + Send + Sync
     ) -> Self {
         assert!(size.x > 0 && size.y > 0, "Size must be larger than 0");
         assert!(spacing.x > 0 && spacing.y > 0, "Spacing must be larger than 0");
