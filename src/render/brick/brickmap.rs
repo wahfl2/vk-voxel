@@ -51,10 +51,11 @@ impl BrickmapPointer {
     pub fn to_raw(self) -> BrickmapPointerRaw {
         // Flags are in the least significant bits
         //
-        // 00 => Not loaded in any capacity
-        // 01 => Loaded, empty
-        // 10 => Semi-loaded, next bits are the LOD color
-        // 11 => Loaded, 30 most significant bits are index into brickmap buffer
+        //  00 => Not loaded in any capacity
+        // 100 => Requested to be loaded
+        //  01 => Loaded, empty
+        //  10 => Semi-loaded, next bits are the LOD color
+        //  11 => Loaded, 30 most significant bits are index into brickmap buffer
         let pointer = match self {
             BrickmapPointer::NotLoaded => 0,
             BrickmapPointer::Empty => 1,
