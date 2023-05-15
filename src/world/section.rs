@@ -22,6 +22,7 @@ pub const F_SECTION_SIZE: Vec3 = Vec3::new(
     SECTION_SIZE.z as f32,
 );
 
+#[derive(Debug)]
 pub struct Section {
     pub blocks: Array3<BlockHandle>,
     pub brickmap: Brickmap,

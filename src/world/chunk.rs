@@ -7,6 +7,7 @@ use super::{section::Section, block_data::StaticBlockData, generation::terrain::
 pub const CHUNK_HEIGHT: u32 = 32;
 const CH_USIZE: usize = CHUNK_HEIGHT as usize;
 
+#[derive(Debug)]
 pub struct Chunk {
     pub pos: IVec2,
     pub sections: Box<[Section; CH_USIZE]>,

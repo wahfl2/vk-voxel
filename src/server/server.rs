@@ -104,7 +104,7 @@ impl Server {
         self.physics_solver.tick(delta_time, &mut self.world, world_blocks, block_data);
     }
 
-    pub fn get_camera(&self) -> Camera {
+    pub fn camera(&self) -> Camera {
         let mut binding = self.world.query::<(&Camera, &Parent, &Translation)>();
         let (_, (cam, player, cam_translation)) = binding.into_iter().next().unwrap();
 

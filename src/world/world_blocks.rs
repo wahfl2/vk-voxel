@@ -1,7 +1,7 @@
 use ahash::HashMap;
 use ultraviolet::{IVec2, Vec2};
 
-use crate::util::util::AdditionalSwizzles;
+use crate::{util::util::AdditionalSwizzles, render::brick::feedback::Feedback};
 
 use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::TerrainGenerator, section::F_SECTION_SIZE};
 
@@ -15,7 +15,7 @@ pub struct WorldBlocks {
 
 impl WorldBlocks {
     const CHUNK_UPDATES_PER_FRAME: u32 = 8;
-    const RENDER_DISTANCE: u32 = 24;
+    const RENDER_DISTANCE: u32 = 64;
 
     pub fn new(block_data: &StaticBlockData) -> Self {
         Self {
@@ -43,11 +43,11 @@ impl WorldBlocks {
             self.load_chunk(pos, block_data);
         }
 
-        // TODO: Unloading chunks could use a better method based on movement
-        for pos in self.get_chunks_to_unload() {
-            self.loaded_chunks.remove(&pos);
-            self.updated_chunks.push(pos);
-        }
+        // // TODO: Unloading chunks could use a better method based on movement
+        // for pos in self.get_chunks_to_unload() {
+        //     self.loaded_chunks.remove(&pos);
+        //     self.updated_chunks.push(pos);
+        // }
     }
 
     fn get_closest_unloaded_chunks(&self, num: usize) -> Vec<IVec2> {
