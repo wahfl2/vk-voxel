@@ -130,12 +130,45 @@ fn main() {
     });
 }
 
-#[test]
-fn test() {
-    let a = vec![1, 2, 3, 4];
-    let b = vec![1, 2, 4, 5, 6];
-    let c = vec![1, 2, 3, 4, 7, 8];
+#[cfg(test)]
+mod test {
+    use std::{time::Instant, hint::black_box, println};
 
-    let oisjdf = [a, b, c].into_iter().flatten().collect::<Vec<_>>();
-    dbg!(oisjdf);
+    use rand_xoshiro::{Xoshiro128PlusPlus, rand_core::{SeedableRng, RngCore}};
+    use ultraviolet::IVec2;
+
+    #[test]
+    fn speed_test() {
+        let mut rng = Xoshiro128PlusPlus::seed_from_u64(0);
+        const NUMS: usize = 32;
+        const ROWS: usize = 1024;
+
+        let mut vec = Vec::with_capacity(ROWS);
+        for _ in 0..ROWS {
+            let mut row = Vec::with_capacity(NUMS);
+            for _ in 0..NUMS {
+                row.push(rng.next_u32());
+            }
+            vec.push(row);
+        }
+
+        let mut out = Vec::new();
+        let start = Instant::now();
+        for (row, y) in vec.into_iter().zip(-512..512) {
+            for (num, j) in row.into_iter().zip(-16..16) {
+                let j = j * 32;
+                for k in 0..32 {
+                    let shift = 31 - k;
+                    if (num >> shift) & 1 > 0 {
+                        let x = j + k;
+                        out.push(IVec2::new(x, y));
+                    }
+                }
+            }
+        }
+        let time_took = Instant::now() - start;
+        black_box(out);
+
+        println!("Took {}ms", time_took.as_secs_f32() * 1000.0);
+    }
 }
