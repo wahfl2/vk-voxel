@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct Feedback {
     pub top: u32,
-    pub map_positions: [[i32; 3]; 256],
+    pub map_positions: [[i32; 2]; 32],
 }
 
 impl Feedback {

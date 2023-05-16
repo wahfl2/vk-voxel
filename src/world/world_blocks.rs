@@ -7,20 +7,22 @@ use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::Terr
 
 pub struct WorldBlocks {
     pub loaded_chunks: HashMap<IVec2, Chunk>,
-    // This should probably be a sender or something for async
     pub updated_chunks: Vec<IVec2>,
+    pub chunks_to_load: Vec<IVec2>,
     pub terrain_generator: TerrainGenerator,
     pub player_pos: Vec2,
 }
 
 impl WorldBlocks {
     const CHUNK_UPDATES_PER_FRAME: u32 = 8;
+    const LOAD_DISTANCE: u32 = 16;
     const RENDER_DISTANCE: u32 = 64;
 
     pub fn new(block_data: &StaticBlockData) -> Self {
         Self {
             loaded_chunks: HashMap::default(),
             updated_chunks: Vec::new(),
+            chunks_to_load: Vec::new(),
             terrain_generator: TerrainGenerator::new_random(block_data),
             player_pos: Vec2::zero(),
         }
@@ -36,17 +38,19 @@ impl WorldBlocks {
     }
 
     pub fn frame_update(&mut self, block_data: &StaticBlockData) {
-        let to_load = self.get_closest_unloaded_chunks(Self::CHUNK_UPDATES_PER_FRAME.try_into().unwrap());
+        let mut to_load = self.get_closest_unloaded_chunks(Self::CHUNK_UPDATES_PER_FRAME.try_into().unwrap());
+        to_load.append(&mut self.chunks_to_load);
+        self.chunks_to_load.clear();
 
         for pos in to_load.into_iter() {
             self.load_chunk(pos, block_data);
         }
 
-        // // TODO: Unloading chunks could use a better method based on movement
-        // for pos in self.get_chunks_to_unload() {
-        //     self.loaded_chunks.remove(&pos);
-        //     self.updated_chunks.push(pos);
-        // }
+        // TODO: Unloading chunks could use a better method based on movement
+        for pos in self.get_chunks_to_unload() {
+            self.loaded_chunks.remove(&pos);
+            self.updated_chunks.push(pos);
+        }
     }
 
     fn get_closest_unloaded_chunks(&self, num: usize) -> Vec<IVec2> {
@@ -73,7 +77,7 @@ impl WorldBlocks {
                 SpiralStep::Down => check.y -= 1,
             }
 
-            if (check - center_chunk).abs().component_max() as u32 > Self::RENDER_DISTANCE {
+            if (check - center_chunk).abs().component_max() as u32 > Self::LOAD_DISTANCE {
                 break;
             }
 

@@ -77,16 +77,6 @@ layout(set = 6, binding = 0) readonly buffer TextureBuffer {
     uint textures[];
 } block_texture_buffer;
 
-layout(set = 8, binding = 0) buffer FeedbackBuffer {
-    uint top;
-    ivec3 map_positions[256];
-} feedback;
-
-void push_feedback(ivec3 pos) {
-    uint idx = atomicAdd(feedback.top, 1);
-    if (idx < 256) feedback.map_positions[idx] = pos;
-}
-
 uint state = 9737333;
 uint rand() {
     state = (state << 13U) ^ state;
@@ -270,11 +260,6 @@ vec4 raymarch_brickgrid(vec3 ray_origin, vec3 ray_dir, out Intersection intersec
             grid_pos += ivec3(grid_mask) * ray_step;
         } else if (flags == 0) {
             // Unloaded brickmap
-            if (data == 0) {
-                push_feedback(grid_pos);
-                brickgrid.pointers[idx] = 4;
-            }
-
             break;
         } else if (flags == 2) {
             // LOD brickmap

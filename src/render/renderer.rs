@@ -1,14 +1,14 @@
-use std::{sync::{Arc, Mutex}, array};
+use std::sync::{Arc, Mutex};
 
 use bytemuck::{Pod, Zeroable};
 use ultraviolet::Mat4;
-use vulkano::{memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryUsage}, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features, QueueFlags}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{viewport::{Viewport, ViewportState}, vertex_input::Vertex, color_blend::ColorBlendState}, PipelineLayout, layout::PipelineLayoutCreateInfo}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, future::FenceSignalFuture}, buffer::{BufferUsage, Subbuffer, Buffer, BufferCreateInfo}, descriptor_set::{allocator::StandardDescriptorSetAllocator, layout::{DescriptorSetLayout, DescriptorSetLayoutCreateInfo, DescriptorSetLayoutBinding, DescriptorType}}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, shader::ShaderStages};
+use vulkano::{memory::allocator::{StandardMemoryAllocator}, VulkanLibrary, swapchain::{self, Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, AcquireError, SwapchainPresentInfo, ColorSpace, PresentMode}, command_buffer::{allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo}, PrimaryAutoCommandBuffer, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, DrawIndirectCommand}, device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, QueueCreateInfo, Queue, DeviceExtensions, Features, QueueFlags}, image::{view::ImageView, ImageUsage, SwapchainImage}, instance::{Instance, InstanceCreateInfo}, pipeline::{GraphicsPipeline, graphics::{viewport::{Viewport, ViewportState}, vertex_input::Vertex, color_blend::ColorBlendState}, PipelineLayout, layout::PipelineLayoutCreateInfo}, render_pass::{RenderPass, Framebuffer, FramebufferCreateInfo, Subpass}, sync::{GpuFuture, FlushError, self, future::FenceSignalFuture}, buffer::{BufferUsage, Subbuffer}, descriptor_set::{allocator::StandardDescriptorSetAllocator, layout::{DescriptorSetLayout, DescriptorSetLayoutCreateInfo, DescriptorSetLayoutBinding, DescriptorType}}, sampler::{Sampler, SamplerCreateInfo, Filter, SamplerAddressMode}, shader::ShaderStages};
 use vulkano_win::VkSurfaceBuild;
 use winit::{event_loop::EventLoop, window::{WindowBuilder, CursorGrabMode}, dpi::PhysicalSize};
 
 use crate::{event_handler::UserEvent, world::{world_blocks::WorldBlocks, block_data::StaticBlockData}};
 
-use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState, ProgramInfo, CreateInfoConvenience}, vertex::{Vertex2D}, descriptor_sets::DescriptorSets, brick::feedback::Feedback};
+use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState, ProgramInfo}, vertex::{Vertex2D}, descriptor_sets::DescriptorSets};
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
@@ -37,14 +37,12 @@ pub struct Renderer {
     pub texture_sampler: Arc<Sampler>,
     pub program_info: ProgramInfo,
     pub descriptor_sets: DescriptorSets,
-    pub frame_feedback: Option<Feedback>,
 
     pub upload_texture_atlas: bool,
 
     pub block_shader: ShaderPair,
 
     fences: Vec<Option<Arc<FenceSignalFuture<Box<dyn GpuFuture>>>>>,
-    feedback_buffers: [Option<Subbuffer<Feedback>>; 3],
     previous_fence_i: usize,
 }
 
@@ -235,14 +233,12 @@ impl Renderer {
             texture_sampler,
             program_info,
             descriptor_sets,
-            frame_feedback: None,
 
             upload_texture_atlas: true,
 
             block_shader,
 
             fences,
-            feedback_buffers: array::from_fn(|_| None),
             previous_fence_i: 0,
         }
     }
@@ -310,7 +306,6 @@ impl Renderer {
         set_layouts.push(create_fragment_layout_type(device.clone(), DescriptorType::StorageBuffer)); // 5
         set_layouts.push(create_fragment_layout_type(device.clone(), DescriptorType::StorageBuffer)); // 6
         set_layouts.push(create_fragment_layout_type(device.clone(), DescriptorType::StorageBuffer)); // 7
-        set_layouts.push(create_fragment_layout_type(device.clone(), DescriptorType::StorageBuffer)); // 8
 
         let layout = PipelineLayout::new(
             device.clone(),
@@ -451,17 +446,6 @@ impl Renderer {
             CommandBufferUsage::OneTimeSubmit,
         ).unwrap();
 
-        self.feedback_buffers[image_index] = Some(Buffer::new_sized(
-            &self.vk_memory_allocator, 
-            BufferCreateInfo::usage(BufferUsage::STORAGE_BUFFER), 
-            AllocationCreateInfo::usage(MemoryUsage::Download)
-        ).unwrap());
-
-        self.descriptor_sets.feedback.replace(
-            &self.vk_descriptor_set_allocator, 
-            self.feedback_buffers[image_index].clone().unwrap(),
-        );
-
         let (brickgrid_swapped, texture_pointer_swapped, brickmaps_swapped) = self.vertex_buffer.update();
         if brickmaps_swapped {
             self.descriptor_sets.brickmap.replace(
@@ -589,17 +573,11 @@ impl Renderer {
             };
         if suboptimal { state = RenderState::Suboptimal; }
 
-        acquire_future.wait(None).unwrap();
-
         let command_buffers = self.get_command_buffers(image_i as usize);
 
         // Overwrite the oldest fence and take control for drawing
         if let Some(image_fence) = &mut self.fences[image_i as usize] {
             image_fence.cleanup_finished();
-        }
-
-        if let Some(feedback) = &self.feedback_buffers[image_i as usize] {
-            self.frame_feedback = Some(feedback.read().unwrap().clone());
         }
 
         // Get the previous future
