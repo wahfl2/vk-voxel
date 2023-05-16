@@ -8,7 +8,6 @@ use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::Terr
 pub struct WorldBlocks {
     pub loaded_chunks: HashMap<IVec2, Chunk>,
     pub updated_chunks: Vec<IVec2>,
-    pub chunks_to_load: Vec<IVec2>,
     pub terrain_generator: TerrainGenerator,
     pub player_pos: Vec2,
 }
@@ -22,7 +21,6 @@ impl WorldBlocks {
         Self {
             loaded_chunks: HashMap::default(),
             updated_chunks: Vec::new(),
-            chunks_to_load: Vec::new(),
             terrain_generator: TerrainGenerator::new_random(block_data),
             player_pos: Vec2::zero(),
         }
@@ -38,9 +36,7 @@ impl WorldBlocks {
     }
 
     pub fn frame_update(&mut self, block_data: &StaticBlockData) {
-        let mut to_load = self.get_closest_unloaded_chunks(Self::CHUNK_UPDATES_PER_FRAME.try_into().unwrap());
-        to_load.append(&mut self.chunks_to_load);
-        self.chunks_to_load.clear();
+        let to_load = self.get_closest_unloaded_chunks(Self::CHUNK_UPDATES_PER_FRAME.try_into().unwrap());
 
         for pos in to_load.into_iter() {
             self.load_chunk(pos, block_data);
