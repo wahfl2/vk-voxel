@@ -157,6 +157,32 @@ where
     ret
 }
 
+pub fn make_download_buffer_sized<T>(
+    allocator: &StandardMemoryAllocator,
+    cbb: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+    usage: BufferUsage,
+    data: T,
+) -> Subbuffer<T> 
+where
+    T: Send + Sync + Pod
+{
+    let staging = Buffer::from_data(
+        allocator,
+        BufferCreateInfo::usage(BufferUsage::TRANSFER_SRC),
+        AllocationCreateInfo::usage(MemoryUsage::Upload),
+        data
+    ).unwrap();
+
+    let ret = Buffer::new_sized(
+        allocator,
+        BufferCreateInfo::usage(usage.union(BufferUsage::TRANSFER_DST)),
+        AllocationCreateInfo::usage(MemoryUsage::Download),
+    ).unwrap();
+
+    cbb.copy_buffer(CopyBufferInfo::buffers(staging, ret.clone())).unwrap();
+    ret
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct ProgramInfo {
