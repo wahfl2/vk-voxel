@@ -14,7 +14,7 @@ pub struct WorldBlocks {
 
 impl WorldBlocks {
     const CHUNK_UPDATES_PER_FRAME: u32 = 8;
-    const LOAD_DISTANCE: u32 = 16;
+    const LOAD_DISTANCE: u32 = 64;
     const RENDER_DISTANCE: u32 = 64;
 
     pub fn new(block_data: &StaticBlockData) -> Self {
@@ -88,6 +88,7 @@ impl WorldBlocks {
         return ret;
     }
 
+    ///
     fn get_chunks_to_unload(&self) -> Vec<IVec2> {
         let div_size = self.player_pos / -F_SECTION_SIZE.xz();
         let player_pos = IVec2::new(div_size.x.floor() as i32, div_size.y.floor() as i32);

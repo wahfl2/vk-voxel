@@ -77,6 +77,18 @@ layout(set = 6, binding = 0) readonly buffer TextureBuffer {
     uint textures[];
 } block_texture_buffer;
 
+layout(set = 8, binding = 0) readonly buffer BM2Buffer {
+    uvec3 size;
+    uint bit_size;
+    uint bits[];
+} bitmap_2;
+
+layout(set = 9, binding = 0) readonly buffer BM4Buffer {
+    uvec3 size;
+    uint bit_size;
+    uint bits[];
+} bitmap_4;
+
 uint state = 9737333;
 uint rand() {
     state = (state << 13U) ^ state;
@@ -151,6 +163,34 @@ uint index_grid(ivec3 grid_pos, out bool out_of_range) {
     return idx;
 }
 
+// returns if you can skip or not
+bool index_bm2(ivec3 grid_pos) {
+    if (grid_pos.y < 0 || grid_pos.y >= brickgrid.size.y) {
+        return false;
+    }
+
+    uvec3 idx_3d = uvec3(mod(grid_pos / 2, ivec3(bitmap_2.size)));
+    uint bit_index = (idx_3d.x * bitmap_2.size.y * bitmap_2.size.z) + (idx_3d.y * bitmap_2.size.z) + idx_3d.z;
+    uint index = bit_index >> 5;
+    uint bit_idx = 31 - (bit_index & 31);
+
+    return bool((bitmap_2.bits[index] >> bit_idx) & 1);
+}
+
+// returns if you can skip or not
+bool index_bm4(ivec3 grid_pos) {
+    if (grid_pos.y < 0 || grid_pos.y >= brickgrid.size.y) {
+        return false;
+    }
+
+    uvec3 idx_3d = uvec3(mod(grid_pos / 4, ivec3(bitmap_4.size)));
+    uint bit_index = (idx_3d.x * bitmap_4.size.y * bitmap_4.size.z) + (idx_3d.y * bitmap_4.size.z) + idx_3d.z;
+    uint index = bit_index >> 5;
+    uint bit_idx = 31 - (bit_index & 31);
+
+    return bool((bitmap_4.bits[index] >> bit_idx) & 1);
+}
+
 bool shadow_march_brickgrid(vec3 ray_origin, vec3 ray_dir) {
     vec3 grid_ray_origin = ray_origin / vec3(SECTION_SIZE);
     ivec3 grid_pos = ivec3(floor(grid_ray_origin));
@@ -164,6 +204,26 @@ bool shadow_march_brickgrid(vec3 ray_origin, vec3 ray_dir) {
     bvec3 grid_mask = bvec3(false);
 
     for (int i = 0; i < MAX_RAY_STEPS; i++) {
+        vec3 delta = length(vec3(grid_mask) * (side_dist - delta_dist)) * norm_ray_dir;
+        vec3 grid_intersect = grid_ray_origin + delta;
+        vec3 intersect = grid_intersect * vec3(SECTION_SIZE);
+
+        if (index_bm4(grid_pos)) {
+            vec3 bm4_pos = grid_pos / 4;
+            vec3 bm4_int = grid_intersect / 4;
+
+            vec3 bm4_sd = (sign(ray_dir) * (bm4_pos - bm4_int) + (sign(ray_dir) * 0.5) + vec3(0.5)) * delta_dist;
+
+            bvec3 b_mask = lessThanEqual(bm4_sd.xyz, min(bm4_sd.yzx, bm4_sd.zxy));
+        }
+
+        if (index_bm2(grid_pos)) {
+            vec3 bm2_pos = grid_pos / 2;
+            vec3 bm2_int = grid_intersect / 2;
+
+            vec3 bm2_sd = (sign(ray_dir) * (bm2_pos - bm2_int) + (sign(ray_dir) * 0.5) + vec3(0.5)) * delta_dist;
+        }
+
         bool out_of_range = false;
         uint idx = index_grid(grid_pos, out_of_range);
         if (out_of_range) {
@@ -188,10 +248,6 @@ bool shadow_march_brickgrid(vec3 ray_origin, vec3 ray_dir) {
             // Brickmap 
 
             Brickmap brickmap = brickmap_buffer.maps[data];
-            float d = length(vec3(grid_mask) * (side_dist - delta_dist)) / length(ray_dir);
-
-            vec3 grid_intersect = grid_ray_origin + (d * ray_dir);
-            vec3 intersect = grid_intersect * vec3(SECTION_SIZE);
 
             // This assumes square sections.
             vec3 off = sign(ray_dir) * vec3(grid_mask) * 0.5;
@@ -360,7 +416,10 @@ vec4 raymarch_brickgrid(vec3 ray_origin, vec3 ray_dir, out Intersection intersec
 }
 
 void main() {
-    state = uint(gl_FragCoord.x * view.resolution.y + gl_FragCoord.y) + program_info.start + program_info.frame_number;
+    state = uint(gl_FragCoord.x * view.resolution.y + gl_FragCoord.y) 
+        + program_info.start 
+        + program_info.frame_number;
+    
     vec3 cam_pos = (view.camera * vec4(vec3(0.0), 1.0)).xyz;
     float cam_pos_sum = cam_pos.x + cam_pos.y + cam_pos.z;
     state *= floatBitsToUint(cam_pos_sum) * 648391 + 4535189;
@@ -388,8 +447,6 @@ void main() {
     if (!intersection.hit) {
         return;
     }
-
-    return;
 
     vec4 hit_color = intersection.raw_color;
     vec3 hit_norm = intersection.normal;
