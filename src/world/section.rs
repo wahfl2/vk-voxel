@@ -74,6 +74,7 @@ impl Section {
 
     pub fn update_brickmap(&mut self, block_data: &StaticBlockData) {
         self.brickmap.solid_mask = self.solid_mask(block_data);
+        self.brickmap.update_bounding_box();
     }
 
     pub fn solid_mask(&self, block_data: &StaticBlockData) -> [[u8; 8]; 8] {

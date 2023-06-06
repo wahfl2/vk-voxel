@@ -22,10 +22,16 @@ const vec3 FACE_NORMALS[] = vec3[6](
     vec3(0.0, 0.0, -1.0)
 );
 
+struct BoundingBox {
+    vec3 bmin;
+    vec3 bmax;
+};
+
 struct Brickmap {
     uint solid_mask[16];
     uint textures_offset;
     uint lod_color;
+    uint bb;
 };
 
 struct Texture {
@@ -109,6 +115,44 @@ bvec3 and_bvec(bvec3 n, bvec3 m) {
     return bvec3(n.x && m.x, n.y && m.y, n.z && m.z);
 }
 
+BoundingBox unpack_bb(uint bb) {
+    uint min_packed = bb >> 16;
+    uint max_packed = bb & 65535;
+
+    vec3 bmin = vec3(min_packed >> 12, (min_packed >> 8) & 15, (min_packed >> 4) & 15);
+    vec3 bmax = vec3(max_packed >> 12, (max_packed >> 8) & 15, (max_packed >> 4) & 15);
+
+    return BoundingBox(bmin, bmax);
+}
+
+bool intersect_bb(uint bb, ivec3 grid_pos, vec3 origin, vec3 inv_dir) {
+    BoundingBox bbox = unpack_bb(bb);
+    vec3 off = grid_pos * vec3(SECTION_SIZE);
+    
+    bbox.bmin += off;
+    bbox.bmax += off;
+
+    float tx1 = (bbox.bmin.x - origin.x) * inv_dir.x;
+    float tx2 = (bbox.bmax.x - origin.x) * inv_dir.x;
+
+    float tmin = min(tx1, tx2);
+    float tmax = max(tx1, tx2);
+    
+    float ty1 = (bbox.bmin.y - origin.y) * inv_dir.y;
+    float ty2 = (bbox.bmax.y - origin.y) * inv_dir.y;
+
+    tmin = max(tmin, min(ty1, ty2));
+    tmax = min(tmax, max(ty1, ty2));
+    
+    float tz1 = (bbox.bmin.z - origin.z) * inv_dir.z;
+    float tz2 = (bbox.bmax.z - origin.z) * inv_dir.z;
+
+    tmin = max(tmin, min(tz1, tz2));
+    tmax = min(tmax, max(tz1, tz2));
+
+    return tmax >= tmin;
+}
+
 ivec2 get_texel(Texture texture_s, vec2 uv) {
     uvec2 offset = uvec2(texture_s.offset_xy & 65535, texture_s.offset_xy >> 16);
     uvec2 size = uvec2(texture_s.size_xy & 65535, texture_s.size_xy >> 16);
@@ -156,6 +200,7 @@ bool shadow_march_brickgrid(vec3 ray_origin, vec3 ray_dir) {
     ivec3 grid_pos = ivec3(floor(grid_ray_origin));
 
     vec3 norm_ray_dir = normalize(ray_dir);
+    vec3 inv_ray_dir = 1.0 / norm_ray_dir;
 
     vec3 delta_dist = abs(1.0 / norm_ray_dir);
 
@@ -188,35 +233,37 @@ bool shadow_march_brickgrid(vec3 ray_origin, vec3 ray_dir) {
             // Brickmap 
 
             Brickmap brickmap = brickmap_buffer.maps[data];
-            float d = length(vec3(grid_mask) * (side_dist - delta_dist)) / length(ray_dir);
+            if (intersect_bb(brickmap.bb, grid_pos, ray_origin, inv_ray_dir)) {
+                float d = length(vec3(grid_mask) * (side_dist - delta_dist));
 
-            vec3 grid_intersect = grid_ray_origin + (d * ray_dir);
-            vec3 intersect = grid_intersect * vec3(SECTION_SIZE);
+                vec3 grid_intersect = grid_ray_origin + (d * norm_ray_dir);
+                vec3 intersect = grid_intersect * vec3(SECTION_SIZE);
 
-            // This assumes square sections.
-            vec3 off = sign(ray_dir) * vec3(grid_mask) * 0.5;
-            ivec3 block_pos = ivec3(floor(intersect + off));
-            ivec3 section_pos = ivec3(mod(block_pos, SECTION_SIZE));
+                // This assumes square sections.
+                vec3 off = sign(ray_dir) * vec3(grid_mask) * 0.5;
+                ivec3 block_pos = ivec3(floor(intersect + off));
+                ivec3 section_pos = ivec3(mod(block_pos, SECTION_SIZE));
 
-            vec3 side_dist_sec = (sign(ray_dir) * (block_pos - intersect) + (sign(ray_dir) * 0.5) + vec3(0.5)) * delta_dist;
+                vec3 side_dist_sec = (sign(ray_dir) * (block_pos - intersect) + (sign(ray_dir) * 0.5) + vec3(0.5)) * delta_dist;
 
-            bvec3 mask = grid_mask;
-            bool out_of_range = false;
+                bvec3 mask = grid_mask;
+                bool out_of_range = false;
 
-            for (int j = 0; j < MAX_INNER_STEPS; j++) {
-                bool solid = index_map(brickmap.solid_mask, section_pos, out_of_range);
+                for (int j = 0; j < MAX_INNER_STEPS; j++) {
+                    bool solid = index_map(brickmap.solid_mask, section_pos, out_of_range);
 
-                if (solid) {
-                    return true;
+                    if (solid) {
+                        return true;
+                    }
+
+                    if (out_of_range) {
+                        break;
+                    }
+
+                    mask = lessThanEqual(side_dist_sec.xyz, min(side_dist_sec.yzx, side_dist_sec.zxy));
+                    side_dist_sec += vec3(mask) * delta_dist;
+                    section_pos += ivec3(mask) * ray_step;
                 }
-
-                if (out_of_range) {
-                    break;
-                }
-
-                mask = lessThanEqual(side_dist_sec.xyz, min(side_dist_sec.yzx, side_dist_sec.zxy));
-                side_dist_sec += vec3(mask) * delta_dist;
-                section_pos += ivec3(mask) * ray_step;
             }
 
             grid_mask = lessThanEqual(side_dist.xyz, min(side_dist.yzx, side_dist.zxy));
@@ -234,6 +281,7 @@ vec4 raymarch_brickgrid(vec3 ray_origin, vec3 ray_dir, out Intersection intersec
     ivec3 grid_pos = ivec3(floor(grid_ray_origin));
 
     vec3 norm_ray_dir = normalize(ray_dir);
+    vec3 inv_ray_dir = 1.0 / norm_ray_dir;
 
     vec3 delta_dist = abs(1.0 / norm_ray_dir);
 
@@ -275,6 +323,14 @@ vec4 raymarch_brickgrid(vec3 ray_origin, vec3 ray_dir, out Intersection intersec
             // Brickmap 
 
             Brickmap brickmap = brickmap_buffer.maps[data];
+            if (!intersect_bb(brickmap.bb, grid_pos, ray_origin, inv_ray_dir)) {
+                grid_mask = lessThanEqual(side_dist.xyz, min(side_dist.yzx, side_dist.zxy));
+                side_dist += vec3(grid_mask) * delta_dist;
+                grid_pos += ivec3(grid_mask) * ray_step;
+
+                continue;
+            }
+
             float d = length(vec3(grid_mask) * (side_dist - delta_dist)) / length(ray_dir);
 
             vec3 grid_intersect = grid_ray_origin + (d * ray_dir);

@@ -14,7 +14,7 @@ pub struct WorldBlocks {
 
 impl WorldBlocks {
     const CHUNK_UPDATES_PER_FRAME: u32 = 8;
-    const LOAD_DISTANCE: u32 = 16;
+    const LOAD_DISTANCE: u32 = 64;
     const RENDER_DISTANCE: u32 = 64;
 
     pub fn new(block_data: &StaticBlockData) -> Self {
