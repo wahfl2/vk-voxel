@@ -15,8 +15,6 @@ hecs = "0.10.0"
 mimalloc = { version = "0.1.34", default-features = false }
 ndarray = "0.15.6"
 noise = "0.8.2"
-num_cpus = "1.15.0"
-once_cell = "1.17.0"
 png = "0.17.7"
 rand_xoshiro = "0.6.0"
 rayon = "1.6.1"
@@ -24,7 +22,6 @@ rgb = "0.8.34"
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.91"
 shaderc = "0.8.1"
-smallvec = "1.10.0"
 turborand = "0.10.0"
 ultraviolet = { version = "0.9.0", features = ["int", "f64"] }
 vulkano = "0.33.0"
