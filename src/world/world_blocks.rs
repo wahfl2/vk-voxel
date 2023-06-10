@@ -3,7 +3,10 @@ use ultraviolet::{IVec2, Vec2};
 
 use crate::util::util::AdditionalSwizzles;
 
-use super::{chunk::Chunk, block_data::StaticBlockData, generation::terrain::TerrainGenerator, section::F_SECTION_SIZE};
+use super::{
+    block_data::StaticBlockData, chunk::Chunk, generation::terrain::TerrainGenerator,
+    section::F_SECTION_SIZE,
+};
 
 pub struct WorldBlocks {
     pub loaded_chunks: HashMap<IVec2, Chunk>,
@@ -36,7 +39,8 @@ impl WorldBlocks {
     }
 
     pub fn frame_update(&mut self, block_data: &StaticBlockData) {
-        let to_load = self.get_closest_unloaded_chunks(Self::CHUNK_UPDATES_PER_FRAME.try_into().unwrap());
+        let to_load =
+            self.get_closest_unloaded_chunks(Self::CHUNK_UPDATES_PER_FRAME.try_into().unwrap());
 
         for pos in to_load.into_iter() {
             self.load_chunk(pos, block_data);
@@ -52,8 +56,8 @@ impl WorldBlocks {
     fn get_closest_unloaded_chunks(&self, num: usize) -> Vec<IVec2> {
         let div_size = self.player_pos / -F_SECTION_SIZE.xz();
         let center_chunk = IVec2::new(div_size.x.floor() as i32, div_size.y.floor() as i32);
-        
-        let mut check = center_chunk.clone();
+
+        let mut check = center_chunk;
         let mut step = SpiralStep::Right;
         let mut steps_left = 1;
         let mut step_amount = 1;
@@ -62,7 +66,7 @@ impl WorldBlocks {
         let mut ret = Vec::new();
 
         while ret.len() < num {
-            if let None = self.loaded_chunks.get(&check) {
+            if self.loaded_chunks.get(&check).is_none() {
                 ret.push(check);
             }
 
@@ -79,13 +83,15 @@ impl WorldBlocks {
 
             steps_left -= 1;
             if steps_left == 0 {
-                if up_step { step_amount += 1; }
+                if up_step {
+                    step_amount += 1;
+                }
                 up_step = !up_step;
                 steps_left = step_amount;
                 step.next();
             }
         }
-        return ret;
+        ret
     }
 
     fn get_chunks_to_unload(&self) -> Vec<IVec2> {
