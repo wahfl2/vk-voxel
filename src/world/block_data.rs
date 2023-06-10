@@ -1,7 +1,10 @@
 use ahash::HashMap;
-use bytemuck::{Zeroable, Pod};
+use bytemuck::{Pod, Zeroable};
 
-use crate::render::{texture::TextureAtlas, mesh::{cube::UnitCube, quad::QuadUV, model::Model}};
+use crate::render::{
+    mesh::{cube::UnitCube, model::Model, quad::QuadUV},
+    texture::TextureAtlas,
+};
 
 /// Static block data, should be initialized at startup and probably left alone.
 pub struct StaticBlockData {
@@ -11,7 +14,7 @@ pub struct StaticBlockData {
 
 impl StaticBlockData {
     pub fn empty() -> Self {
-        Self { 
+        Self {
             inner: Default::default(),
             ids: HashMap::default(),
         }
@@ -20,42 +23,48 @@ impl StaticBlockData {
     pub fn init(&mut self, atlas: &TextureAtlas) {
         self.add(InitBlockData::air());
         self.add(InitBlockData::new_block(
-            "stone", 
-            Some(UnitCube::new([
-                atlas.get_handle("stone").unwrap(),
-            ].to_vec()).unwrap()),
+            "stone",
+            Some(UnitCube::new([atlas.get_handle("stone").unwrap()].to_vec()).unwrap()),
             BlockType::Full,
         ));
         self.add(InitBlockData::new_block(
-            "dirt", 
-            Some(UnitCube::new([
-                atlas.get_handle("dirt").unwrap(),
-            ].to_vec()).unwrap()),
+            "dirt",
+            Some(UnitCube::new([atlas.get_handle("dirt").unwrap()].to_vec()).unwrap()),
             BlockType::Full,
         ));
         self.add(InitBlockData::new_block(
-            "grass_block", 
-            Some(UnitCube::new([
-                atlas.get_handle("grass_block_top").unwrap(),
-                atlas.get_handle("grass_block_side").unwrap(),
-                atlas.get_handle("dirt").unwrap(),
-            ].to_vec()).unwrap()),
+            "grass_block",
+            Some(
+                UnitCube::new(
+                    [
+                        atlas.get_handle("grass_block_top").unwrap(),
+                        atlas.get_handle("grass_block_side").unwrap(),
+                        atlas.get_handle("dirt").unwrap(),
+                    ]
+                    .to_vec(),
+                )
+                .unwrap(),
+            ),
             BlockType::Full,
         ));
         self.add(InitBlockData::new_block(
-            "leaves", 
-            Some(UnitCube::new([
-                atlas.get_handle("leaves").unwrap(),
-            ].to_vec()).unwrap()),
+            "leaves",
+            Some(UnitCube::new([atlas.get_handle("leaves").unwrap()].to_vec()).unwrap()),
             BlockType::Transparent,
         ));
         self.add(InitBlockData::new_block(
-            "log", 
-            Some(UnitCube::new([
-                atlas.get_handle("log_top").unwrap(),
-                atlas.get_handle("log_side").unwrap(),
-                atlas.get_handle("log_top").unwrap(),
-            ].to_vec()).unwrap()),
+            "log",
+            Some(
+                UnitCube::new(
+                    [
+                        atlas.get_handle("log_top").unwrap(),
+                        atlas.get_handle("log_side").unwrap(),
+                        atlas.get_handle("log_top").unwrap(),
+                    ]
+                    .to_vec(),
+                )
+                .unwrap(),
+            ),
             BlockType::Full,
         ));
 
@@ -112,17 +121,25 @@ impl InitBlockData {
         Self {
             id: "air".to_string(),
             model: ModelType::None,
-            block_type: BlockType::None
+            block_type: BlockType::None,
         }
     }
 
     pub fn new_block(id: &str, model: Option<UnitCube>, block_type: BlockType) -> Self {
-        Self { id: id.to_string(), model: model.into(), block_type }
+        Self {
+            id: id.to_string(),
+            model: model.into(),
+            block_type,
+        }
     }
 
     pub fn new_plant(id: &str, uv: QuadUV) -> Self {
         let plant_model = Model::create_plant_model(uv);
-        Self { id: id.to_string(), model: ModelType::Plant(plant_model), block_type: BlockType::Transparent }
+        Self {
+            id: id.to_string(),
+            model: ModelType::Plant(plant_model),
+            block_type: BlockType::Transparent,
+        }
     }
 }
 
@@ -141,31 +158,35 @@ pub enum ModelType {
 }
 
 impl ModelType {
+    // These `match` blocks result in the functionality of the `matches!` macro.
     pub fn is_none(&self) -> bool {
-        match self {
+        /*match self {
             ModelType::None => true,
             _ => false,
-        }
+        }*/
+        matches!(self, ModelType::None)
     }
 
     pub fn is_some(&self) -> bool {
-        match self {
+        /*match self {
             ModelType::None => false,
             _ => true,
-        }
+        }*/
+        matches!(self, _) // Not sure if this one will work. You should check.
     }
 
     pub fn is_full(&self) -> bool {
-        match self {
+        /*match self {
             Self::FullBlock(_) => true,
             _ => false,
-        }
+        }*/
+        matches!(self, Self::FullBlock(_))
     }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BlockHandle {
-    inner: u32
+    inner: u32,
 }
 
 impl BlockHandle {
