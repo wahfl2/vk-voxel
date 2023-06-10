@@ -1,13 +1,24 @@
-use std::{fs::File, sync::Arc, ffi::OsString, path::PathBuf};
+use std::{ffi::OsString, fs::File, path::PathBuf, sync::Arc};
 
 use ahash::HashMap;
 use glob::glob;
-use guillotiere::{SimpleAtlasAllocator, euclid::{Box2D, UnknownUnit}};
-use png::{Transformations, ColorType};
+use guillotiere::{
+    euclid::{Box2D, UnknownUnit},
+    SimpleAtlasAllocator,
+};
+use png::{ColorType, Transformations};
 use ultraviolet::UVec2;
-use vulkano::{memory::allocator::StandardMemoryAllocator, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}, image::{ImmutableImage, MipmapsCount, view::ImageView}, format::Format};
+use vulkano::{
+    command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer},
+    format::Format,
+    image::{view::ImageView, ImmutableImage, MipmapsCount},
+    memory::allocator::StandardMemoryAllocator,
+};
 
-use super::{util::{VecConvenience, BoxToUV}, mesh::quad::TexelTexture};
+use super::{
+    mesh::quad::TexelTexture,
+    util::{BoxToUV, VecConvenience},
+};
 
 pub struct TextureAtlas {
     /// Map that matches file names to the index of the texture
@@ -51,7 +62,7 @@ impl TextureAtlas {
         for image in images.iter() {
             let alloc = match allocator.allocate(image.dimensions.to_size_2d()) {
                 Some(a) => a,
-                None => panic!("Ran out of space in the altas!")
+                None => panic!("Ran out of space in the altas!"),
             };
 
             let image_row_len = image.dimensions.x as usize;
@@ -62,10 +73,9 @@ impl TextureAtlas {
                 let alloc_min_idx = alloc.min.y as usize * atlas_row_len + alloc.min.x as usize;
                 let atlas_row_start = row * atlas_row_len + alloc_min_idx;
                 let atlas_row_end = atlas_row_start + image_row_len;
-                
-                atlas_data[(atlas_row_start * 4)..(atlas_row_end * 4)].copy_from_slice(
-                    &image.data[(image_row_start * 4)..(image_row_end * 4)]
-                );
+
+                atlas_data[(atlas_row_start * 4)..(atlas_row_end * 4)]
+                    .copy_from_slice(&image.data[(image_row_start * 4)..(image_row_end * 4)]);
             }
 
             allocations.push(alloc);
@@ -82,7 +92,9 @@ impl TextureAtlas {
 
     pub fn get_handle(&self, file_name: &str) -> Option<TextureHandle> {
         if let Some(idx) = self.name_index_map.get(file_name) {
-            return Some(TextureHandle { inner_index: *idx as u32 })
+            return Some(TextureHandle {
+                inner_index: *idx as u32,
+            });
         }
         None
     }
@@ -99,7 +111,8 @@ impl TextureAtlas {
             MipmapsCount::One,
             Format::R8G8B8A8_UNORM,
             cbb,
-        ).unwrap();
+        )
+        .unwrap();
 
         ImageView::new_default(image).unwrap()
     }
@@ -128,7 +141,8 @@ pub struct ImageData {
 
 impl ImageData {
     pub fn new_file(path: OsString) -> Self {
-        let mut decoder = png::Decoder::new(File::open(path.clone()).unwrap());
+        // `path` implements `Copy`, so there is no need to clone.
+        let mut decoder = png::Decoder::new(File::open(path).unwrap());
         decoder.set_transformations(Transformations::normalize_to_color8());
         let mut reader = decoder.read_info().unwrap();
 
@@ -144,19 +158,26 @@ impl ImageData {
         };
 
         let data = match transformed_color_type {
-            ColorType::Grayscale => buf.into_iter().flat_map(|gray| {
-                [gray, gray, gray, 255]
-            }).collect(),
+            ColorType::Grayscale => buf
+                .into_iter()
+                .flat_map(|gray| [gray, gray, gray, 255])
+                .collect(),
 
-            ColorType::GrayscaleAlpha => buf.chunks(2).flat_map(|chunk| {
-                let (gray, alpha) = (chunk[0], chunk[1]);
-                [gray, gray, gray, alpha]
-            }).collect(),
+            ColorType::GrayscaleAlpha => buf
+                .chunks(2)
+                .flat_map(|chunk| {
+                    let (gray, alpha) = (chunk[0], chunk[1]);
+                    [gray, gray, gray, alpha]
+                })
+                .collect(),
 
-            ColorType::Rgb => buf.chunks(3).flat_map(|chunk| {
-                let (r, g, b) = (chunk[0], chunk[1], chunk[2]);
-                [r, g, b, 255]
-            }).collect(),
+            ColorType::Rgb => buf
+                .chunks(3)
+                .flat_map(|chunk| {
+                    let (r, g, b) = (chunk[0], chunk[1], chunk[2]);
+                    [r, g, b, 255]
+                })
+                .collect(),
 
             ColorType::Rgba => buf,
 
