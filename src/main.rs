@@ -124,15 +124,16 @@ fn main() {
             }
 
             Event::UserEvent(ev) => {
-                // This `match` has only two possible returns. Thus, an `if let` would be better here.
-                // I am also getting a warning for possibly being able to collapse this into the match statement.
-                if let UserEvent::RedrawAt(instant) = ev {
-                    if Instant::now() >= instant {
-                        last_frame_start = Instant::now();
-                        renderer.vk_surface.get_window().unwrap().request_redraw();
-                    } else {
-                        proxy.send_event(UserEvent::RedrawAt(instant)).unwrap();
-                    }
+                match ev {
+                    UserEvent::RedrawAt(instant) => {
+                        if Instant::now() >= instant {
+                            last_frame_start = Instant::now();
+                            renderer.vk_surface.get_window().unwrap().request_redraw();
+                        } else {
+                            proxy.send_event(UserEvent::RedrawAt(instant)).unwrap();
+                        }
+                    },
+                    _ => ()
                 }
             }
 

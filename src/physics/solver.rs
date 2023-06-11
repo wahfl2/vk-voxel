@@ -32,8 +32,7 @@ impl PhysicsBlocks {
             self.blocks.len_of(Axis(0)),
             self.blocks.len_of(Axis(1)),
             self.blocks.len_of(Axis(2)),
-        )
-        .into_vec3();
+        ).into_vec3();
 
         let blocks_min = self.offset;
         let blocks_max = blocks_min + blocks_size;
@@ -138,7 +137,7 @@ impl PhysicsSolver {
             } else {
                 let real_pos = **pos;
                 let min = (real_pos - hitbox.half_extents).floor().into_i() - (3 * IVec3::one());
-                let max = (real_pos + hitbox.half_extents).ceil().into_i() + (3 * IVec3::one());
+                let max = (real_pos + hitbox.half_extents).ceil().into_i()  + (3 * IVec3::one());
 
                 let s = max - min;
                 let mut arr = Array3::from_elem((s.x as usize, s.y as usize, s.z as usize), true);
@@ -185,10 +184,8 @@ impl PhysicsSolver {
                                 let relative_min = min - section_offset;
                                 let relative_max = max - section_offset;
 
-                                let min_sec_index =
-                                    relative_min.clamped(IVec3::zero(), I_SECTION_SIZE);
-                                let max_sec_index =
-                                    relative_max.clamped(IVec3::zero(), I_SECTION_SIZE);
+                                let min_sec_index = relative_min.clamped(IVec3::zero(), I_SECTION_SIZE);
+                                let max_sec_index = relative_max.clamped(IVec3::zero(), I_SECTION_SIZE);
 
                                 let min_arr_index = min_sec_index - relative_min;
                                 let max_arr_index = max_sec_index - relative_min;
@@ -201,16 +198,14 @@ impl PhysicsSolver {
                                     min_arr_index.x..max_arr_index.x,
                                     min_arr_index.y..max_arr_index.y,
                                     min_arr_index.z..max_arr_index.z,
-                                ])
-                                .assign(
-                                    &section
-                                        .blocks
-                                        .slice(s![
-                                            min_sec_index.x..max_sec_index.x,
-                                            min_sec_index.y..max_sec_index.y,
-                                            min_sec_index.z..max_sec_index.z,
-                                        ])
-                                        .map(|b| block_data.get(b).block_type == BlockType::Full),
+                                ]).assign(
+                                    &section.blocks.slice(s![
+                                        min_sec_index.x..max_sec_index.x,
+                                        min_sec_index.y..max_sec_index.y,
+                                        min_sec_index.z..max_sec_index.z,
+                                    ]).map(|b| {
+                                        block_data.get(b).block_type == BlockType::Full
+                                    })
                                 );
 
                                 check_visit_arr

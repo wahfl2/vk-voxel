@@ -150,8 +150,7 @@ impl Renderer {
                 enabled_extensions: device_extensions,
                 ..Default::default()
             },
-        )
-        .expect("failed to create device");
+        ).expect("failed to create device");
 
         let vk_graphics_queue = queues.next().unwrap();
 
@@ -612,8 +611,7 @@ impl Renderer {
 
         // Render blocks
         builder.bind_pipeline_graphics(self.pipelines.raytracing.clone());
-        self.descriptor_sets
-            .bind_raytracing(&mut builder, self.pipelines.layout.clone());
+        self.descriptor_sets.bind_raytracing(&mut builder, self.pipelines.layout.clone());
         builder
             .bind_vertex_buffers(0, self.fullscreen_quad.clone().unwrap())
             .draw(3, 1, 0, 0)

@@ -52,9 +52,10 @@ impl BlockAccess for Section {
 impl Section {
     pub fn empty() -> Self {
         Self {
-            blocks: arr3(
-                &[[[BlockHandle::default(); SECTION_SIZE.x as usize]; SECTION_SIZE.y as usize];
-                    SECTION_SIZE.z as usize],
+            blocks: arr3(&[[[BlockHandle::default();
+                SECTION_SIZE.x as usize];
+                SECTION_SIZE.y as usize];
+                SECTION_SIZE.z as usize],
             ),
 
             brickmap: Brickmap::empty(),
@@ -63,9 +64,10 @@ impl Section {
 
     pub fn full(block: BlockHandle) -> Self {
         Self {
-            blocks: arr3(
-                &[[[block; SECTION_SIZE.x as usize]; SECTION_SIZE.y as usize];
-                    SECTION_SIZE.z as usize],
+            blocks: arr3(&[[[block;
+                SECTION_SIZE.x as usize];
+                SECTION_SIZE.y as usize];
+                SECTION_SIZE.z as usize],
             ),
 
             ..Self::empty()

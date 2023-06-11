@@ -91,8 +91,7 @@ fn frustrum_test() {
     let frustrum = Camera {
         fov: 90.0,
         ..Default::default()
-    }
-    .calculate_frustrum(1.0);
+    }.calculate_frustrum(1.0);
 
     dbg!(frustrum);
 }
@@ -142,15 +141,9 @@ impl CalculatedFrustrum {
                 .simd_ge(ZERO)
                 .to_array();
 
-            if cmp[0] {
-                positive.x = aabb.max.x
-            }
-            if cmp[1] {
-                positive.y = aabb.max.y
-            }
-            if cmp[2] {
-                positive.z = aabb.max.z
-            }
+            if cmp[0] {positive.x = aabb.max.x}
+            if cmp[1] {positive.y = aabb.max.y}
+            if cmp[2] {positive.z = aabb.max.z}
 
             if plane.distance(positive) < 0.0 {
                 return false;

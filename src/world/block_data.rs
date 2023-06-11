@@ -34,17 +34,11 @@ impl StaticBlockData {
         ));
         self.add(InitBlockData::new_block(
             "grass_block",
-            Some(
-                UnitCube::new(
-                    [
+            Some(UnitCube::new([
                         atlas.get_handle("grass_block_top").unwrap(),
                         atlas.get_handle("grass_block_side").unwrap(),
                         atlas.get_handle("dirt").unwrap(),
-                    ]
-                    .to_vec(),
-                )
-                .unwrap(),
-            ),
+                    ].to_vec()).unwrap()),
             BlockType::Full,
         ));
         self.add(InitBlockData::new_block(

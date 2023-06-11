@@ -126,8 +126,7 @@ impl DescriptorSets {
                 BufferCreateInfo::usage(BufferUsage::STORAGE_BUFFER),
                 AllocationCreateInfo::usage(MemoryUsage::Upload),
                 1,
-            )
-            .unwrap(),
+            ).unwrap(),
         );
 
         let brickgrid = UploadDescriptorSet::new(

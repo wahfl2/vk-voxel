@@ -133,19 +133,16 @@ where
         BufferCreateInfo::usage(BufferUsage::TRANSFER_SRC),
         AllocationCreateInfo::usage(MemoryUsage::Upload),
         iter,
-    )
-    .unwrap();
+    ).unwrap();
 
     let ret = Buffer::new_slice(
         allocator,
         BufferCreateInfo::usage(usage.union(BufferUsage::TRANSFER_DST)),
         AllocationCreateInfo::usage(MemoryUsage::DeviceOnly),
         len as u64,
-    )
-    .unwrap();
+    ).unwrap();
 
-    cbb.copy_buffer(CopyBufferInfoTyped::buffers(staging, ret.clone()))
-        .unwrap();
+    cbb.copy_buffer(CopyBufferInfoTyped::buffers(staging, ret.clone())).unwrap();
     ret
 }
 
@@ -170,11 +167,9 @@ where
         allocator,
         BufferCreateInfo::usage(usage.union(BufferUsage::TRANSFER_DST)),
         AllocationCreateInfo::usage(MemoryUsage::DeviceOnly),
-    )
-    .unwrap();
+    ).unwrap();
 
-    cbb.copy_buffer(CopyBufferInfo::buffers(staging, ret.clone()))
-        .unwrap();
+    cbb.copy_buffer(CopyBufferInfo::buffers(staging, ret.clone())).unwrap();
     ret
 }
 

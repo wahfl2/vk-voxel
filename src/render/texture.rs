@@ -111,8 +111,7 @@ impl TextureAtlas {
             MipmapsCount::One,
             Format::R8G8B8A8_UNORM,
             cbb,
-        )
-        .unwrap();
+        ).unwrap();
 
         ImageView::new_default(image).unwrap()
     }
