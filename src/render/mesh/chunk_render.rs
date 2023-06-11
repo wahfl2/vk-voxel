@@ -1,22 +1,32 @@
-use crate::{render::{texture::TextureAtlas, vertex::VertexRaw}, world::block_data::StaticBlockData};
+use crate::{
+    render::{texture::TextureAtlas, vertex::VertexRaw},
+    world::block_data::StaticBlockData,
+};
 
 use super::quad::BlockQuad;
 
 pub trait ChunkRender {
-    fn get_render_section(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> RenderSection;
+    fn get_render_section(
+        &self,
+        atlas: &TextureAtlas,
+        block_data: &StaticBlockData,
+    ) -> RenderSection;
 }
 
 impl<T> ChunkRender for [T]
-where 
-    T: ChunkRender
+where
+    T: ChunkRender,
 {
-    fn get_render_section(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> RenderSection {
-        let sections_iter = self.into_iter().map(|r| { 
-            r.get_render_section(atlas, block_data) 
-        });
+    fn get_render_section(
+        &self,
+        atlas: &TextureAtlas,
+        block_data: &StaticBlockData,
+    ) -> RenderSection {
+        // `into_iter()` call does not consume slice and acts like an `iter()`
+        let sections_iter = self.iter().map(|r| r.get_render_section(atlas, block_data));
 
         let (mut len1, mut len2) = (0, 0);
-        sections_iter.clone().for_each(|s| { 
+        sections_iter.clone().for_each(|s| {
             len1 += s.block_quads.len();
             len2 += s.deco_vertices.len();
         });

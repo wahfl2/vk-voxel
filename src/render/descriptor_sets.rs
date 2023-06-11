@@ -1,11 +1,26 @@
 use std::sync::Arc;
 
 use bytemuck::Zeroable;
-use vulkano::{image::{view::ImageView, ImmutableImage}, sampler::Sampler, buffer::{Subbuffer, Buffer, BufferCreateInfo, BufferUsage}, descriptor_set::{allocator::StandardDescriptorSetAllocator}, pipeline::{PipelineBindPoint, PipelineLayout}, memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryUsage}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer}};
+use vulkano::{
+    buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
+    command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer},
+    descriptor_set::allocator::StandardDescriptorSetAllocator,
+    image::{view::ImageView, ImmutableImage},
+    memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator},
+    pipeline::{PipelineBindPoint, PipelineLayout},
+    sampler::Sampler,
+};
 
-use crate::world::block_data::{StaticBlockData, BlockTexture, ModelType};
+use crate::world::block_data::{BlockTexture, ModelType, StaticBlockData};
 
-use super::{buffer::upload::UploadDescriptorSet, renderer::{Pipelines, View}, texture::TextureAtlas, util::{CreateInfoConvenience, ProgramInfo}, brick::{brickmap::Brickmap, brickgrid::Brickgrid}, mesh::quad::{TexelTexture}};
+use super::{
+    brick::{brickgrid::Brickgrid, brickmap::Brickmap},
+    buffer::upload::UploadDescriptorSet,
+    mesh::quad::TexelTexture,
+    renderer::{Pipelines, View},
+    texture::TextureAtlas,
+    util::{CreateInfoConvenience, ProgramInfo},
+};
 
 pub type ImageViewSampler = (Arc<ImageView<ImmutableImage>>, Arc<Sampler>);
 
@@ -37,93 +52,107 @@ impl DescriptorSets {
 
         let atlas = UploadDescriptorSet::new(
             descriptor_set_allocator,
-            raytracing_layouts[0].clone(), 0,
-            (texture_atlas.get_texture(memory_allocator, cbb), sampler)
+            raytracing_layouts[0].clone(),
+            0,
+            (texture_atlas.get_texture(memory_allocator, cbb), sampler),
         );
-        
+
         let atlas_map_storage_buffer = super::util::make_device_only_buffer_slice(
-            memory_allocator, cbb, 
-            BufferUsage::STORAGE_BUFFER, 
-            texture_atlas.uvs.clone()
+            memory_allocator,
+            cbb,
+            BufferUsage::STORAGE_BUFFER,
+            texture_atlas.uvs.clone(),
         );
-        
+
         let atlas_map = UploadDescriptorSet::new(
             descriptor_set_allocator,
-            raytracing_layouts[1].clone(), 0,
-            atlas_map_storage_buffer
+            raytracing_layouts[1].clone(),
+            0,
+            atlas_map_storage_buffer,
         );
 
         let block_texture_storage_buffer = super::util::make_device_only_buffer_slice(
-            memory_allocator, cbb, 
-            BufferUsage::STORAGE_BUFFER, 
-            block_data.block_data().into_iter().map(|b| {
-                match &b.model {
-                    ModelType::FullBlock(m) => BlockTexture::from(m.clone()),
-                    _ => BlockTexture::zeroed(),
-                }
-            })
+            memory_allocator,
+            cbb,
+            BufferUsage::STORAGE_BUFFER,
+            // Needless `into_iter()`
+            block_data.block_data().iter().map(|b| match &b.model {
+                ModelType::FullBlock(m) => BlockTexture::from(m.clone()),
+                _ => BlockTexture::zeroed(),
+            }),
         );
 
         let block_texture_map = UploadDescriptorSet::new(
             descriptor_set_allocator,
-            raytracing_layouts[7].clone(), 0,
-            block_texture_storage_buffer
+            raytracing_layouts[7].clone(),
+            0,
+            block_texture_storage_buffer,
         );
 
         let view_storage_buffer = super::util::make_device_only_buffer_sized(
-            memory_allocator, cbb, 
-            BufferUsage::STORAGE_BUFFER | BufferUsage::UNIFORM_BUFFER, 
-            View::default()
+            memory_allocator,
+            cbb,
+            BufferUsage::STORAGE_BUFFER | BufferUsage::UNIFORM_BUFFER,
+            View::default(),
         );
 
         let view = UploadDescriptorSet::new(
             descriptor_set_allocator,
-            raytracing_layouts[2].clone(), 0,
-            view_storage_buffer
+            raytracing_layouts[2].clone(),
+            0,
+            view_storage_buffer,
         );
 
         let program_info_storage_buffer = super::util::make_device_only_buffer_sized(
-            memory_allocator, cbb, 
-            BufferUsage::STORAGE_BUFFER | BufferUsage::UNIFORM_BUFFER, 
+            memory_allocator,
+            cbb,
+            BufferUsage::STORAGE_BUFFER | BufferUsage::UNIFORM_BUFFER,
             ProgramInfo::new(),
         );
 
         let program_info = UploadDescriptorSet::new(
             descriptor_set_allocator,
-            raytracing_layouts[3].clone(), 0,
-            program_info_storage_buffer
+            raytracing_layouts[3].clone(),
+            0,
+            program_info_storage_buffer,
         );
 
         let brickmap = UploadDescriptorSet::new(
             descriptor_set_allocator,
-            raytracing_layouts[4].clone(), 0,
+            raytracing_layouts[4].clone(),
+            0,
             Buffer::new_slice(
-                memory_allocator, 
-                BufferCreateInfo::usage(BufferUsage::STORAGE_BUFFER), 
-                AllocationCreateInfo::usage(MemoryUsage::Upload), 
-                1
-            ).unwrap()
+                memory_allocator,
+                BufferCreateInfo::usage(BufferUsage::STORAGE_BUFFER),
+                AllocationCreateInfo::usage(MemoryUsage::Upload),
+                1,
+            )
+            .unwrap(),
         );
 
         let brickgrid = UploadDescriptorSet::new(
             descriptor_set_allocator,
-            raytracing_layouts[5].clone(), 0,
+            raytracing_layouts[5].clone(),
+            0,
             Buffer::new_sized(
-                memory_allocator, 
-                BufferCreateInfo::usage(BufferUsage::STORAGE_BUFFER), 
-                AllocationCreateInfo::usage(MemoryUsage::Upload), 
-            ).unwrap()
+                memory_allocator,
+                BufferCreateInfo::usage(BufferUsage::STORAGE_BUFFER),
+                AllocationCreateInfo::usage(MemoryUsage::Upload),
+            )
+            .unwrap(),
         );
 
         let texture_buffer = UploadDescriptorSet::new(
             descriptor_set_allocator,
-            raytracing_layouts[6].clone(), 0,
+            raytracing_layouts[6].clone(),
+            0,
             Buffer::new_slice(
                 memory_allocator,
-                BufferCreateInfo::usage(BufferUsage::STORAGE_BUFFER), 
+                BufferCreateInfo::usage(BufferUsage::STORAGE_BUFFER),
                 AllocationCreateInfo::usage(MemoryUsage::Upload),
                 1,
-            ).unwrap()
+            )
+            .unwrap(),
         );
 
         Self {
@@ -139,14 +168,15 @@ impl DescriptorSets {
     }
 
     pub fn bind_raytracing(
-        &self, 
+        &self,
         cbb: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
         pipeline_layout: Arc<PipelineLayout>,
     ) {
         cbb.bind_descriptor_sets(
-            PipelineBindPoint::Graphics, 
-            pipeline_layout.clone(), 
-            0, 
+            PipelineBindPoint::Graphics,
+            // Redundant clone.
+            pipeline_layout,
+            0,
             vec![
                 self.atlas.set.clone(),
                 self.atlas_map.set.clone(),
@@ -156,7 +186,7 @@ impl DescriptorSets {
                 self.brickgrid.set.clone(),
                 self.texture_buffer.set.clone(),
                 self.block_texture_map.set.clone(),
-            ]
+            ],
         );
     }
 }

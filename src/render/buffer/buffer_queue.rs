@@ -6,6 +6,13 @@ pub struct BufferQueue {
     pub tasks: Vec<BufferQueueTask>,
 }
 
+// https://rust-lang.github.io/rust-clippy/master/index.html#/new_without_default
+impl Default for BufferQueue {
+    fn default() -> Self {
+        BufferQueue::new()
+    }
+}
+
 impl BufferQueue {
     pub fn new() -> Self {
         Self { tasks: Vec::new() }
@@ -41,10 +48,7 @@ pub struct WriteTask {
 
 impl WriteTask {
     pub fn new(start_idx: u32, data: Vec<VertexRaw>) -> Self {
-        Self {
-            start_idx,
-            data,
-        }
+        Self { start_idx, data }
     }
 }
 
@@ -56,9 +60,6 @@ pub struct TransferTask {
 
 impl TransferTask {
     pub fn new(src_buf: Subbuffer<[VertexRaw]>, dst_buf: Subbuffer<[VertexRaw]>) -> Self {
-        Self {
-            src_buf,
-            dst_buf,
-        }
+        Self { src_buf, dst_buf }
     }
 }

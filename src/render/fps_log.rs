@@ -8,6 +8,13 @@ pub struct FpsLog {
     last_log: Instant,
 }
 
+// https://rust-lang.github.io/rust-clippy/master/index.html#/new_without_default
+impl Default for FpsLog {
+    fn default() -> Self {
+        FpsLog::new()
+    }
+}
+
 impl FpsLog {
     pub fn new() -> Self {
         Self {
@@ -24,7 +31,7 @@ impl FpsLog {
 
         if (Instant::now() - self.last_log).as_secs_f64() >= TIME_AVG {
             let mut sum = 0.0;
-            self.frame_times.iter().for_each(|t| { sum += t });
+            self.frame_times.iter().for_each(|t| sum += t);
             println!("Avg. FPS: {:.2}", self.frame_times.len() as f64 / sum);
             self.last_log = Instant::now();
             self.frame_times.clear();

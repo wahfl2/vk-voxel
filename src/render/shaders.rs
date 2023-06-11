@@ -1,6 +1,12 @@
-use std::{path::Path, ffi::OsStr, fs::{self, File}, sync::Arc, io::Write};
+use std::{
+    ffi::OsStr,
+    fs::{self, File},
+    io::Write,
+    path::Path,
+    sync::Arc,
+};
 
-use shaderc::{ShaderKind, CompileOptions, OptimizationLevel};
+use shaderc::{CompileOptions, OptimizationLevel, ShaderKind};
 use vulkano::{device::Device, shader::ShaderModule};
 
 pub trait LoadFromPath {
@@ -25,8 +31,8 @@ impl LoadFromPath for ShaderModule {
         compile_options.set_optimization_level(OptimizationLevel::Performance);
 
         let shader_pre = match compiler.compile_into_spirv_assembly(
-            &src, 
-            shader_kind, 
+            &src,
+            shader_kind,
             path,
             "main",
             Some(&compile_options),
@@ -39,8 +45,8 @@ impl LoadFromPath for ShaderModule {
         asm_out.write_all(shader_pre.as_text().as_bytes()).unwrap();
 
         let shader_binary = match compiler.compile_into_spirv(
-            &src, 
-            shader_kind, 
+            &src,
+            shader_kind,
             path,
             "main",
             Some(&compile_options),
@@ -48,13 +54,8 @@ impl LoadFromPath for ShaderModule {
             Ok(b) => b,
             Err(e) => panic!("Error compiling shader file '{}': {}", path, e),
         };
-        
-        unsafe {
-            ShaderModule::from_words(
-                device, 
-                shader_binary.as_binary()
-            ).unwrap()
-        }
+
+        unsafe { ShaderModule::from_words(device, shader_binary.as_binary()).unwrap() }
     }
 }
 
@@ -72,12 +73,14 @@ pub struct ShaderPair {
 }
 
 impl ShaderPair {
-    pub fn new(vertex: Arc<ShaderModule>, fragment: Arc<ShaderModule>) -> Self { Self { vertex, fragment } }
+    pub fn new(vertex: Arc<ShaderModule>, fragment: Arc<ShaderModule>) -> Self {
+        Self { vertex, fragment }
+    }
 
     pub fn load(device: Arc<Device>, path: &str) -> Self {
         Self {
             vertex: ShaderModule::load(device.clone(), &format!("{path}.vert")),
-            fragment: ShaderModule::load(device.clone(), &format!("{path}.frag")),
+            fragment: ShaderModule::load(device, &format!("{path}.frag")), // Redundant clone for `device`
         }
     }
 }
