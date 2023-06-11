@@ -1,7 +1,7 @@
 use std::collections::hash_map::Entry;
 
 use ahash::{HashMap, HashMapExt};
-use ultraviolet::{UVec2, IVec2};
+use ultraviolet::{IVec2, UVec2};
 
 use crate::util::util::UVecToSigned;
 
@@ -13,24 +13,29 @@ pub struct TerrainTransformer<T> {
     data_cache: HashMap<IVec2, T>,
 
     pub data_generator: Box<dyn FnMut(IVec2, UVec2) -> T + Send + Sync>,
-    pub closure: Box<dyn FnMut(&mut TerrainChunk, IVec2, UVec2, &T) + Send + Sync>
+    // The type below is very complex. Maybe use `type` to simplify it into smaller parts?
+    pub closure: Box<dyn FnMut(&mut TerrainChunk, IVec2, UVec2, &T) + Send + Sync>,
 }
 
 impl<T> TerrainTransformer<T>
-where T: Clone + Send + Sync
+where
+    T: Clone + Send + Sync,
 {
     pub fn new(
-        size: UVec2, 
-        spacing: UVec2, 
+        size: UVec2,
+        spacing: UVec2,
         data_generator: impl FnMut(IVec2, UVec2) -> T + 'static + Send + Sync,
-        closure: impl FnMut(&mut TerrainChunk, IVec2, UVec2, &T) + 'static + Send + Sync
+        closure: impl FnMut(&mut TerrainChunk, IVec2, UVec2, &T) + 'static + Send + Sync,
     ) -> Self {
         assert!(size.x > 0 && size.y > 0, "Size must be larger than 0");
-        assert!(spacing.x > 0 && spacing.y > 0, "Spacing must be larger than 0");
+        assert!(
+            spacing.x > 0 && spacing.y > 0,
+            "Spacing must be larger than 0"
+        );
 
-        Self { 
-            size, 
-            spacing, 
+        Self {
+            size,
+            spacing,
             data_cache: HashMap::new(),
             data_generator: Box::new(data_generator),
             closure: Box::new(closure),
@@ -78,10 +83,14 @@ mod test {
         fn expect(transformer: TerrainTransformer<()>, expected: Vec<IVec2>, chunk_pos: IVec2) {
             let mut actual = transformer.locations(chunk_pos);
             for e in expected {
-                let i = actual.index_of(&e).expect(&format!("Actual did not contain {:?},\nActual: {:?}", e, actual));
+                // This function will always be called.
+                // "If the function has side-effects, not calling it will change the semantics of the program, but you shouldn’t rely on that anyway."
+                let i = actual.index_of(&e).unwrap_or_else(|| {
+                    panic!("Actual did not contain {:?},\nActual: {:?}", e, actual)
+                });
                 actual.swap_remove(i);
             }
-    
+
             if !actual.is_empty() {
                 panic!("Actual contained extraneous elements: {:?}", actual);
             }
@@ -91,14 +100,15 @@ mod test {
             TerrainTransformer::new(
                 UVec2::new(2, 2),
                 UVec2::new(1, 1),
-                |_, _| {}, |_, _, _, _| {}
-            ), 
+                |_, _| {},
+                |_, _, _, _| {},
+            ),
             vec![
                 IVec2::new(-1, -1),
                 IVec2::new(0, -1),
                 IVec2::new(-1, 0),
                 IVec2::new(0, 0),
-            ], 
+            ],
             IVec2::zero(),
         );
 
@@ -106,13 +116,20 @@ mod test {
             TerrainTransformer::new(
                 UVec2::new(3, 3),
                 UVec2::new(1, 1),
-                |_, _| {}, |_, _, _, _| {}
-            ), 
+                |_, _| {},
+                |_, _, _, _| {},
+            ),
             vec![
-                IVec2::new(-2, -2), IVec2::new(-2, -1), IVec2::new(-2, 0),
-                IVec2::new(-1, -2), IVec2::new(-1, -1), IVec2::new(-1, 0),
-                IVec2::new(0, -2), IVec2::new(0, -1), IVec2::new(0, 0),
-            ], 
+                IVec2::new(-2, -2),
+                IVec2::new(-2, -1),
+                IVec2::new(-2, 0),
+                IVec2::new(-1, -2),
+                IVec2::new(-1, -1),
+                IVec2::new(-1, 0),
+                IVec2::new(0, -2),
+                IVec2::new(0, -1),
+                IVec2::new(0, 0),
+            ],
             IVec2::zero(),
         );
 
@@ -120,12 +137,15 @@ mod test {
             TerrainTransformer::new(
                 UVec2::new(3, 3),
                 UVec2::new(2, 2),
-                |_, _| {}, |_, _, _, _| {}
-            ), 
+                |_, _| {},
+                |_, _, _, _| {},
+            ),
             vec![
-                IVec2::new(-1, -1), IVec2::new(-1, 0),
-                IVec2::new(0, -1), IVec2::new(0, 0),
-            ], 
+                IVec2::new(-1, -1),
+                IVec2::new(-1, 0),
+                IVec2::new(0, -1),
+                IVec2::new(0, 0),
+            ],
             IVec2::zero(),
         );
     }
@@ -134,12 +154,15 @@ mod test {
         fn index_of(&self, x: &T) -> Option<usize>;
     }
 
-    impl<T> IndexOf<T> for Vec<T> 
-    where T: PartialEq
+    impl<T> IndexOf<T> for Vec<T>
+    where
+        T: PartialEq,
     {
         fn index_of(&self, x: &T) -> Option<usize> {
             for (i, e) in self.iter().enumerate() {
-                if e == x { return Some(i) }
+                if e == x {
+                    return Some(i);
+                }
             }
             None
         }

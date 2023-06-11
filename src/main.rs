@@ -1,28 +1,38 @@
-#![feature(array_zip)]
 #![feature(slice_as_chunks)]
 #![feature(slice_flatten)]
 #![feature(portable_simd)]
 #![feature(associated_const_equality)]
 #![feature(fn_traits)]
 
-use std::{time::{Instant, Duration}, thread, sync::{Mutex, Arc}};
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+    time::{Duration, Instant},
+};
 
 use event_handler::{InputHandler, UserEvent};
 use mimalloc::MiMalloc;
-use render::{renderer::Renderer, util::{RenderState, GetWindow}, fps_log::FpsLog};
+use render::{
+    fps_log::FpsLog,
+    renderer::Renderer,
+    util::{GetWindow, RenderState},
+};
 
+use crate::util::util::AdditionalSwizzles;
 use server::server::Server;
 use ultraviolet::Vec2;
-use crate::util::util::AdditionalSwizzles;
-use winit::{event_loop::{EventLoop, ControlFlow, EventLoopBuilder}, event::{Event, WindowEvent}};
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
+};
 use world::{block_data::StaticBlockData, world_blocks::WorldBlocks};
 
+pub mod event_handler;
+pub mod physics;
 pub mod render;
+pub mod server;
 pub mod util;
 pub mod world;
-pub mod event_handler;
-pub mod server;
-pub mod physics;
 
 pub const FRAME_TIME: f64 = 0.0;
 
@@ -46,13 +56,13 @@ fn main() {
     thread::spawn({
         let world_blocks = world_blocks.clone();
         let static_block_data = static_block_data.clone();
-        move || { loop {
+        move || loop {
             let mut lock = world_blocks.lock().unwrap();
             lock.frame_update(&static_block_data);
             drop(lock);
 
             thread::sleep(Duration::from_micros(100));
-        }}
+        }
     });
 
     let mut server = Server::new();
@@ -85,7 +95,12 @@ fn main() {
 
                 let mut world_blocks_lock = world_blocks.lock().unwrap();
                 world_blocks_lock.player_pos = -camera.pos.xz();
-                server.tick(delta_time, &input_handler, &world_blocks_lock, &static_block_data);
+                server.tick(
+                    delta_time,
+                    &input_handler,
+                    &world_blocks_lock,
+                    &static_block_data,
+                );
                 drop(world_blocks_lock);
 
                 let camera = server.camera();
@@ -95,9 +110,9 @@ fn main() {
 
                 match renderer.render(world_blocks.clone(), &static_block_data) {
                     RenderState::OutOfDate | RenderState::Suboptimal => recreate_swapchain = true,
-                    _ => ()
+                    _ => (),
                 }
-            },
+            }
 
             Event::RedrawEventsCleared => {
                 let next_render = last_frame_start + Duration::from_secs_f64(FRAME_TIME);
@@ -109,32 +124,39 @@ fn main() {
             }
 
             Event::UserEvent(ev) => {
-                match ev {
-                    UserEvent::RedrawAt(instant) => {
-                        if Instant::now() >= instant {
-                            last_frame_start = Instant::now();
-                            renderer.vk_surface.get_window().unwrap().request_redraw();
-                        } else {
-                            proxy.send_event(UserEvent::RedrawAt(instant)).unwrap();
-                        }
+                // This `match` has only two possible returns. Thus, an `if let` would be better here.
+                // I am also getting a warning for possibly being able to collapse this into the match statement.
+                if let UserEvent::RedrawAt(instant) = ev {
+                    if Instant::now() >= instant {
+                        last_frame_start = Instant::now();
+                        renderer.vk_surface.get_window().unwrap().request_redraw();
+                    } else {
+                        proxy.send_event(UserEvent::RedrawAt(instant)).unwrap();
                     }
-
-                    _ => ()
                 }
             }
 
-            Event::WindowEvent { event: WindowEvent::Resized(_), .. } => window_resized = true,
-            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => *control_flow = ControlFlow::Exit,
-            _ => ()
+            Event::WindowEvent {
+                event: WindowEvent::Resized(_),
+                ..
+            } => window_resized = true,
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => *control_flow = ControlFlow::Exit,
+            _ => (),
         }
     });
 }
 
 #[cfg(test)]
 mod test {
-    use std::{time::Instant, hint::black_box, println};
+    use std::{hint::black_box, println, time::Instant};
 
-    use rand_xoshiro::{Xoshiro128PlusPlus, rand_core::{SeedableRng, RngCore}};
+    use rand_xoshiro::{
+        rand_core::{RngCore, SeedableRng},
+        Xoshiro128PlusPlus,
+    };
     use ultraviolet::IVec2;
 
     #[test]
