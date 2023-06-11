@@ -1,8 +1,11 @@
 use std::time::Instant;
 
 use ahash::HashMap;
-use ultraviolet::{Vec3, Vec2};
-use winit::{event::{VirtualKeyCode, DeviceEvent, KeyboardInput, ElementState}, event_loop::EventLoopProxy};
+use ultraviolet::{Vec2, Vec3};
+use winit::{
+    event::{DeviceEvent, ElementState, KeyboardInput, VirtualKeyCode},
+    event_loop::EventLoopProxy,
+};
 
 #[derive(Clone, Debug)]
 pub enum UserEvent {
@@ -21,17 +24,22 @@ pub struct InputHandler {
     pub mouse_delta: Vec2,
 }
 
+// https://rust-lang.github.io/rust-clippy/master/index.html#/new_without_default
+impl Default for InputHandler {
+    fn default() -> Self {
+        InputHandler::new()
+    }
+}
+
 impl InputHandler {
     pub fn new() -> Self {
-        Self { 
+        Self {
             key_press_map: HashMap::default(),
             mouse_delta: Vec2::zero(),
         }
     }
 
-    pub fn update(&mut self) {
-        
-    }
+    pub fn update(&mut self) {}
 
     pub fn handle_event(&mut self, event: DeviceEvent, _proxy: &mut EventLoopProxy<UserEvent>) {
         match event {
@@ -39,22 +47,24 @@ impl InputHandler {
             DeviceEvent::MouseMotion { delta } => {
                 let (dx, dy) = delta;
                 self.mouse_delta += Vec2::new(dx as f32, dy as f32);
-            }, 
+            }
 
             // Key press/release
-            DeviceEvent::Key(
-                KeyboardInput { virtual_keycode: Some(key), state, .. }
-            ) => {
+            DeviceEvent::Key(KeyboardInput {
+                virtual_keycode: Some(key),
+                state,
+                ..
+            }) => {
                 self.key_press_map.insert(
-                    key, 
+                    key,
                     match state {
                         ElementState::Pressed => true,
                         ElementState::Released => false,
-                    }
+                    },
                 );
             }
 
-            _ => ()
+            _ => (),
         }
 
         // if let DeviceEvent::MouseMotion { delta } = event {
