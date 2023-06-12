@@ -8,7 +8,6 @@ pub struct FpsLog {
     last_log: Instant,
 }
 
-// https://rust-lang.github.io/rust-clippy/master/index.html#/new_without_default
 impl Default for FpsLog {
     fn default() -> Self {
         FpsLog::new()

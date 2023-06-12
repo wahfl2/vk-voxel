@@ -18,23 +18,24 @@ const PLANT_INDICES: [usize; 12] = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7];
 
 const DEFAULT_PLANT_VERT_POSITIONS: [Vec3; 8] = [
     Vec3::new(-QUARTER_SQRT_2, -0.5, -QUARTER_SQRT_2),
-    Vec3::new(QUARTER_SQRT_2, -0.5, QUARTER_SQRT_2),
-    Vec3::new(QUARTER_SQRT_2, 0.5, QUARTER_SQRT_2),
-    Vec3::new(-QUARTER_SQRT_2, 0.5, -QUARTER_SQRT_2),
-    Vec3::new(QUARTER_SQRT_2, -0.5, -QUARTER_SQRT_2),
-    Vec3::new(-QUARTER_SQRT_2, -0.5, QUARTER_SQRT_2),
-    Vec3::new(-QUARTER_SQRT_2, 0.5, QUARTER_SQRT_2),
-    Vec3::new(QUARTER_SQRT_2, 0.5, -QUARTER_SQRT_2),
+    Vec3::new( QUARTER_SQRT_2, -0.5,  QUARTER_SQRT_2),
+    Vec3::new( QUARTER_SQRT_2,  0.5,  QUARTER_SQRT_2),
+    Vec3::new(-QUARTER_SQRT_2,  0.5, -QUARTER_SQRT_2),
+
+    Vec3::new( QUARTER_SQRT_2, -0.5, -QUARTER_SQRT_2),
+    Vec3::new(-QUARTER_SQRT_2, -0.5,  QUARTER_SQRT_2),
+    Vec3::new(-QUARTER_SQRT_2,  0.5,  QUARTER_SQRT_2),
+    Vec3::new( QUARTER_SQRT_2,  0.5, -QUARTER_SQRT_2),
 ];
 const DEFAULT_PLANT_VERT_NORMALS: [Vec3; 8] = [
     Vec3::new(HALF_SQRT_2, 0.0, -HALF_SQRT_2),
     Vec3::new(HALF_SQRT_2, 0.0, -HALF_SQRT_2),
     Vec3::new(HALF_SQRT_2, 0.0, -HALF_SQRT_2),
     Vec3::new(HALF_SQRT_2, 0.0, -HALF_SQRT_2),
-    Vec3::new(HALF_SQRT_2, 0.0, HALF_SQRT_2),
-    Vec3::new(HALF_SQRT_2, 0.0, HALF_SQRT_2),
-    Vec3::new(HALF_SQRT_2, 0.0, HALF_SQRT_2),
-    Vec3::new(HALF_SQRT_2, 0.0, HALF_SQRT_2),
+    Vec3::new(HALF_SQRT_2, 0.0,  HALF_SQRT_2),
+    Vec3::new(HALF_SQRT_2, 0.0,  HALF_SQRT_2),
+    Vec3::new(HALF_SQRT_2, 0.0,  HALF_SQRT_2),
+    Vec3::new(HALF_SQRT_2, 0.0,  HALF_SQRT_2),
 ];
 
 // https://rust-lang.github.io/rust-clippy/master/index.html#/new_without_default
