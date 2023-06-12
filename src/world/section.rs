@@ -1,12 +1,17 @@
 use std::array;
 
-use ndarray::{Array3, arr3};
-use ultraviolet::{UVec3, Vec3, IVec3};
+use ndarray::{arr3, Array3};
+use ultraviolet::{IVec3, UVec3, Vec3};
 
-use crate::{render::{util::Reversed, brick::brickmap::Brickmap}, util::util::Facing};
+use crate::{
+    render::{brick::brickmap::Brickmap, util::Reversed},
+    util::util::Facing,
+};
 
-use super::{block_access::BlockAccess, block_data::{BlockHandle, StaticBlockData, Blocks}};
-
+use super::{
+    block_access::BlockAccess,
+    block_data::{BlockHandle, Blocks, StaticBlockData},
+};
 
 pub const SECTION_SIZE: UVec3 = UVec3::new(8, 8, 8);
 
@@ -30,21 +35,27 @@ pub struct Section {
 
 impl BlockAccess for Section {
     fn get_block(&self, pos: UVec3) -> BlockHandle {
-        *self.blocks.get((pos.x as usize, pos.y as usize, pos.z as usize)).unwrap()
+        *self
+            .blocks
+            .get((pos.x as usize, pos.y as usize, pos.z as usize))
+            .unwrap()
     }
 
     fn set_block(&mut self, pos: UVec3, block: BlockHandle) {
-        *self.blocks.get_mut((pos.x as usize, pos.y as usize, pos.z as usize)).unwrap() = block;
+        *self
+            .blocks
+            .get_mut((pos.x as usize, pos.y as usize, pos.z as usize))
+            .unwrap() = block;
     }
 }
 
 impl Section {
     pub fn empty() -> Self {
         Self {
-            blocks: arr3(&[[[BlockHandle::default(); 
-                SECTION_SIZE.x as usize]; 
-                SECTION_SIZE.y as usize]; 
-                SECTION_SIZE.z as usize]
+            blocks: arr3(&[[[BlockHandle::default();
+                SECTION_SIZE.x as usize];
+                SECTION_SIZE.y as usize];
+                SECTION_SIZE.z as usize],
             ),
 
             brickmap: Brickmap::empty(),
@@ -53,10 +64,10 @@ impl Section {
 
     pub fn full(block: BlockHandle) -> Self {
         Self {
-            blocks: arr3(&[[[block; 
-                SECTION_SIZE.x as usize]; 
-                SECTION_SIZE.y as usize]; 
-                SECTION_SIZE.z as usize]
+            blocks: arr3(&[[[block;
+                SECTION_SIZE.x as usize];
+                SECTION_SIZE.y as usize];
+                SECTION_SIZE.z as usize],
             ),
 
             ..Self::empty()
@@ -68,8 +79,9 @@ impl Section {
     }
 
     pub fn flat_iter(&self) -> impl Iterator<Item = (UVec3, &BlockHandle)> {
-        self.blocks.indexed_iter()
-            .map(|((x, y, z), b)| { ((x as u32, y as u32, z as u32).into(), b) })
+        self.blocks
+            .indexed_iter()
+            .map(|((x, y, z), b)| ((x as u32, y as u32, z as u32).into(), b))
     }
 
     pub fn update_brickmap(&mut self, block_data: &StaticBlockData) {
@@ -90,7 +102,7 @@ impl Section {
             }
         }
 
-        return ret;
+        ret
     }
 }
 
@@ -147,20 +159,20 @@ impl BlockCull {
     }
 
     pub fn get_bools(&self) -> [bool; 6] {
-        array::from_fn(|face| {
-            self.is_culled_num(face)
-        })
+        array::from_fn(|face| self.is_culled_num(face))
     }
 
     pub fn get_unculled(&self) -> Vec<usize> {
-        (0..6).filter_map(|f| { 
-            match self.is_culled_num(f) {
+        // There is no mutating occurring here, but removing `map` throws an error.
+        // Maybe investigate this further.
+        (0..6)
+            .filter_map(|f| match self.is_culled_num(f) {
                 true => None,
                 false => Some(f),
-            }
-        }).collect()
+            })
+            .collect()
     }
-    
+
     fn to_u8(b: &bool) -> u8 {
         match b {
             true => 1,

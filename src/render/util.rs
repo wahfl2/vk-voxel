@@ -1,9 +1,17 @@
 use std::{sync::Arc, time::SystemTime};
 
 use bytemuck::{Pod, Zeroable};
-use guillotiere::euclid::{Size2D, UnknownUnit, Box2D};
+use guillotiere::euclid::{Box2D, Size2D, UnknownUnit};
 use ultraviolet::UVec2;
-use vulkano::{swapchain::Surface, image::ImageDimensions, buffer::{Buffer, BufferUsage, Subbuffer, BufferContents, BufferCreateInfo}, memory::allocator::{StandardMemoryAllocator, MemoryUsage, AllocationCreateInfo}, command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer, CopyBufferInfoTyped, CopyBufferInfo}};
+use vulkano::{
+    buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer},
+    command_buffer::{
+        AutoCommandBufferBuilder, CopyBufferInfo, CopyBufferInfoTyped, PrimaryAutoCommandBuffer,
+    },
+    image::ImageDimensions,
+    memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator},
+    swapchain::Surface,
+};
 use winit::window::Window;
 
 use super::mesh::quad::TexelTexture;
@@ -34,7 +42,10 @@ pub trait BoxToUV {
 impl BoxToUV for Box2D<i32, UnknownUnit> {
     fn to_quad_uv(self) -> TexelTexture {
         let size = self.max - self.min;
-        let ret = TexelTexture::new([self.min.x as u16, self.min.y as u16], [size.x as u16, size.y as u16]);
+        let ret = TexelTexture::new(
+            [self.min.x as u16, self.min.y as u16],
+            [size.x as u16, size.y as u16],
+        );
         println!("texel texture: {:?}", ret);
         ret
     }
@@ -58,7 +69,11 @@ impl VecConvenience for UVec2 {
     }
 
     fn to_image_dimensions(self) -> ImageDimensions {
-        ImageDimensions::Dim2d { width: self.x, height: self.y, array_layers: 1 }
+        ImageDimensions::Dim2d {
+            width: self.x,
+            height: self.y,
+            array_layers: 1,
+        }
     }
 }
 
@@ -105,7 +120,7 @@ pub fn make_device_only_buffer_slice<T, I>(
     cbb: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     usage: BufferUsage,
     data: I,
-) -> Subbuffer<[T]> 
+) -> Subbuffer<[T]>
 where
     T: BufferContents + Clone,
     I: IntoIterator<Item = T>,
@@ -117,14 +132,14 @@ where
         allocator,
         BufferCreateInfo::usage(BufferUsage::TRANSFER_SRC),
         AllocationCreateInfo::usage(MemoryUsage::Upload),
-        iter
+        iter,
     ).unwrap();
 
     let ret = Buffer::new_slice(
         allocator,
         BufferCreateInfo::usage(usage.union(BufferUsage::TRANSFER_DST)),
         AllocationCreateInfo::usage(MemoryUsage::DeviceOnly),
-        len as u64
+        len as u64,
     ).unwrap();
 
     cbb.copy_buffer(CopyBufferInfoTyped::buffers(staging, ret.clone())).unwrap();
@@ -136,16 +151,17 @@ pub fn make_device_only_buffer_sized<T>(
     cbb: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     usage: BufferUsage,
     data: T,
-) -> Subbuffer<T> 
+) -> Subbuffer<T>
 where
-    T: Send + Sync + Pod
+    T: Send + Sync + Pod,
 {
     let staging = Buffer::from_data(
         allocator,
         BufferCreateInfo::usage(BufferUsage::TRANSFER_SRC),
         AllocationCreateInfo::usage(MemoryUsage::Upload),
-        data
-    ).unwrap();
+        data,
+    )
+    .unwrap();
 
     let ret = Buffer::new_sized(
         allocator,
@@ -162,24 +178,27 @@ pub fn make_download_buffer_sized<T>(
     cbb: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     usage: BufferUsage,
     data: T,
-) -> Subbuffer<T> 
+) -> Subbuffer<T>
 where
-    T: Send + Sync + Pod
+    T: Send + Sync + Pod,
 {
     let staging = Buffer::from_data(
         allocator,
         BufferCreateInfo::usage(BufferUsage::TRANSFER_SRC),
         AllocationCreateInfo::usage(MemoryUsage::Upload),
-        data
-    ).unwrap();
+        data,
+    )
+    .unwrap();
 
     let ret = Buffer::new_sized(
         allocator,
         BufferCreateInfo::usage(usage.union(BufferUsage::TRANSFER_DST)),
         AllocationCreateInfo::usage(MemoryUsage::Download),
-    ).unwrap();
+    )
+    .unwrap();
 
-    cbb.copy_buffer(CopyBufferInfo::buffers(staging, ret.clone())).unwrap();
+    cbb.copy_buffer(CopyBufferInfo::buffers(staging, ret.clone()))
+        .unwrap();
     ret
 }
 
@@ -190,11 +209,21 @@ pub struct ProgramInfo {
     pub start: u32,
 }
 
+// https://rust-lang.github.io/rust-clippy/master/index.html#/new_without_default
+impl Default for ProgramInfo {
+    fn default() -> Self {
+        ProgramInfo::new()
+    }
+}
+
 impl ProgramInfo {
     pub fn new() -> Self {
         Self {
             frame_number: 0,
-            start: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().subsec_nanos()
+            start: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .subsec_nanos(),
         }
     }
 }

@@ -1,8 +1,11 @@
-use std::{f32::consts::PI, simd::{f32x4, SimdPartialOrd}};
+use std::{
+    f32::consts::PI,
+    simd::{f32x4, SimdPartialOrd},
+};
 
-use ultraviolet::{Mat4, Isometry3, Vec3, Rotor3};
+use ultraviolet::{Isometry3, Mat4, Rotor3, Vec3};
 
-use crate::util::util::{EulerRot2, Aabb};
+use crate::util::util::{Aabb, EulerRot2};
 
 #[derive(Clone)]
 pub struct Camera {
@@ -15,11 +18,11 @@ pub struct Camera {
 
 impl Default for Camera {
     fn default() -> Self {
-        Self { 
+        Self {
             pos: Vec3::zero(),
             rotation: EulerRot2::new(0.0, 0.0),
-            fov: 80.0, 
-            near: 0.1, 
+            fov: 80.0,
+            near: 0.1,
             far: 1000.0,
         }
     }
@@ -28,8 +31,8 @@ impl Default for Camera {
 impl Camera {
     /// Returns the matrix representing this camera's transform.
     pub fn calculate_matrix(&self) -> Mat4 {
-        let rot = Rotor3::from_rotation_xz(PI - self.rotation.yaw) *
-            Rotor3::from_rotation_yz(self.rotation.pitch);
+        let rot = Rotor3::from_rotation_xz(PI - self.rotation.yaw)
+            * Rotor3::from_rotation_yz(self.rotation.pitch);
 
         let mut transform = Isometry3::identity();
         transform.append_rotation(rot);
@@ -63,14 +66,16 @@ impl Camera {
         let n_up = (near_up - real_pos).normalized().cross(-right);
         let n_down = (near_down - real_pos).normalized().cross(right);
 
-        CalculatedFrustrum { planes: [
-            Plane::new(near_center, forward),
-            Plane::new(far_center, -forward),
-            Plane::new(real_pos, -n_right),
-            Plane::new(real_pos, -n_left),
-            Plane::new(real_pos, -n_up),
-            Plane::new(real_pos, -n_down),
-        ]}
+        CalculatedFrustrum {
+            planes: [
+                Plane::new(near_center, forward),
+                Plane::new(far_center, -forward),
+                Plane::new(real_pos, -n_right),
+                Plane::new(real_pos, -n_left),
+                Plane::new(real_pos, -n_up),
+                Plane::new(real_pos, -n_down),
+            ],
+        }
     }
 
     pub fn with_pos(&self, pos: Vec3) -> Self {
@@ -89,8 +94,6 @@ fn frustrum_test() {
     }.calculate_frustrum(1.0);
 
     dbg!(frustrum);
-
-
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -111,13 +114,19 @@ impl Plane {
 
 #[test]
 fn distance_test() {
-    assert_eq!(Plane::new(Vec3::new(0.0, 0.0, 0.0), Vec3::unit_y()).distance(Vec3::zero()), 0.0);
-    assert_eq!(Plane::new(Vec3::new(0.0, 0.0, 0.0), Vec3::unit_y()).distance(Vec3::unit_y()), 1.0);
+    assert_eq!(
+        Plane::new(Vec3::new(0.0, 0.0, 0.0), Vec3::unit_y()).distance(Vec3::zero()),
+        0.0
+    );
+    assert_eq!(
+        Plane::new(Vec3::new(0.0, 0.0, 0.0), Vec3::unit_y()).distance(Vec3::unit_y()),
+        1.0
+    );
 }
 
 #[derive(Debug)]
 pub struct CalculatedFrustrum {
-    planes: [Plane; 6]
+    planes: [Plane; 6],
 }
 
 impl CalculatedFrustrum {
@@ -128,14 +137,16 @@ impl CalculatedFrustrum {
 
             let mut positive = aabb.min;
             const ZERO: f32x4 = f32x4::from_array([0.0, 0.0, 0.0, 0.0]);
-            let cmp = f32x4::from_array([n.x, n.y, n.z, 0.0]).simd_ge(ZERO).to_array();
+            let cmp = f32x4::from_array([n.x, n.y, n.z, 0.0])
+                .simd_ge(ZERO)
+                .to_array();
 
-            if cmp[0] { positive.x = aabb.max.x }
-            if cmp[1] { positive.y = aabb.max.y }
-            if cmp[2] { positive.z = aabb.max.z }
+            if cmp[0] {positive.x = aabb.max.x}
+            if cmp[1] {positive.y = aabb.max.y}
+            if cmp[2] {positive.z = aabb.max.z}
 
             if plane.distance(positive) < 0.0 {
-                return false
+                return false;
             }
         }
 
@@ -145,9 +156,12 @@ impl CalculatedFrustrum {
 
 #[cfg(test)]
 mod test {
-    use std::{time::Instant, hint::black_box};
+    use std::{hint::black_box, time::Instant};
 
-    use rand_xoshiro::{Xoshiro128StarStar, rand_core::{SeedableRng, RngCore}};
+    use rand_xoshiro::{
+        rand_core::{RngCore, SeedableRng},
+        Xoshiro128StarStar,
+    };
 
     use super::*;
 
@@ -157,9 +171,16 @@ mod test {
         const NUM_TEST_VALUES: u32 = 500_000;
         const NORMALIZE: f32 = 5.0 / u64::MAX as f32;
 
-        let test_values = (0..NUM_TEST_VALUES).into_iter().map(|_| {
-            Vec3::new(rng.next_u64() as f32 * NORMALIZE, rng.next_u64() as f32 * NORMALIZE, rng.next_u64() as f32 * NORMALIZE)
-        }).map(|v| { Aabb::new(v - (5.0 * Vec3::one()), v) }).collect::<Vec<_>>();
+        let test_values = (0..NUM_TEST_VALUES) // Redundant conversion call.
+            .map(|_| {
+                Vec3::new(
+                    rng.next_u64() as f32 * NORMALIZE,
+                    rng.next_u64() as f32 * NORMALIZE,
+                    rng.next_u64() as f32 * NORMALIZE,
+                )
+            })
+            .map(|v| Aabb::new(v - (5.0 * Vec3::one()), v))
+            .collect::<Vec<_>>();
 
         let cam = Camera::default();
         let ratio = 16.0 / 9.0;
@@ -168,9 +189,15 @@ mod test {
         for v in test_values.into_iter() {
             black_box(frustrum.should_render(v));
         }
-        
+
         let duration = Instant::now().duration_since(start).as_secs_f64();
-        println!("\n{NUM_TEST_VALUES} frustrum AABB tests done in {}ms", duration * 1_000.0);
-        println!("{}ns per AABB", (duration / NUM_TEST_VALUES as f64) * 1_000_000_000.0);
+        println!(
+            "\n{NUM_TEST_VALUES} frustrum AABB tests done in {}ms",
+            duration * 1_000.0
+        );
+        println!(
+            "{}ns per AABB",
+            (duration / NUM_TEST_VALUES as f64) * 1_000_000_000.0
+        );
     }
 }
