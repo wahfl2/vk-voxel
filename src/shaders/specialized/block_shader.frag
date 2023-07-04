@@ -11,7 +11,7 @@ const float DEG_90 = 90.0 * TO_RADIANS;
 const mat2 ROT_90 = mat2(cos(DEG_90), -sin(DEG_90), sin(DEG_90), cos(DEG_90));
 
 const vec3 SUN_DIRECTION = normalize(vec3(0.405, 1.0, 0.904));
-const float SHADOW_DARKNESS = 0.75;
+const float MIN_BRIGHTNESS = 0.25;
 
 const vec3 FACE_NORMALS[] = vec3[6](
     vec3( 1.0, 0.0, 0.0),
@@ -171,6 +171,14 @@ uint count_full_preceding(uint solid_mask[16], ivec3 section_pos) {
         t_idx += (n >> inner_idx) & 1;
     }
     return t_idx;
+}
+
+vec4 texture_uv(vec2 uv, uint block_texture_index, uint face_id) {
+    uint block_texture_id = block_texture_buffer.textures[block_texture_index];
+    uint texture_index = block_texture_map.textures[block_texture_id * 6 + face_id];
+    
+    Texture texture_s = atlas_map.textures[texture_index];
+    return texelFetch(tex, get_texel(texture_s, uv), 0);
 }
 
 bool index_map(uint solid_mask[16], ivec3 section_pos, out bool out_of_range) {
@@ -384,20 +392,22 @@ vec4 raymarch_brickgrid(vec3 ray_origin, vec3 ray_dir, out Intersection intersec
                 vec2 uv = possible_uv[face_axis];
 
                 uint block_texture_index = brickmap.textures_offset + count_full_preceding(brickmap.solid_mask, section_pos);
-                uint block_texture_id = block_texture_buffer.textures[block_texture_index];
-                uint texture_index = block_texture_map.textures[block_texture_id * 6 + face_id];
-                
-                Texture texture_s = atlas_map.textures[texture_index];
-                vec4 color = texelFetch(tex, get_texel(texture_s, uv), 0);
-                intersection.raw_color = color;
+                intersection.raw_color = texture_uv(uv, block_texture_index, face_id);
 
-                vec3 shadow_ray_origin = sec_intersect + SUN_DIRECTION * 0.0001;
-                bool light_occluded = shadow_march_brickgrid(shadow_ray_origin, SUN_DIRECTION);
-                float color_multiplier = 1.0 - float(light_occluded) * SHADOW_DARKNESS;
+                float dot_light = dot(intersection.normal, SUN_DIRECTION);
 
-                color.xyz *= color_multiplier;
+                float brightness = 0.0;
+                bool light_occluded = true;
+                if (dot_light > 0.0) {
+                    vec3 shadow_ray_origin = sec_intersect + SUN_DIRECTION * 0.0001;
+                    bool light_occluded = shadow_march_brickgrid(shadow_ray_origin, SUN_DIRECTION);
+                    if (!light_occluded) {
+                        brightness = dot_light;
+                    }
+                }
 
-                return color;
+                brightness = max(brightness, MIN_BRIGHTNESS);
+                return intersection.raw_color * brightness;
             } else {
                 grid_mask = lessThanEqual(side_dist.xyz, min(side_dist.yzx, side_dist.zxy));
                 side_dist += vec3(grid_mask) * delta_dist;
@@ -451,7 +461,7 @@ void main() {
     vec3 hit_norm = intersection.normal;
     vec3 gi_ro = intersection.pos + hit_norm * 0.0001;
 
-    const uint GI_SAMPLES = 1;
+    const uint GI_SAMPLES = 2;
     vec4 color_add = vec4(0);
     for (int i = 0; i < GI_SAMPLES; i++) {
         vec3 gi_rd = uniform_sample_hemisphere(hit_norm);

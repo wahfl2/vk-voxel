@@ -269,7 +269,7 @@ impl Renderer {
             vk_instance,
             vk_surface,
             vk_physical,
-            vk_device: vk_device, // Redundant clone here.
+            vk_device,
             vk_graphics_queue,
             vk_command_buffer_allocator,
             vk_descriptor_set_allocator,
@@ -368,8 +368,6 @@ impl Renderer {
             .unwrap()
         }
 
-        // Calls to `push` immediately after creation of Vec<T>, use `vec!` macro.
-        // After refactoring, `mut` is no longer needed.
         let set_layouts = vec![
             create_fragment_layout_type(device.clone(), DescriptorType::CombinedImageSampler), // 0
             create_fragment_layout_type(device.clone(), DescriptorType::StorageBuffer),        // 1
