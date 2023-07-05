@@ -11,8 +11,6 @@ pub struct Brickmap {
     pub textures_offset: u32,
     pub lod_color: [u8; 3],
     pub _pad: u8,
-    pub bb_min: u16,
-    pub bb_max: u16,
 }
 
 impl Brickmap {
@@ -22,8 +20,6 @@ impl Brickmap {
             textures_offset: 0,
             lod_color: [0; 3],
             _pad: 0,
-            bb_min: pack_u4_vec3(0, 0, 0),
-            bb_max: pack_u4_vec3(0, 0, 0)
         }
     }
 
@@ -35,34 +31,6 @@ impl Brickmap {
         }
         true
     }
-
-    pub fn update_bounding_box(&mut self) {
-        let (mut x_min, mut y_min, mut z_min) = (7, 7, 7);
-        let (mut x_max, mut y_max, mut z_max) = (0, 0, 0);
-
-        for (x, x_plane) in self.solid_mask.iter().enumerate() {
-            let x = x as u16;
-
-            for (y, y_column) in x_plane.iter().enumerate() {
-                let y = y as u16;
-
-                for z in 0..8u16 {
-                    let shift = 7 - z;
-                    if (y_column >> shift) & 1 > 0 {
-                        (x_min, y_min, z_min) = (x_min.min(x), y_min.min(y), z_min.min(z));
-                        (x_max, y_max, z_max) = (x_max.max(x), y_max.max(y), z_max.max(z));
-                    }
-                }
-            }
-        }
-
-        self.bb_min = pack_u4_vec3(x_min, y_min, z_min);
-        self.bb_max = pack_u4_vec3(x_max + 1, y_max + 1, z_max + 1);
-    }
-}
-
-fn pack_u4_vec3(x: u16, y: u16, z: u16) -> u16 {
-    ((x & 0b1111) << 12) | ((y & 0b1111) << 8) | ((z & 0b1111) << 4)
 }
 
 #[repr(C)]
