@@ -192,7 +192,7 @@ impl Renderer {
                 image_usage: ImageUsage::COLOR_ATTACHMENT,
                 composite_alpha,
                 image_color_space: ColorSpace::SrgbNonLinear,
-                present_mode: PresentMode::Immediate,
+                present_mode: PresentMode::Mailbox,
                 ..Default::default()
             },
         )
