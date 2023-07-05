@@ -31,7 +31,6 @@ struct Brickmap {
     uint solid_mask[16];
     uint textures_offset;
     uint lod_color;
-    uint bb;
 };
 
 struct Texture {
