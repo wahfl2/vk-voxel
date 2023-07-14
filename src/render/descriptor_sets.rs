@@ -5,7 +5,7 @@ use vulkano::{image::{view::ImageView, ImmutableImage}, sampler::Sampler, buffer
 
 use crate::world::block_data::{StaticBlockData, BlockTexture, ModelType};
 
-use super::{buffer::upload::UploadDescriptorSet, renderer::{Pipelines, View}, texture::TextureAtlas, util::{CreateInfoConvenience, ProgramInfo}, brick::{brickmap::Brickmap, brickgrid::Brickgrid}, mesh::quad::{TexelTexture}};
+use super::{buffer::upload::UploadDescriptorSet, renderer::{Pipelines, View}, texture::TextureAtlas, util::{CreateInfoConvenience, ProgramInfo}, brick::{brickmap::Brickmap, brickgrid::Brickgrid}, mesh::quad::TexelTexture};
 
 pub type ImageViewSampler = (Arc<ImageView<ImmutableImage>>, Arc<Sampler>);
 
