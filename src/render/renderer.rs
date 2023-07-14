@@ -254,7 +254,7 @@ impl Renderer {
         instance
             .enumerate_physical_devices()
             .expect("could not enumerate devices")
-            .filter(|p| p.supported_extensions().contains(&device_extensions))
+            .filter(|p| p.supported_extensions().contains(device_extensions))
             .filter_map(|p| {
                 let mut graphics = None;
                 for (i, q) in p.queue_family_properties().iter().enumerate() {
