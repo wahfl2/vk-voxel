@@ -18,7 +18,7 @@ noise = "0.8.2"
 png = "0.17.9"
 rand_xoshiro = "0.6.0"
 rayon = "1.7.0"
-rgb = "0.8.34"
+rgb = "0.8.36"
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.91"
 shaderc = "0.8.1"
