@@ -20,7 +20,7 @@ rand_xoshiro = "0.6.0"
 rayon = "1.7.0"
 rgb = "0.8.36"
 serde = { version = "1.0.171", features = ["derive"] }
-serde_json = "1.0.91"
+serde_json = "1.0.102"
 shaderc = "0.8.1"
 turborand = "0.10.0"
 ultraviolet = { version = "0.9.0", features = ["int", "f64"] }
