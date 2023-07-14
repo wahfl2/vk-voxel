@@ -11,7 +11,7 @@ where
     T: ChunkRender
 {
     fn get_render_section(&self, atlas: &TextureAtlas, block_data: &StaticBlockData) -> RenderSection {
-        let sections_iter = self.into_iter().map(|r| { 
+        let sections_iter = self.iter().map(|r| { 
             r.get_render_section(atlas, block_data) 
         });
 
