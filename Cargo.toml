@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ahash = "0.8.2"
+ahash = "0.8.3"
 bytemuck = { version = "1.12.3", features = ["derive"] }
 derive_more = { version = "0.99.17", default-features = false, features = ["deref", "deref_mut"] }
 glob = "0.3.1"
