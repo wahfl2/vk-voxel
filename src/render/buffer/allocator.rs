@@ -203,9 +203,9 @@ where
         match self.front_back.remove(front) {
             Some(back) => {
                 self.back_front.remove(&back);
-                return Some(back)
+                Some(back)
             },
-            None => return None
+            None => None
         }        
     }
 
@@ -214,9 +214,9 @@ where
         match self.back_front.remove(back) {
             Some(front) => {
                 self.front_back.remove(&front);
-                return Some(front)
+                Some(front)
             },
-            None => return None
+            None => None
         }   
     }
 
