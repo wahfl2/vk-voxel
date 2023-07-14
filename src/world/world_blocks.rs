@@ -62,7 +62,7 @@ impl WorldBlocks {
         let mut ret = Vec::new();
 
         while ret.len() < num {
-            if let None = self.loaded_chunks.get(&check) {
+            if self.loaded_chunks.get(&check).is_none() {
                 ret.push(check);
             }
 
