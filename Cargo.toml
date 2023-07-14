@@ -27,4 +27,4 @@ ultraviolet = { version = "0.9.1", features = ["int", "f64"] }
 vulkano = "0.33.0"
 vulkano-util = "0.33.0"
 vulkano-win = "0.33.0"
-winit = "0.28.3"
+winit = "0.28.6"
