@@ -53,7 +53,7 @@ impl WorldBlocks {
         let div_size = self.player_pos / -F_SECTION_SIZE.xz();
         let center_chunk = IVec2::new(div_size.x.floor() as i32, div_size.y.floor() as i32);
         
-        let mut check = center_chunk.clone();
+        let mut check = center_chunk;
         let mut step = SpiralStep::Right;
         let mut steps_left = 1;
         let mut step_amount = 1;
