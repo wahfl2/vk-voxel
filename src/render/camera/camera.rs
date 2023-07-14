@@ -157,7 +157,7 @@ mod test {
         const NUM_TEST_VALUES: u32 = 500_000;
         const NORMALIZE: f32 = 5.0 / u64::MAX as f32;
 
-        let test_values = (0..NUM_TEST_VALUES).into_iter().map(|_| {
+        let test_values = (0..NUM_TEST_VALUES).map(|_| {
             Vec3::new(rng.next_u64() as f32 * NORMALIZE, rng.next_u64() as f32 * NORMALIZE, rng.next_u64() as f32 * NORMALIZE)
         }).map(|v| { Aabb::new(v - (5.0 * Vec3::one()), v) }).collect::<Vec<_>>();
 
