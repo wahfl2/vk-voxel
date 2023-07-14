@@ -56,7 +56,7 @@ impl DescriptorSets {
         let block_texture_storage_buffer = super::util::make_device_only_buffer_slice(
             memory_allocator, cbb, 
             BufferUsage::STORAGE_BUFFER, 
-            block_data.block_data().into_iter().map(|b| {
+            block_data.block_data().iter().map(|b| {
                 match &b.model {
                     ModelType::FullBlock(m) => BlockTexture::from(m.clone()),
                     _ => BlockTexture::zeroed(),
