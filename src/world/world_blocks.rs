@@ -85,7 +85,7 @@ impl WorldBlocks {
                 step.next();
             }
         }
-        return ret;
+        ret
     }
 
     fn get_chunks_to_unload(&self) -> Vec<IVec2> {
