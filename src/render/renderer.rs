@@ -491,7 +491,7 @@ impl Renderer {
             );
         }
 
-        if let None = self.fullscreen_quad {
+        if self.fullscreen_quad.is_none() {
             self.fullscreen_quad = Some(super::util::make_device_only_buffer_sized(
                 &self.vk_memory_allocator, 
                 &mut builder,
