@@ -136,7 +136,7 @@ impl PhysicsSolver {
                             let chunk_offset = chunk_pos * I_SECTION_SIZE.xz();
     
                             let chunk = blocks.loaded_chunks.get(&chunk_pos);
-                            if let None = chunk { continue; }
+                            if chunk.is_none() { continue; }
                             let chunk = chunk.unwrap();
     
                             for section_i in min_section.y..=max_section.y {
