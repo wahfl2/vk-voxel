@@ -8,7 +8,7 @@ use winit::{event_loop::EventLoop, window::{WindowBuilder, CursorGrabMode}, dpi:
 
 use crate::{event_handler::UserEvent, world::{world_blocks::WorldBlocks, block_data::StaticBlockData}};
 
-use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState, ProgramInfo}, vertex::{Vertex2D}, descriptor_sets::DescriptorSets};
+use super::{buffer::vertex_buffer::ChunkVertexBuffer, texture::TextureAtlas, shaders::ShaderPair, util::{GetWindow, RenderState, ProgramInfo}, vertex::Vertex2D, descriptor_sets::DescriptorSets};
 
 pub struct Renderer {
     pub vk_lib: Arc<VulkanLibrary>,
