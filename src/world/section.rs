@@ -90,7 +90,7 @@ impl Section {
             }
         }
 
-        return ret;
+        ret
     }
 }
 
