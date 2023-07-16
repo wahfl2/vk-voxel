@@ -1,4 +1,3 @@
-// #![feature(array_zip)]
 #![feature(slice_as_chunks)]
 #![feature(slice_flatten)]
 #![feature(portable_simd)]
