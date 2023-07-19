@@ -21,7 +21,7 @@ rayon = "1.7.0"
 rgb = "0.8.36"
 serde = { version = "1.0.171", features = ["derive"] }
 serde_json = "1.0.103"
-shaderc = "0.8.1"
+shaderc = "0.8.2"
 turborand = "0.10.0"
 ultraviolet = { version = "0.9.0", features = ["int", "f64"] }
 vulkano = "0.33.0"
