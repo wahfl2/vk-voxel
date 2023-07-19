@@ -15,7 +15,7 @@ hecs = "0.10.3"
 mimalloc = { version = "0.1.37", default-features = false }
 ndarray = "0.15.6"
 noise = "0.8.2"
-png = "0.17.7"
+png = "0.17.9"
 rand_xoshiro = "0.6.0"
 rayon = "1.6.1"
 rgb = "0.8.34"
