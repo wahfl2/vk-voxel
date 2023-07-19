@@ -1,6 +1,6 @@
 use bytemuck::{Zeroable, Pod};
 use ultraviolet::{Vec3, Vec2};
-use vulkano::{pipeline::graphics::vertex_input::Vertex as VertDerive};
+use vulkano::pipeline::graphics::vertex_input::Vertex as VertDerive;
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Zeroable, Pod, VertDerive)]

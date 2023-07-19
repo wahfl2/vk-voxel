@@ -6,25 +6,25 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ahash = "0.8.2"
-bytemuck = { version = "1.12.3", features = ["derive"] }
+ahash = "0.8.3"
+bytemuck = { version = "1.13.1", features = ["derive"] }
 derive_more = { version = "0.99.17", default-features = false, features = ["deref", "deref_mut"] }
 glob = "0.3.1"
 guillotiere = "0.6.2"
-hecs = "0.10.0"
-mimalloc = { version = "0.1.34", default-features = false }
+hecs = "0.10.3"
+mimalloc = { version = "0.1.37", default-features = false }
 ndarray = "0.15.6"
 noise = "0.8.2"
-png = "0.17.7"
+png = "0.17.9"
 rand_xoshiro = "0.6.0"
-rayon = "1.6.1"
-rgb = "0.8.34"
-serde = { version = "1.0.152", features = ["derive"] }
-serde_json = "1.0.91"
-shaderc = "0.8.1"
+rayon = "1.7.0"
+rgb = "0.8.36"
+serde = { version = "1.0.171", features = ["derive"] }
+serde_json = "1.0.103"
+shaderc = "0.8.2"
 turborand = "0.10.0"
 ultraviolet = { version = "0.9.0", features = ["int", "f64"] }
 vulkano = "0.33.0"
 vulkano-util = "0.33.0"
 vulkano-win = "0.33.0"
-winit = "0.28.3"
+winit = "0.28.6"
