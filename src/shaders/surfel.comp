@@ -1,6 +1,11 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+
+#include "util.comp"
 
 layout (local_size_x = 256) in;
+
+#include "descriptor_sets.comp"
 
 void main() {
     

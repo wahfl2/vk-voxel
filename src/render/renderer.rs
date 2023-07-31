@@ -34,7 +34,7 @@ use vulkano::{
     },
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
     sampler::{Filter, Sampler, SamplerAddressMode, SamplerCreateInfo},
-    shader::ShaderStages,
+    shader::{ShaderStages, ShaderModule},
     swapchain::{
         self, AcquireError, ColorSpace, PresentMode, Surface, Swapchain, SwapchainCreateInfo,
         SwapchainCreationError, SwapchainPresentInfo,
@@ -57,7 +57,7 @@ use crate::{
 use super::{
     buffer::vertex_buffer::ChunkVertexBuffer,
     descriptor_sets::DescriptorSets,
-    shaders::ShaderPair,
+    shaders::{ShaderPair, LoadFromPath},
     texture::TextureAtlas,
     util::{GetWindow, ProgramInfo, RenderState},
     vertex::Vertex2D,
@@ -94,6 +94,7 @@ pub struct Renderer {
     pub upload_texture_atlas: bool,
 
     pub block_shader: ShaderPair,
+    pub surfel_shader: Arc<ShaderModule>,
 
     // Complex type could be simplified using the `type` keyword.
     fences: Vec<Option<Arc<FenceSignalFuture<Box<dyn GpuFuture>>>>>,
@@ -211,6 +212,7 @@ impl Renderer {
         let vk_frame_buffers = Self::get_framebuffers(&vk_swapchain_images, &vk_render_pass);
 
         let block_shader = ShaderPair::load(vk_device.clone(), "shader");
+        let surfel_shader = ShaderModule::load(vk_device.clone(), "surfel.comp");
 
         let pipelines = Self::get_pipelines(
             vk_device.clone(),
@@ -295,6 +297,7 @@ impl Renderer {
             upload_texture_atlas: true,
 
             block_shader,
+            surfel_shader,
 
             fences,
             previous_fence_i: 0,

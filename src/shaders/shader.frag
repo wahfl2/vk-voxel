@@ -5,41 +5,7 @@
 
 layout(location = 0) out vec4 f_color;
 
-layout(set = 0, binding = 0) uniform sampler2D tex;
-
-layout(set = 1, binding = 0) readonly buffer AtlasMap {
-    Texture textures[];
-} atlas_map;
-
-layout(set = 7, binding = 0) readonly buffer BlockTextureMap {
-    uint textures[];
-} block_texture_map;
-
-layout(set = 2, binding = 0) readonly uniform View {
-    mat4 camera;
-    uvec2 resolution;
-    float fov;
-} view;
-
-layout(set = 3, binding = 0) readonly uniform ProgramInfo {
-    uint frame_number;
-    uint start;
-} program_info;
-
-layout(set = 4, binding = 0) readonly buffer BrickmapBuffer {
-    Brickmap maps[];
-} brickmap_buffer;
-
-layout(set = 5, binding = 0) buffer Brickgrid {
-    uvec3 size;
-    uint _pad;
-    uint pointers[];
-} brickgrid;
-
-layout(set = 6, binding = 0) readonly buffer TextureBuffer {
-    uint textures[];
-} block_texture_buffer;
-
+#include "descriptor_sets.comp"
 #include "raytracing.comp"
 
 void main() {

@@ -81,6 +81,7 @@ fn match_shader_ext(ext: &str) -> ShaderKind {
     match ext {
         "vert" => ShaderKind::Vertex,
         "frag" => ShaderKind::Fragment,
+        "comp" => ShaderKind::Compute,
         e => panic!("Unsupported shader extension: {}", e),
     }
 }
