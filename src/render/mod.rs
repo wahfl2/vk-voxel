@@ -9,3 +9,4 @@ pub mod mesh;
 pub mod texture;
 pub mod descriptor_sets;
 pub mod brick;
+pub mod accumulation;
