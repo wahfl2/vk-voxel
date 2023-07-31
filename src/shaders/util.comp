@@ -1,0 +1,63 @@
+// #version 450
+
+#define PI 3.1415926535897932384626
+#define TO_RADIANS (PI / 180.0)
+#define RECIP_255 0.00392156862
+
+#define DEG_90 (90.0 * TO_RADIANS)
+#define ROT_90 (mat2(cos(DEG_90), -sin(DEG_90), sin(DEG_90), cos(DEG_90)))
+
+struct Texture {
+    uint offset_xy;
+    uint size_xy;
+};
+
+struct Brickmap {
+    uint solid_mask[16];
+    uint textures_offset;
+    uint lod_color;
+};
+
+struct Intersection {
+    vec3 pos;
+    bool hit;
+    vec4 raw_color;
+    vec3 normal;
+};
+
+uint state = 9737333;
+uint rand() {
+    state = (state << 13U) ^ state;
+    state = state * (state * state * 15731U + 789221U) + 1376312589U;
+    return state;
+}
+
+float rand_float() {
+    return float(rand() & uvec3(0x7fffffffU)) / float(0x7fffffff);
+}
+
+vec3 cosine_hemisphere(vec3 n) {
+    // Create a vector perpendicular to the normal
+    uint nx = uint(n.x == 0);
+    vec3 perp = cross(n, vec3(nx, 0, 1-nx));
+
+    // Rotate perp randomly to create a hollow disk
+    float theta = rand_float() * PI;
+    vec3 rotated = (perp * cos(theta)) + (cross(n, perp) * sin(theta));
+
+    // Multiply it by a random radius to fill the disk
+    float r = rand_float();
+    vec3 disk = rotated * (r / length(rotated));
+    float up = sqrt(1 - (r*r));
+    return disk + (n * up);
+}
+
+bvec3 and_bvec(bvec3 n, bvec3 m) {
+    return bvec3(n.x && m.x, n.y && m.y, n.z && m.z);
+}
+
+ivec2 get_texel(Texture texture_s, vec2 uv) {
+    uvec2 offset = uvec2(texture_s.offset_xy & 65535, texture_s.offset_xy >> 16);
+    uvec2 size = uvec2(texture_s.size_xy & 65535, texture_s.size_xy >> 16);
+    return ivec2(offset + (size * uv));
+}

@@ -210,7 +210,7 @@ impl Renderer {
 
         let vk_frame_buffers = Self::get_framebuffers(&vk_swapchain_images, &vk_render_pass);
 
-        let block_shader = ShaderPair::load(vk_device.clone(), "specialized/block_shader");
+        let block_shader = ShaderPair::load(vk_device.clone(), "shader");
 
         let pipelines = Self::get_pipelines(
             vk_device.clone(),
