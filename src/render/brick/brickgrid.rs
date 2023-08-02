@@ -15,21 +15,49 @@ const BGS_X: usize = BRICKGRID_SIZE[0] as usize;
 const BGS_Y: usize = BRICKGRID_SIZE[1] as usize;
 const BGS_Z: usize = BRICKGRID_SIZE[2] as usize;
 
+const BG_ARRAY_SIZE: usize = BGS_X * BGS_Y * BGS_Z;
+
 const _DATA_SIZE: usize = size_of::<BrickmapPointerRaw>() * BGS_X * BGS_Y * BGS_Z + 16;
+
+// XZ XYZ XZ XYZ XZ XYZ XZ XYZ XZ XYZ
+fn morton_encode(x: u32, y: u32, z: u32) -> usize {
+    let mut i = 0;
+
+    for b in 0..5u32 {
+        let mask = 1 << b;
+
+        let b2 = b * 2;
+        let mask2 = 1 << b2;
+
+        let b21 = b2 + 1;
+        let mask21 = 1 << b21;
+
+        let zb = (z & mask2) >> b2;
+        let yb = (y & mask) >> b;
+        let xb = (x & mask2) >> b2;
+        let zb2 = (z & mask21) >> b21;
+        let xb2 = (x & mask21) >> b21;
+
+        let append = zb | (yb << 1) | (xb << 2) | (zb2 << 3) | (xb2 << 4);
+        i |= append << (b * 5);
+    }
+    
+    i as usize
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct Brickgrid {
     pub size: [u32; 3],
     pub _pad: u32,
-    pub pointers: [[[BrickmapPointerRaw; BGS_Z]; BGS_Y]; BGS_X],
+    pub pointers: [BrickmapPointerRaw; BG_ARRAY_SIZE],
 }
 
 impl Brickgrid {
     pub fn new_empty(size: [u32; 3]) -> Self {
         Self {
             size,
-            pointers: [[[BrickmapPointerRaw::zeroed(); BGS_X]; BGS_Y]; BGS_Z],
+            pointers: [BrickmapPointerRaw::zeroed(); BG_ARRAY_SIZE],
             _pad: 0,
         }
     }
@@ -37,10 +65,6 @@ impl Brickgrid {
 
 #[derive(Clone, Debug)]
 pub enum BrickgridBufferTask {
-    Array {
-        offset_idx: UVec3,
-        data: Array3<BrickmapPointerRaw>,
-    },
     One {
         pos: UVec3,
         section: BrickmapPointerRaw,
@@ -138,31 +162,10 @@ impl BrickgridBuffer {
         let ptrs = &mut write_lock.pointers;
         for task in queue.drain(..) {
             match task {
-                BrickgridBufferTask::Array { offset_idx, data } => {
-                    let task_size = UsizeVec3::new(
-                        data.len_of(Axis(0)), 
-                        data.len_of(Axis(1)), 
-                        data.len_of(Axis(2))
-                    );
-                    
-                    data.lanes(Axis(2)).into_iter().enumerate()
-                        .for_each(|(i, lane)| {
-                            let lane = lane.as_slice().unwrap();
-                            let x = offset_idx.x + (i / task_size.y) as u32;
-                            let y = offset_idx.y + (i % task_size.y) as u32;
-                            let z = offset_idx.z as usize;
-        
-                            ptrs[x as usize][y as usize][z..z + lane.len()].copy_from_slice(lane);
-                        }
-                    );
-                },
-
                 BrickgridBufferTask::One { pos, section } => {
-                    ptrs[pos.x as usize][pos.y as usize][pos.z as usize] = section;
+                    ptrs[morton_encode(pos.x, pos.y, pos.z)] = section;
                 }
             }
-
-            
         }
     }
 }

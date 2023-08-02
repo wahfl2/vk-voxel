@@ -54,13 +54,11 @@ const vec3 FACE_NORMALS[] = vec3[6](
 
 // Used for obtaining the texture index of a full block
 uint count_full_preceding(uint solid_mask[16], ivec3 section_pos) {
-    const uint CHUNK_HEIGHT = brickgrid.size.y;
-
     uint bit_index = (section_pos.x * SECTION_SIZE.y * SECTION_SIZE.z) + (section_pos.y * SECTION_SIZE.z) + section_pos.z;
     uint t_idx = 0;
     for (uint i = 0; i < bit_index; i++) {
-        uint n = solid_mask[i / 32];
-        uint inner_idx = i % CHUNK_HEIGHT;
+        uint n = solid_mask[i >> 5];
+        uint inner_idx = i & 31;
         t_idx += (n >> inner_idx) & 1;
     }
     return t_idx;
@@ -92,8 +90,7 @@ uint index_grid(ivec3 grid_pos, out bool out_of_range) {
     }
 
     uvec3 idx_3d = uvec3(mod(grid_pos, ivec3(brickgrid.size)));
-    uint idx = (idx_3d.x * brickgrid.size.y * brickgrid.size.z) + (idx_3d.y * brickgrid.size.z) + idx_3d.z;
-    return idx;
+    return morton_encode(idx_3d);
 }
 
 bool shadow_march_brickgrid(vec3 ray_origin, vec3 ray_dir) {

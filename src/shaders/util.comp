@@ -61,3 +61,28 @@ ivec2 get_texel(Texture texture_s, vec2 uv) {
     uvec2 size = uvec2(texture_s.size_xy & 65535, texture_s.size_xy >> 16);
     return ivec2(offset + (size * uv));
 }
+
+uint morton_encode(uvec3 idx_3d) {
+    uint i = 0;
+
+    for (uint b = 0; b < 5; ++b) {
+        uint mask = 1 << b;
+
+        uint b2 = b * 2;
+        uint mask2 = 1 << b2;
+
+        uint b21 = b2 + 1;
+        uint mask21 = 1 << b21;
+
+        uint zb = (idx_3d.z & mask2) >> b2;
+        uint yb = (idx_3d.y & mask) >> b;
+        uint xb = (idx_3d.x & mask2) >> b2;
+        uint zb2 = (idx_3d.z & mask21) >> b21;
+        uint xb2 = (idx_3d.x & mask21) >> b21;
+
+        uint append = zb | (yb << 1) | (xb << 2) | (zb2 << 3) | (xb2 << 4);
+        i |= append << (b * 5);
+    }
+
+    return i;
+}
