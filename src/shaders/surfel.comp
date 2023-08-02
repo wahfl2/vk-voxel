@@ -3,9 +3,34 @@
 
 #include "util.comp"
 
+struct Surfel {
+    vec3 accumulated;
+    float radius;
+    uint[3] normal_offset;
+};
+
+#define RECIP_65536 0.0000152587890625
+void parse_normal_offset(in uint[3] normal_offset, out vec3 normal, out vec3 offset) {
+    uint n_xy = normal_offset[0];
+    uint nz_ox = normal_offset[1];
+    uint o_yz = normal_offset[2];
+
+    normal.x = float(n_xy >> 16) * RECIP_65536;
+    normal.y = float(n_xy & 65535) * RECIP_65536;
+    normal.z = float(nz_ox >> 16) * RECIP_65536;
+
+    offset.x = float(nz_ox & 65535) * RECIP_65536;
+    offset.y = float(o_yz >> 16) * RECIP_65536;
+    offset.z = float(o_yz & 65535) * RECIP_65536;
+}
+
 layout (local_size_x = 256) in;
 
 #include "descriptor_sets.comp"
+
+layout(set = 8, binding = 0) readonly buffer SurfelBuffer {
+    Surfel surfels[];
+} surfel_buffer;
 
 void main() {
     
