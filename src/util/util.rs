@@ -308,13 +308,13 @@ impl VecRounding for Vec2 {
     }
 }
 
-pub trait VecTrunc {
+pub trait IVecTrunc {
     type IVec;
 
     fn into_i(self) -> Self::IVec;
 }
 
-impl VecTrunc for Vec3 {
+impl IVecTrunc for Vec3 {
     type IVec = IVec3;
 
     fn into_i(self) -> Self::IVec {
@@ -322,11 +322,33 @@ impl VecTrunc for Vec3 {
     }
 }
 
-impl VecTrunc for Vec2 {
+impl IVecTrunc for Vec2 {
     type IVec = IVec2;
 
     fn into_i(self) -> Self::IVec {
         IVec2::new(self.x as i32, self.y as i32)
+    }
+}
+
+pub trait UVecTrunc {
+    type UVec;
+
+    fn into_u(self) -> Self::UVec;
+}
+
+impl UVecTrunc for Vec3 {
+    type UVec = UVec3;
+
+    fn into_u(self) -> Self::UVec {
+        UVec3::new(self.x as u32, self.y as u32, self.z as u32)
+    }
+}
+
+impl UVecTrunc for Vec2 {
+    type UVec = UVec2;
+
+    fn into_u(self) -> Self::UVec {
+        UVec2::new(self.x as u32, self.y as u32)
     }
 }
 

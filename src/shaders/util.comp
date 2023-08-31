@@ -25,6 +25,19 @@ struct Intersection {
     vec3 normal;
 };
 
+struct Surfel {
+    vec3 accumulated;
+    float radius;
+    uint n_xy;
+    uint nz_ox;
+    uint o_yz;
+
+    // empty (23) chunk offset (3 3 3)
+    uint packed_chunk_offset;
+    // empty (7) chunk pos (10 5 10)
+    uint packed_chunk_pos;
+};
+
 uint state = 9737333;
 uint rand() {
     state = (state << 13U) ^ state;
@@ -42,7 +55,7 @@ vec3 cosine_hemisphere(vec3 n) {
     vec3 perp = cross(n, vec3(nx, 0, 1-nx));
 
     // Rotate perp randomly to create a hollow disk
-    float theta = rand_float() * PI;
+    float theta = rand_float() * 2 * PI;
     vec3 rotated = (perp * cos(theta)) + (cross(n, perp) * sin(theta));
 
     // Multiply it by a random radius to fill the disk
@@ -85,4 +98,37 @@ uint morton_encode(uvec3 idx_3d) {
     }
 
     return i;
+}
+
+#define RECIP_65536 0.0000152587890625
+void unpack_normal_offset(uint n_xy, uint nz_ox, uint o_yz, out vec3 normal, out vec3 offset) {
+    normal.x = float(n_xy >> 16) * RECIP_65536;
+    normal.y = float(n_xy & 65535) * RECIP_65536;
+    normal.z = float(nz_ox >> 16) * RECIP_65536;
+
+    offset.x = float(nz_ox & 65535) * RECIP_65536;
+    offset.y = float(o_yz >> 16) * RECIP_65536;
+    offset.z = float(o_yz & 65535) * RECIP_65536;
+}
+
+uvec3 unpack_pos(uint packed_chunk_offset, uint packed_chunk_pos) {
+    const uvec3 chunk_pos = uvec3(
+        (packed_chunk_pos >> 15) & 1023,
+        (packed_chunk_pos >> 10) & 31,
+        packed_chunk_pos & 1023
+    );
+
+    return (chunk_pos * 8) + uvec3(
+        (packed_chunk_offset >> 6) & 7,
+        (packed_chunk_offset >> 3) & 7,
+        packed_chunk_offset & 7
+    );
+}
+
+uvec3 unpack_chunk_offset(uint packed_chunk_offset) {
+    return uvec3(
+        (packed_chunk_offset >> 6) & 7,
+        (packed_chunk_offset >> 3) & 7,
+        packed_chunk_offset & 7
+    );
 }

@@ -1,14 +1,14 @@
 use ultraviolet::{IVec2, IVec3};
 use vulkano::{buffer::BufferUsage, memory::allocator::StandardMemoryAllocator};
 
-use crate::{render::brick::{brickmap::{Brickmap, BrickmapPointer}, brickgrid::{BrickgridBuffer, BrickgridBufferTask, BRICKGRID_SIZE}}, world::{chunk::{Chunk, CHUNK_HEIGHT}, section::Section, block_data::{StaticBlockData, ModelType}}, util::util::{InsertVec2, VecModPos}};
+use crate::{render::brick::{brickmap::{Brickmap, BrickmapPointer}, brickgrid::{BrickgridBufferTask, BRICKGRID_SIZE, Brickgrid, self}}, world::{chunk::{Chunk, CHUNK_HEIGHT}, section::Section, block_data::{StaticBlockData, ModelType}}, util::util::{InsertVec2, VecModPos}};
 
-use super::allocator::HeapBuffer;
+use super::{allocator::HeapBuffer, task_buffer::TaskBuffer};
 
 pub struct ChunkVertexBuffer {
     pub brickmap_buffer: HeapBuffer<Brickmap>,
     pub texture_pointer_buffer: HeapBuffer<u32>,
-    pub brickgrid_buffer: BrickgridBuffer,
+    pub brickgrid_buffer: TaskBuffer<BrickgridBufferTask, Brickgrid>,
 }
 
 const BM_BUFFER_USAGE: BufferUsage = BufferUsage::STORAGE_BUFFER;
@@ -28,7 +28,7 @@ impl ChunkVertexBuffer {
                 0
             ),
 
-            brickgrid_buffer: BrickgridBuffer::new(allocator),
+            brickgrid_buffer: TaskBuffer::new(allocator, brickgrid::write_queue_buffer),
         }
     }
 

@@ -6,6 +6,12 @@
 layout(location = 0) out vec4 f_color;
 
 #include "descriptor_sets.comp"
+
+layout(set = 8, binding = 0) readonly buffer SurfelBuffer {
+    uint surfel_count;
+    Surfel surfels[];
+} surfel_buffer;
+
 #include "raytracing.comp"
 
 void main() {
@@ -35,24 +41,4 @@ void main() {
 
     Intersection intersection;
     f_color = raymarch_brickgrid(ray_origin, ray_dir, intersection);
-
-    if (!intersection.hit) {
-        return;
-    }
-
-    // return;
-
-    vec4 hit_color = intersection.raw_color;
-    vec3 hit_norm = intersection.normal;
-    vec3 gi_ro = intersection.pos + hit_norm * 0.0001;
-
-    const uint GI_SAMPLES = 1;
-    vec4 color_add = vec4(0);
-    for (int i = 0; i < GI_SAMPLES; i++) {
-        vec3 gi_rd = cosine_hemisphere(hit_norm);
-        Intersection intersect;
-        color_add += raymarch_brickgrid(gi_ro, gi_rd, intersect) * hit_color;
-    }
-
-    f_color += color_add / GI_SAMPLES;
 }

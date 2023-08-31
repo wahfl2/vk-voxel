@@ -6,7 +6,9 @@
 
 // normalize(vec3(0.405, 1.0, 0.904))
 #define SUN_DIRECTION vec3(0.287731, 0.710446, 0.642244)
-#define MIN_BRIGHTNESS 0.25
+#define MIN_BRIGHTNESS 0.0
+
+#define BRICKGRID_SIZE uvec3(1024, 32, 1024)
 
 const vec3 FACE_NORMALS[] = vec3[6](
     vec3( 1.0, 0.0, 0.0),
@@ -22,10 +24,6 @@ const vec3 FACE_NORMALS[] = vec3[6](
 // layout(set = 1, binding = 0) readonly buffer AtlasMap {
 //     Texture textures[];
 // } atlas_map;
-
-// layout(set = 7, binding = 0) readonly buffer BlockTextureMap {
-//     uint textures[];
-// } block_texture_map;
 
 // layout(set = 2, binding = 0) readonly uniform View {
 //     mat4 camera;
@@ -52,8 +50,12 @@ const vec3 FACE_NORMALS[] = vec3[6](
 //     uint textures[];
 // } block_texture_buffer;
 
+// layout(set = 7, binding = 0) readonly buffer BlockTextureMap {
+//     uint textures[];
+// } block_texture_map;
+
 // Used for obtaining the texture index of a full block
-uint count_full_preceding(uint solid_mask[16], ivec3 section_pos) {
+uint count_full_preceding(in uint solid_mask[16], ivec3 section_pos) {
     uint bit_index = (section_pos.x * SECTION_SIZE.y * SECTION_SIZE.z) + (section_pos.y * SECTION_SIZE.z) + section_pos.z;
     uint t_idx = 0;
     for (uint i = 0; i < bit_index; i++) {
@@ -72,7 +74,7 @@ vec4 texture_uv(vec2 uv, uint block_texture_index, uint face_id) {
     return texelFetch(tex, get_texel(texture_s, uv), 0);
 }
 
-bool index_map(uint solid_mask[16], ivec3 section_pos, out bool out_of_range) {
+bool index_map(in uint solid_mask[16], ivec3 section_pos, out bool out_of_range) {
     out_of_range = any(greaterThanEqual(section_pos, ivec3(SECTION_SIZE))) || any(lessThan(section_pos, ivec3(0)));
     uint bit_index = (section_pos.x * SECTION_SIZE.y * SECTION_SIZE.z) + (section_pos.y * SECTION_SIZE.z) + section_pos.z;
 
@@ -82,14 +84,14 @@ bool index_map(uint solid_mask[16], ivec3 section_pos, out bool out_of_range) {
 }
 
 uint index_grid(ivec3 grid_pos, out bool out_of_range) {
-    if (grid_pos.y < 0 || grid_pos.y >= brickgrid.size.y) {
+    if (grid_pos.y < 0 || grid_pos.y >= BRICKGRID_SIZE.y) {
         out_of_range = true;
         return 0;
     } else {
         out_of_range = false;
     }
 
-    uvec3 idx_3d = uvec3(mod(grid_pos, ivec3(brickgrid.size)));
+    uvec3 idx_3d = uvec3(mod(grid_pos, ivec3(BRICKGRID_SIZE)));
     return morton_encode(idx_3d);
 }
 
@@ -287,7 +289,38 @@ vec4 raymarch_brickgrid(vec3 ray_origin, vec3 ray_dir, out Intersection intersec
                 }
 
                 brightness = max(brightness, MIN_BRIGHTNESS);
-                return intersection.raw_color * brightness;
+                vec4 intersection_color = intersection.raw_color * brightness;
+
+                uint surfel_map_ptr = surfel_grid.pointers[idx];
+                if (bool(surfel_map_ptr & 1)) {
+                    uint start = (surfel_map_ptr >> 1) & 262143;
+                    uint len = surfel_map_ptr >> 14;
+
+                    for (uint k = start; k < len; ++k) {
+                        uint surfel_index = surfel_map_buffer.pointers[k];
+                        Surfel surfel = surfel_buffer.surfels[surfel_index];
+                        uvec3 section_offset = unpack_chunk_offset(surfel.packed_chunk_offset);
+                        uvec3 dist = uvec3(abs(section_pos - section_offset));
+                        
+                        if (all(lessThanEqual(dist, uvec3(1)))) {
+                            vec3 normal;
+                            vec3 offset;
+                            unpack_normal_offset(surfel.n_xy, surfel.nz_ox, surfel.o_yz, normal, offset);
+
+                            vec3 surfel_pos = vec3(section_offset) + offset;
+                            vec3 light_direction = sec_intersect - surfel_pos;
+                            float surfel_dist = length(light_direction);
+                            light_direction /= surfel_dist;
+
+                            float surf_dot_light = dot(intersection.normal, light_direction);
+                            if (surf_dot_light > 0.0) {
+                                intersection_color.xyz += intersection.raw_color.xyz * ((surfel.accumulated * surf_dot_light) / (1 + surfel_dist));
+                            }
+                        }
+                    }
+                }
+
+                return intersection_color;
             } else {
                 grid_mask = lessThanEqual(side_dist.xyz, min(side_dist.yzx, side_dist.zxy));
                 side_dist += vec3(grid_mask) * delta_dist;

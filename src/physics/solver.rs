@@ -6,7 +6,7 @@ use crate::{
     server::components::{Gravity, Hitbox, PhysicsEntity, Translation, Velocity},
     util::{
         more_vec::UsizeVec3,
-        util::{AdditionalSwizzles, MoreCmp, MoreVecOps, VecAxisIndex, VecRounding, VecTrunc},
+        util::{AdditionalSwizzles, MoreCmp, MoreVecOps, VecAxisIndex, VecRounding, IVecTrunc},
     },
     world::{
         block_data::{BlockType, StaticBlockData},
